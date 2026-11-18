@@ -217,43 +217,40 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Model routing, privacy and cooldowns | ✓ | `TestRoutingAndProviderCooldown` | — | — |
 | Native Responses and Messages | ✓ | `TestNativeProtocols` | — | — |
 | SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel` | — | — |
-| Local opt-in browser worker | ✓ | `TestBrowserWorkerBoundaryAndStreaming`, `TestCanceledRequestReleasesWorker` | — | — |
-| Private Venice web integration | — | Not covered | — | [Details](docs/BLOCKED.md) |
+| Private Venice web integration | No | Not covered | No | [Blocked](docs/BLOCKED.md) |
 
 ### Offline compatibility
 
-These tests run against synthetic input and loopback servers. The fixture
-catalog models and limits below are test data.
+The compatibility harness in `core/internal/gateway` runs exclusively in Go
+tests. It uses synthetic input, loopback servers, and the fixture limits below.
 
 | Feature | Implemented | Tested offline | Tested live | Blocked |
 | --- | :---: | --- | :---: | --- |
-| A1. Private Venice transport | — | Not covered | — | [Details](docs/BLOCKED.md) |
+| A1. Private Venice transport | No | Not covered | No | [Blocked](docs/BLOCKED.md) |
 | A2. SSE, truncation, errors, and denial fixtures | ✓ | `TestSSEFixtures` | — | — |
 | A3. Tool formats and recovery | ✓ | `TestToolFixtureCorpus`, `TestToolParserRecovery`, `TestToolsCancelAndRetry`, `TestReasoningBudgetCancelsAndReturnsStreamError` | — | — |
-| A4–A5. History and NUL cleanup | ✓ | `TestToolPolicyHistoryAndNUL`, `TestWorkerUsageNULAndLog` | — | — |
-| A6. Estimated usage on successful JSON and SSE results | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestWorkerUsageNULAndLog` | — | — |
+| A4–A5. History and NUL cleanup in the harness | ✓ | `TestToolPolicyHistoryAndNUL`, `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
+| A6. Estimated usage on fixture JSON and SSE results | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A7. Context-specific 413 mapping and trimming | ✓ | `TestContextOverflowTrimsOrReturns400` | — | — |
 | A8. Free fixture catalog and agent tool rejection | ✓ | `TestOfflineCatalogAndAgentToolRejection` | — | — |
-| A9. Private web-session pools and 429 failover | — | Not covered | — | [Details](docs/BLOCKED.md) |
-| A10. Cancellation and late response isolation | ✓ | `TestStreamFlushAndCancel`, `TestCanceledRequestReleasesWorker` | — | — |
-| A11. Metadata and log rotation | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestWorkerUsageNULAndLog`, `TestCompletionLogRotation` | — | — |
+| A9. Private web-session pools and 429 failover | No | Not covered | No | [Blocked](docs/BLOCKED.md) |
+| A10. Gateway stream cancellation and late response isolation | ✓ | `TestStreamFlushAndCancel` | — | — |
+| A11. Fixture metadata and log rotation | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestCompletionLogRotation` | — | — |
 
 | Fixture ID | Context tokens | Output tokens | Tools |
 | --- | ---: | ---: | --- |
 | `zai-org-glm-5.2` | 131,072 | 8,192 | yes |
 | `agent-fixture.1` | 32,768 | 4,096 | no |
 
-`ALLAIIS_TOOL_FORMAT` accepts `glm`, `json`, `proxy`, or `dsml` in the
-offline compatibility runner. `ALLAIIS_CONTEXT_TRIM=off` disables its overflow
-retries. The local worker example accepts `--log-file` and keeps the previous
-1 MiB log as `.1`.
+Run the tool fixture corpus with
+`go test -count=1 -v -run '^TestToolFixtureCorpus$' ./core/internal/gateway`.
 
 ```sh
 go test ./...
 go vet ./...
 ```
 
-[Roadmap](ROADMAP.md) · [Browser worker example](docs/browser-bridge.md) · [Related projects](docs/related-projects.md)
+[Roadmap](ROADMAP.md) · [Related projects](docs/related-projects.md)
 
 ## License
 

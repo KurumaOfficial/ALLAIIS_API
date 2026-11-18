@@ -16,8 +16,8 @@ key gives clients access to the routes the operator has configured.
   their provider.
 - OpenCode configuration export and integration tests for authorization,
   routing, streaming, cancellation, and credential boundaries.
-- A [loopback browser bridge example](docs/browser-bridge.md) for an app
-  that explicitly participates in the worker protocol.
+- Offline compatibility fixtures for SSE parsing and tool-call formats under
+  `core/internal/gateway`.
 
 ## Next
 

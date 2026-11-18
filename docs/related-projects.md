@@ -1,8 +1,8 @@
 # Related projects
 
 These independent projects explore API compatibility for web chat products.
-ALLAIIS uses provider-issued API keys and includes a separate browser example
-for [applications that implement its worker protocol](browser-bridge.md).
+ALLAIIS uses provider-issued API keys. The compatibility fixtures live under
+`core/internal/gateway/testdata`.
 
 | Project | Relevant design |
 | --- | --- |

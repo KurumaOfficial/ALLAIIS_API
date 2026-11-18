@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-package main
+package gateway_test
 
 import (
 	"errors"
 	"os"
 	"sync"
 )
-
-const logLimit = 1 << 20
 
 // Each Write is a complete JSON log record. The previous log is kept as .1.
 type rotatingLog struct {

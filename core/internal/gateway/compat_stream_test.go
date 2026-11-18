@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-package main
+package gateway_test
 
 import (
 	"bufio"
@@ -209,8 +209,7 @@ func readCompatibilityReply(body io.Reader, policy toolPolicy, reasoningLimit in
 	return result, readErr
 }
 
-// invoke receives only a prepared JSON body and a cancellation context. The
-// compatibility tests supply a loopback fixture. No transport is registered.
+// The compatibility tests supply a loopback response through invoke.
 func runCompatibility(ctx context.Context, input []byte, model fixtureModel, reasoningLimit int, log *slog.Logger,
 	invoke func(context.Context, []byte) (*http.Response, error)) (result compatResult, err error) {
 	start := time.Now()
@@ -342,7 +341,7 @@ func writeCompatibility(w http.ResponseWriter, id, model string, result compatRe
 			writeEvent(w, value)
 			fmt.Fprint(w, "data: [DONE]\n\n")
 		} else {
-			respond(w, failure.status, value)
+			writeCompatFixtureJSON(w, failure.status, value)
 		}
 		return
 	}
@@ -363,7 +362,7 @@ func writeCompatibility(w http.ResponseWriter, id, model string, result compatRe
 		data["object"] = "chat.completion"
 		data["choices"] = []map[string]any{{"index": 0, "message": message, "finish_reason": finish}}
 		data["usage"] = result.usage
-		respond(w, http.StatusOK, data)
+		writeCompatFixtureJSON(w, http.StatusOK, data)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -390,4 +389,10 @@ func writeEvent(w io.Writer, data any) {
 	if err := json.NewEncoder(&encoded).Encode(data); err == nil {
 		fmt.Fprintf(w, "data: %s\n", encoded.Bytes())
 	}
+}
+
+func writeCompatFixtureJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(value)
 }
