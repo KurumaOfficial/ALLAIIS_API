@@ -3,6 +3,7 @@ module github.com/KurumaOfficial/ALLAIIS_API
 go 1.26.2
 
 require (
+	github.com/gofrs/flock v0.13.2
 	golang.org/x/crypto v0.59.0
 	golang.org/x/term v0.48.0
 	modernc.org/sqlite v1.62.0

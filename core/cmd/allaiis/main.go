@@ -32,8 +32,10 @@ const usage = `Usage: allaiis <command>
 
   init              Initialize the local configuration and encrypted vault
   import            Import API keys from environment variables or OpenCode
-  account add       Add or replace a key using an environment variable
+  account add       Add or replace a named API key
   account remove    Remove a key from the vault
+  models discover   List models from the Venice or OpenCode public catalog
+  models add        Register a provider-specific model alias
   status            Show configured models, key labels, and provider cooldowns
   key               Print the local gateway bearer key
   export opencode   Print a custom provider config for OpenCode
@@ -64,6 +66,9 @@ func run(ctx context.Context, args []string) error {
 	}
 	configPath := filepath.Join(dir, "config.json")
 	vaultPath := filepath.Join(dir, "vault.sqlite")
+	if args[0] == "models" {
+		return runModels(ctx, configPath, args[1:])
+	}
 
 	command := args[0]
 	if command == "account" || command == "export" {
@@ -91,7 +96,7 @@ func run(ctx context.Context, args []string) error {
 		flags.StringVar(&authPath, "path", "", "path to the OpenCode auth.json file")
 		flags.StringVar(&label, "label", "", "override the label when importing one source")
 	case "account add":
-		flags.StringVar(&keyEnv, "key-env", "", "environment variable containing the API key")
+		flags.StringVar(&keyEnv, "key-env", "", "environment variable containing the API key (otherwise prompt)")
 		fallthrough
 	case "account remove":
 		flags.StringVar(&providerID, "provider", "", "configured provider ID")
@@ -113,10 +118,6 @@ func run(ctx context.Context, args []string) error {
 	if (command == "account add" || command == "account remove") && (providerID == "" || label == "") {
 		return errors.New("--provider and --label are required")
 	}
-	if command == "account add" && keyEnv == "" {
-		return errors.New("--key-env is required")
-	}
-
 	passphrase, err := readPassphrase()
 	if err != nil {
 		return err
@@ -156,12 +157,13 @@ func run(ctx context.Context, args []string) error {
 			return fmt.Errorf("unknown provider %q", providerID)
 		}
 		if command == "account add" {
-			key := os.Getenv(keyEnv)
-			if key == "" {
-				return fmt.Errorf("environment variable %q is empty", keyEnv)
+			key, err := readAPIKey(keyEnv)
+			if err != nil {
+				return err
 			}
+			defer clear(key)
 			return saveEntries(ctx, store, []vault.Entry{
-				{Provider: providerID, Endpoint: provider.BaseURL, Label: label, Key: key},
+				{Provider: providerID, Endpoint: provider.BaseURL, Label: label, Key: string(key)},
 			})
 		}
 		removed, err := store.Remove(ctx, providerID, provider.BaseURL, label)
@@ -200,11 +202,26 @@ func readPassphrase() ([]byte, error) {
 	if value := os.Getenv("ALLAIIS_VAULT_PASSPHRASE"); value != "" {
 		return []byte(value), nil
 	}
+	return readHidden("Vault passphrase", "ALLAIIS_VAULT_PASSPHRASE is required in non-interactive mode")
+}
+
+func readAPIKey(keyEnv string) ([]byte, error) {
+	if keyEnv == "" {
+		return readHidden("Provider API key", "--key-env is required in non-interactive mode")
+	}
+	key := os.Getenv(keyEnv)
+	if key == "" {
+		return nil, fmt.Errorf("environment variable %q is empty", keyEnv)
+	}
+	return []byte(key), nil
+}
+
+func readHidden(prompt, nonTTYError string) ([]byte, error) {
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
-		return nil, errors.New("ALLAIIS_VAULT_PASSPHRASE is required in non-interactive mode")
+		return nil, errors.New(nonTTYError)
 	}
-	fmt.Fprint(os.Stderr, "Vault passphrase: ")
+	fmt.Fprintf(os.Stderr, "%s: ", prompt)
 	value, err := term.ReadPassword(fd)
 	fmt.Fprintln(os.Stderr)
 	return value, err

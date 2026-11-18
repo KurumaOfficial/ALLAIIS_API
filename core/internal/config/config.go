@@ -38,33 +38,51 @@ type Provider struct {
 	BaseURL string `json:"base_url"`
 	KeyEnv  string `json:"key_env,omitempty"`
 	session bool
+	catalog string
 }
 
 func (p Provider) SendSession() bool { return p.session }
 
+func (p Provider) CatalogURL() string { return p.catalog }
+
 var defaults = map[string]Provider{
-	"openai":      {BaseURL: "https://api.openai.com/v1", KeyEnv: "OPENAI_API_KEY"},
-	"deepseek":    {BaseURL: "https://api.deepseek.com", KeyEnv: "DEEPSEEK_API_KEY"},
-	"zai":         {BaseURL: "https://api.z.ai/api/paas/v4", KeyEnv: "ZAI_API_KEY"},
-	"venice":      {BaseURL: "https://api.venice.ai/api/v1", KeyEnv: "VENICE_API_KEY"},
-	"qwen":        {BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", KeyEnv: "DASHSCOPE_API_KEY"},
-	"gemini":      {BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai", KeyEnv: "GEMINI_API_KEY"},
-	"opencode":    {BaseURL: "https://opencode.ai/inference/openai/v1", KeyEnv: "OPENCODE_API_KEY", session: true},
-	"opencode-go": {BaseURL: "https://opencode.ai/inference/go/openai/v1", KeyEnv: "OPENCODE_API_KEY", session: true},
+	"openai":   {BaseURL: "https://api.openai.com/v1", KeyEnv: "OPENAI_API_KEY"},
+	"deepseek": {BaseURL: "https://api.deepseek.com", KeyEnv: "DEEPSEEK_API_KEY"},
+	"zai":      {BaseURL: "https://api.z.ai/api/paas/v4", KeyEnv: "ZAI_API_KEY"},
+	"venice": {
+		BaseURL: "https://api.venice.ai/api/v1", KeyEnv: "VENICE_API_KEY",
+		catalog: "https://api.venice.ai/api/v1/models?type=text",
+	},
+	"qwen":   {BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", KeyEnv: "DASHSCOPE_API_KEY"},
+	"gemini": {BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai", KeyEnv: "GEMINI_API_KEY"},
+	"opencode": {
+		BaseURL: "https://opencode.ai/inference/openai/v1", KeyEnv: "OPENCODE_API_KEY", session: true,
+		catalog: "https://opencode.ai/inference/v1/models",
+	},
+	"opencode-go": {
+		BaseURL: "https://opencode.ai/inference/go/openai/v1", KeyEnv: "OPENCODE_API_KEY", session: true,
+		catalog: "https://opencode.ai/inference/go/v1/models",
+	},
 }
 
 var (
-	providerID = regexp.MustCompile(`^[a-z][a-z0-9-]{0,47}$`)
-	modelID    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,159}$`)
-	envName    = regexp.MustCompile(`^[A-Z_][A-Z_0-9]*$`)
+	providerID      = regexp.MustCompile(`^[a-z][a-z0-9-]{0,47}$`)
+	modelID         = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,159}$`)
+	envName         = regexp.MustCompile(`^[A-Z_][A-Z_0-9]*$`)
+	credentialLabel = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
 )
 
+const maxConfigBytes = 1 << 20
+
 type Route struct {
-	ID            string  `json:"id"`
-	Provider      string  `json:"provider"`
-	UpstreamModel string  `json:"upstream_model"`
-	Privacy       Privacy `json:"privacy,omitempty"`
+	ID              string  `json:"id"`
+	Provider        string  `json:"provider"`
+	UpstreamModel   string  `json:"upstream_model"`
+	Privacy         Privacy `json:"privacy,omitempty"`
+	CredentialLabel string  `json:"credential_label,omitempty"`
 }
+
+func ValidCredentialLabel(label string) bool { return credentialLabel.MatchString(label) }
 
 type Config struct {
 	Listen     string              `json:"listen,omitempty"`
@@ -92,17 +110,16 @@ func Load(path string) (Config, error) {
 	}
 	defer file.Close()
 
-	const maxSize = 1 << 20
 	info, err := file.Stat()
 	if err != nil {
 		return Config{}, err
 	}
-	if !info.Mode().IsRegular() || info.Size() > maxSize {
+	if !info.Mode().IsRegular() || info.Size() > maxConfigBytes {
 		return Config{}, errors.New("config must be a regular file of at most 1 MiB")
 	}
 	cfg := new(Config)
 	*cfg = Default()
-	decoder := json.NewDecoder(io.LimitReader(file, maxSize+1))
+	decoder := json.NewDecoder(io.LimitReader(file, maxConfigBytes+1))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&cfg); err != nil {
 		return Config{}, err
@@ -166,6 +183,9 @@ func (c *Config) validate() error {
 		}
 		if !route.Privacy.Valid() {
 			return fmt.Errorf("model %q has an invalid privacy classification", route.ID)
+		}
+		if route.CredentialLabel != "" && !ValidCredentialLabel(route.CredentialLabel) {
+			return fmt.Errorf("model %q has an invalid credential_label", route.ID)
 		}
 	}
 	return nil

@@ -15,12 +15,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/argon2"
 	_ "modernc.org/sqlite"
+
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
 
 const schema = `
@@ -46,8 +47,6 @@ CREATE TABLE IF NOT EXISTS cooldowns (
 	PRIMARY KEY (provider, endpoint)
 );
 `
-
-var labelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
 
 type Entry struct {
 	Provider string
@@ -177,7 +176,7 @@ func (s *Store) Import(ctx context.Context, entries []Entry) (int, error) {
 	defer tx.Rollback()
 	count := 0
 	for _, entry := range entries {
-		if !labelPattern.MatchString(entry.Label) || !validKey(entry.Key) {
+		if !config.ValidCredentialLabel(entry.Label) || !validKey(entry.Key) {
 			return 0, fmt.Errorf("invalid label or API key for provider %q", entry.Provider)
 		}
 		mac := hmac.New(sha256.New, s.fingerprintKey)

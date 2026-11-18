@@ -92,9 +92,74 @@ func TestRoutingAndProviderCooldown(t *testing.T) {
 		t.Fatal("the gateway did not handle the provider's 429 safely")
 	}
 	restarted := newGateway(t, cfg, store)
-	duringPause := complete(restarted, store.ClientKey(), "different-session", payload)
+	duringPause := complete(restarted, store.ClientKey(), "different-session",
+		strings.Replace(payload, `"demo"`, `"pinned"`, 1))
 	if duringPause.Code != http.StatusTooManyRequests || calls.Load() != before+1 {
 		t.Fatal("a new gateway instance did not honor the pool cooldown")
+	}
+}
+
+func TestProviderAliasesAndPinnedCredentials(t *testing.T) {
+	type expectedRequest struct {
+		model string
+		key   string
+	}
+	upstreams := map[string]expectedRequest{
+		"/v1/chat/completions":          {model: "deepseek-v4-1-flash-1017", key: "fixture-secret-2"},
+		"/opencode/v1/chat/completions": {model: "deepseek-v4.1-flash", key: "workspace-key"},
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want, ok := upstreams[r.URL.Path]
+		var request struct {
+			Model string `json:"model"`
+		}
+		if !ok || json.NewDecoder(r.Body).Decode(&request) != nil || request.Model != want.model ||
+			r.Header.Get("Authorization") != "Bearer "+want.key {
+			t.Errorf("unexpected provider request on %s for model %q", r.URL.Path, request.Model)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"model":%q}`, request.Model)
+	}))
+	t.Cleanup(upstream.Close)
+	store, cfg := setup(t, upstream.URL)
+	const veniceModel = "DeepSeek-v4.1-flash-venice"
+	const openCodeModel = "DeepSeek-v4.1-flash-opencode-go"
+	const unconfigured = "DeepSeek-v4.1-flash-missing-profile"
+	endpoint := upstream.URL + "/opencode/v1"
+	cfg.Providers["code-fixture"] = config.Provider{BaseURL: endpoint}
+	cfg.Models = []config.Route{
+		{ID: veniceModel, Provider: "fixture", UpstreamModel: "deepseek-v4-1-flash-1017", Privacy: config.Consumer, CredentialLabel: "second"},
+		{ID: openCodeModel, Provider: "code-fixture", UpstreamModel: "deepseek-v4.1-flash", Privacy: config.Consumer, CredentialLabel: "workspace"},
+		{ID: unconfigured, Provider: "fixture", UpstreamModel: "deepseek-v4-1-flash-1017", Privacy: config.Consumer, CredentialLabel: "missing"},
+	}
+	if _, err := store.Import(t.Context(), []vault.Entry{
+		{Provider: "code-fixture", Endpoint: endpoint, Label: "workspace", Key: "workspace-key"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	handler := newGateway(t, cfg, store)
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	req.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, req)
+	list := result.Body.String()
+	if !strings.Contains(list, veniceModel) || !strings.Contains(list, openCodeModel) || strings.Contains(list, unconfigured) {
+		t.Fatalf("unexpected catalog: %s", list)
+	}
+	for alias, provider := range map[string]string{veniceModel: "fixture", openCodeModel: "code-fixture"} {
+		for _, session := range []string{"first-session", "second-session"} {
+			res := complete(handler, store.ClientKey(), session, strings.Replace(payload, "demo", alias, 1))
+			if res.Code != http.StatusOK || res.Header().Get("X-ALLAIIS-Model") != alias ||
+				res.Header().Get("X-ALLAIIS-Provider") != provider {
+				t.Fatalf("request for %q returned %d with headers %v", alias, res.Code, res.Header())
+			}
+		}
+	}
+	res := complete(handler, store.ClientKey(), "", strings.Replace(payload, "demo", unconfigured, 1))
+	if res.Code != http.StatusServiceUnavailable {
+		t.Fatalf("missing pinned profile returned %d instead of 503", res.Code)
 	}
 }
 
@@ -197,6 +262,7 @@ func setup(t *testing.T, upstream string) (*vault.Store, config.Config) {
 		Models: []config.Route{
 			{ID: "demo", Provider: "fixture", UpstreamModel: "real-model", Privacy: config.Consumer},
 			{ID: "public", Provider: "fixture", UpstreamModel: "real-model", Privacy: config.Public},
+			{ID: "pinned", Provider: "fixture", UpstreamModel: "real-model", Privacy: config.Consumer, CredentialLabel: "second"},
 		},
 	}
 }

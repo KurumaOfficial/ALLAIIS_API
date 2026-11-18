@@ -124,6 +124,44 @@ The gateway expects a stored API key for every route. For a local inference
 server that ignores bearer credentials, you may supply a placeholder in its
 dedicated key variable.
 
+### DeepSeek V4.1 Flash on Venice and OpenCode Go
+
+Use the public catalog commands to find each provider's exact model ID. These
+commands can run before `init` and use no API key.
+
+```sh
+./allaiis models discover --provider venice --match "DeepSeek V4.1 Flash"
+./allaiis models discover --provider opencode-go --match "DeepSeek V4.1 Flash"
+```
+
+After `init`, add an inference key from each provider. The prompts hide the
+keys. Use OpenCode Console's **Account → Personal API keys** to issue a key
+for the workspace with your Go plan. [OpenCode API keys](https://opencode.ai/docs/console/api/)
+
+```sh
+./allaiis account add --provider venice --label personal
+./allaiis account add --provider opencode-go --label workspace
+./allaiis models add --provider venice --upstream-model deepseek-v4-1-flash-1017 --name DeepSeek-v4.1-flash --label personal
+./allaiis models add --provider opencode-go --upstream-model deepseek-v4.1-flash --name DeepSeek-v4.1-flash --label workspace
+```
+
+The aliases `DeepSeek-v4.1-flash-venice` and
+`DeepSeek-v4.1-flash-opencode-go` point to the corresponding 1017 offerings.
+Select either alias with the same ALLAIIS bearer key. In OpenCode, select
+`allaiis/DeepSeek-v4.1-flash-venice` or
+`allaiis/DeepSeek-v4.1-flash-opencode-go` after importing the exported
+configuration. [Venice model](https://cdn.venice.ai/models/deepseek-v4-1-flash-1017) ·
+[OpenCode model catalog](https://opencode.ai/docs/console/api/models)
+
+OpenCode Go lists DeepSeek V4.1 Flash under restricted models. The workspace's
+privacy settings determine its availability. [OpenCode Go model access](https://opencode.ai/docs/console/go/#enable-restricted-models)
+
+`models add` appends the provider ID to the name and saves the route in
+`config.json`. With `--label`, the route uses only that named credential.
+Without a label it uses the provider's configured pool. Workspace permissions,
+allowances, and billing apply to the credential that serves the request.
+Use `--provider opencode` for OpenCode's pay-as-you-go catalog.
+
 ## Keys and OpenCode
 
 ```sh
@@ -143,6 +181,8 @@ dedicated key variable.
 - Each pool is bound to one provider ID and base URL. Restart `allaiis up`
   after changing configuration or keys. To remove a credential, use
   `allaiis account remove --provider <provider> --label <label>`.
+- In automation, set the provider's key in a dedicated environment variable
+  and pass its variable name with `account add --key-env`.
 - To use ALLAIIS in OpenCode, merge the exported provider entry into
   `opencode.json`, expose `ALLAIIS_API_KEY` to the OpenCode process, and
   select `allaiis/<model-alias>`. [OpenCode custom providers](https://opencode.ai/docs/providers/)
@@ -165,8 +205,9 @@ dedicated key variable.
   From lowest to highest, the values are `public_research`, `consumer_cloud`,
   `zdr`, and `e2ee`. `X-ALLAIIS-Min-Privacy` can raise the configured floor
   for a request. The gateway uses the configured labels to filter routes.
-- `GET /healthz` is a local liveness probe. Responses attributed to an
-  upstream include `X-ALLAIIS-Transport-Tier: tier_a`.
+- `GET /healthz` is a local liveness probe. Routed responses identify the
+  provider and requested alias in `X-ALLAIIS-Provider` and `X-ALLAIIS-Model`
+  and include `X-ALLAIIS-Transport-Tier: tier_a`.
 
 The listener is loopback-only. The local bearer key and provider API keys are
 encrypted in SQLite with Argon2id and AES-256-GCM. Keep the vault passphrase

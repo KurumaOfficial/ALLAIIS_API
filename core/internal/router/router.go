@@ -44,6 +44,20 @@ type pool struct {
 	entries  []vault.Entry
 }
 
+func (p pool) credential(label string, session [32]byte) (vault.Entry, bool) {
+	if label != "" {
+		for _, entry := range p.entries {
+			if entry.Label == label {
+				return entry, true
+			}
+		}
+	} else if len(p.entries) > 0 {
+		position := binary.BigEndian.Uint64(session[:]) % uint64(len(p.entries))
+		return p.entries[position], true
+	}
+	return vault.Entry{}, false
+}
+
 type Router struct {
 	store   *vault.Store
 	routes  map[string]config.Route
@@ -75,7 +89,8 @@ func New(ctx context.Context, cfg config.Config, store *vault.Store) (*Router, e
 func (r *Router) Models(minimum config.Privacy) []Model {
 	models := make([]Model, 0, len(r.routes))
 	for _, route := range r.routes {
-		if route.Privacy.Meets(minimum) && len(r.pools[route.Provider].entries) > 0 {
+		_, available := r.pools[route.Provider].credential(route.CredentialLabel, [32]byte{})
+		if route.Privacy.Meets(minimum) && available {
 			models = append(models, Model{ID: route.ID, Object: "model", Provider: route.Provider})
 		}
 	}
@@ -89,18 +104,19 @@ func (r *Router) Resolve(ctx context.Context, model string, minimum config.Priva
 		return Target{}, time.Time{}, ErrModel
 	}
 	p := r.pools[route.Provider]
-	if len(p.entries) == 0 {
+	entry, found := p.credential(route.CredentialLabel, session)
+	if !found {
 		return Target{}, time.Time{}, ErrCredentials
 	}
+	target := Target{Route: route, Provider: p.provider, Entry: entry}
 	until, err := r.cooldown(ctx, route.Provider, p.provider.BaseURL)
 	if err != nil {
 		return Target{}, time.Time{}, err
 	}
 	if time.Now().Before(until) {
-		return Target{}, until, ErrCooldown
+		return target, until, ErrCooldown
 	}
-	position := binary.BigEndian.Uint64(session[:]) % uint64(len(p.entries))
-	return Target{Route: route, Provider: p.provider, Entry: p.entries[position]}, time.Time{}, nil
+	return target, time.Time{}, nil
 }
 
 func (r *Router) SetCooldown(ctx context.Context, target Target, until time.Time) error {

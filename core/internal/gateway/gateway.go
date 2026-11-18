@@ -134,6 +134,11 @@ func (g *Gateway) chat(w http.ResponseWriter, r *http.Request) {
 	}
 	session := g.sessionID(sessionHeader, prefix)
 	target, until, err := g.router.Resolve(r.Context(), model, minimum, session)
+	if target.Route.ID != "" {
+		w.Header().Set(tierHeader, "tier_a")
+		w.Header().Set("X-ALLAIIS-Provider", target.Route.Provider)
+		w.Header().Set("X-ALLAIIS-Model", target.Route.ID)
+	}
 	switch {
 	case errors.Is(err, router.ErrModel):
 		writeError(w, http.StatusNotFound, "model_not_found", "The requested model is unavailable under the current policy.")
@@ -142,7 +147,6 @@ func (g *Gateway) chat(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "key_unconfigured", "No provider key is configured for this model.")
 		return
 	case errors.Is(err, router.ErrCooldown):
-		w.Header().Set(tierHeader, "tier_a")
 		rateLimited(w, until)
 		return
 	case err != nil:
@@ -150,7 +154,6 @@ func (g *Gateway) chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(tierHeader, "tier_a")
 	fields["model"], _ = json.Marshal(target.Route.UpstreamModel)
 	forward, err := json.Marshal(fields)
 	if err != nil {
