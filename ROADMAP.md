@@ -6,8 +6,9 @@ key gives clients access to the routes the operator has configured.
 
 ## Available now
 
-- Local Go gateway with Chat Completions, SSE, and OpenAI-compatible model
-  discovery for configured aliases.
+- Local Go gateway with Chat Completions, OpenAI Responses creation, and
+  Anthropic Messages creation. All three support native SSE and share
+  OpenAI-compatible model discovery for configured aliases.
 - Encrypted key storage, named credentials, session affinity, and provider
   cooldowns that respect `Retry-After`.
 - Upstream model discovery with per-provider results, public catalogs, and
@@ -29,8 +30,8 @@ key gives clients access to the routes the operator has configured.
 
 ## Later
 
-- Add native OpenAI Responses and Anthropic Messages support with streaming
-  and tool-call conformance tests.
+- Add Gemini's native generation API and expand conformance tests for
+  provider-specific streaming and tool events.
 - Add a versioned out-of-process adapter protocol and documented extension
   points for authorized integrations.
 - Add separate local client keys, usage reporting, and operator-managed

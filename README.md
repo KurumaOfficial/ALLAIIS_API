@@ -1,17 +1,19 @@
 # ALLAIIS API
 
-ALLAIIS is a self-hosted Go gateway for official AI APIs. It gives tools such
-as OpenCode one local OpenAI-compatible endpoint for streaming chat, while
-provider-specific model names let you choose where each request runs.
-Provider API keys are stored in an encrypted local vault.
+ALLAIIS is a self-hosted Go gateway for AI APIs. It gives tools such as OpenCode
+one local API key for streaming Chat Completions, OpenAI Responses, and Anthropic
+Messages. Provider-specific model aliases let you choose where each request
+runs. Provider API keys are stored in an encrypted local vault.
 
-[Project roadmap](ROADMAP.md) · [Opt-in browser bridge example](docs/browser-bridge.md)
+[Project roadmap](ROADMAP.md) · [Native API setup](#native-apis) · [Browser bridge example](docs/browser-bridge.md) · [Related projects](docs/related-projects.md)
 
 ## Quick start
 
 Build with Go 1.26.2 or later.
 
 ```sh
+git clone https://github.com/KurumaOfficial/ALLAIIS_API.git
+cd ALLAIIS_API
 go build -o allaiis ./core/cmd/allaiis
 ./allaiis init
 ```
@@ -222,21 +224,74 @@ Use `--provider opencode` for OpenCode's pay-as-you-go catalog.
   and pass its variable name with `account add --key-env`.
 - To use ALLAIIS in OpenCode, merge the exported provider entry into
   `opencode.json`, expose `ALLAIIS_API_KEY` to the OpenCode process, and
-  select `allaiis/<model-alias>`. [OpenCode custom providers](https://opencode.ai/docs/providers/)
+  select `allaiis/<model-alias>`. The export includes Chat Completions aliases.
+  [OpenCode custom providers](https://opencode.ai/docs/providers/)
+
+## Native APIs
+
+Each alias serves one endpoint. The default protocol is `chat`. Register
+separate aliases for Responses and Messages with `models add --protocol`.
+The built-in provider for Responses is `openai`, and the built-in provider for
+Messages is `anthropic`. A custom provider can serve either protocol at
+`<base_url>/responses` or `<base_url>/messages`.
+
+After `init`, set `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` in your environment.
+Set `OPENAI_MODEL_ID` and `ANTHROPIC_MODEL_ID` to model IDs available to those
+keys. Use `models discover --provider` after adding the keys if you need to look
+up the models.
+
+```sh
+./allaiis account add --provider openai --label work --key-env OPENAI_API_KEY
+./allaiis account add --provider anthropic --label work --key-env ANTHROPIC_API_KEY
+./allaiis models add --provider openai --upstream-model "$OPENAI_MODEL_ID" --name responses --protocol responses --label work
+./allaiis models add --provider anthropic --upstream-model "$ANTHROPIC_MODEL_ID" --name messages --protocol messages --label work
+export ALLAIIS_API_KEY="$(./allaiis key)"
+./allaiis up
+```
+
+With the gateway running, send requests using the local ALLAIIS key.
+
+```sh
+curl --no-buffer http://127.0.0.1:8420/v1/responses \
+  -H "Authorization: Bearer $ALLAIIS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"responses-openai","input":"Say hello.","stream":true}'
+
+curl --no-buffer http://127.0.0.1:8420/v1/messages \
+  -H "x-api-key: $ALLAIIS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"messages-anthropic","max_tokens":32,"messages":[{"role":"user","content":"Say hello."}],"stream":true}'
+```
+
+- Responses aliases require a credential label. Use the same alias and upstream
+  project for follow-ups with `previous_response_id`. The provider manages
+  response state and retention. ALLAIIS supports foreground creation over
+  HTTP. [OpenAI Responses](https://developers.openai.com/api/reference/resources/responses/methods/create)
+- Messages accepts `x-api-key` or `Authorization: Bearer` at the gateway.
+  ALLAIIS forwards `Anthropic-Version` and `Anthropic-Beta` and uses
+  `2026-10-21` if no version is specified.
+  [Claude Messages](https://platform.claude.com/docs/en/api/messages/create)
+- Both endpoints pass through native JSON and SSE, including tool events and
+  usage when the provider returns them. `GET /v1/models` identifies native
+  aliases with `allaiis_protocol`.
 
 ## Routing and API behavior
 
 - `GET /v1/models` lists configured aliases with a key and sufficient privacy.
-  `POST /v1/chat/completions` forwards the Chat Completions request and supports
-  JSON and native SSE. Model-specific parameters and features depend on the
-  selected upstream. The response body contains the provider's model ID.
+  The generation endpoints support JSON and native SSE. Model-specific
+  parameters and features depend on the selected upstream. The response body
+  contains the provider's model ID.
 - For stable routing within a conversation, send `X-ALLAIIS-Session` or
-  `X-OpenCode-Session`. Without a session header, the gateway uses the opening
-  messages through the first user message to choose a key. It computes a keyed
-  hash for routing and stores no conversation text.
+  `X-OpenCode-Session` when using a key pool. Without a session header, Chat
+  Completions and Messages use the opening messages through the first user
+  message to choose a key. The gateway computes a keyed hash and stores no
+  conversation text.
 - When a provider returns `429`, the gateway pauses that provider's entire
   pool until its `Retry-After` expires. It uses roughly 30 seconds if the
   header is missing or invalid. Cooldowns survive a gateway restart.
+- The gateway accepts request bodies up to 8 MiB. If a provider returns HTTP
+  `413`, ALLAIIS preserves that status and lets the client decide how to
+  reduce the request.
 - Routes default to `consumer_cloud`. Administrators can assign each model
   alias a classification in `privacy` after verifying its data handling.
   From lowest to highest, the values are `public_research`, `consumer_cloud`,
@@ -253,12 +308,14 @@ omits prompts, provider error bodies, and keys.
 
 ## Project status
 
-Phase 0 provides the local daemon, Chat Completions, model discovery, key
-management, and basic routing. Check the [roadmap](ROADMAP.md) for planned
-protocols and releases.
+The local gateway supports Chat Completions, Responses creation, Messages
+creation, model discovery, and key management. The browser bridge example
+connects a web application that opts in to its worker protocol. Check the
+[roadmap](ROADMAP.md) for upcoming work.
 
 Run the test suite and static checks with `go test ./...` and `go vet ./...`.
 
 ## License
 
-Distributed under the GNU General Public License, version 3. See [LICENSE](LICENSE).
+Distributed under the GNU General Public License, version 3 (`GPL-3.0-only`).
+See [LICENSE](LICENSE).
