@@ -1,145 +1,152 @@
-# ALLAIIS API
+<h1 align="center">ALLAIIS API</h1>
 
-ALLAIIS is a self-hosted Go gateway for AI APIs. It gives tools such as OpenCode
-one local API key for streaming Chat Completions, OpenAI Responses, and Anthropic
-Messages. Provider-specific model aliases let you choose where each request
-runs. Provider API keys are stored in an encrypted local vault.
+<p align="center"><strong>One local key for the AI APIs you choose.</strong></p>
 
-[Project roadmap](ROADMAP.md) · [Native API setup](#native-apis) · [Browser bridge example](docs/browser-bridge.md) · [Related projects](docs/related-projects.md)
+<p align="center">
+  <a href="go.mod"><img alt="Go 1.26.2+" src="https://img.shields.io/badge/Go-1.26.2%2B-00ADD8?logo=go"></a>
+  <a href="LICENSE"><img alt="GPL-3.0-only" src="https://img.shields.io/badge/license-GPL--3.0--only-4158A6"></a>
+</p>
+
+<p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
+
+[Quick start](#quick-start) · [API](#api) · [Providers](#providers) · [Status](#status) · [Integration blockers](docs/BLOCKED.md)
+
+ALLAIIS is a self-hosted Go gateway for AI clients such as OpenCode. Register model aliases, store provider keys in an encrypted local vault, and use one loopback endpoint for native JSON and streaming responses.
 
 ## Quick start
 
-Build with Go 1.26.2 or later.
+Use Go 1.26.2 or later. Pick an exact model ID available to your DeepSeek account and set `DEEPSEEK_API_KEY` and `DEEPSEEK_MODEL_ID` in your shell before running the commands. `deepseek-flash` is the model used in this example.
+
+<details open>
+<summary>Linux and macOS</summary>
 
 ```sh
 git clone https://github.com/KurumaOfficial/ALLAIIS_API.git
 cd ALLAIIS_API
 go build -o allaiis ./core/cmd/allaiis
 ./allaiis init
-```
-
-On Windows, use `go build -o allaiis.exe ./core/cmd/allaiis` and run
-`.\allaiis.exe` in place of `./allaiis`.
-
-Choose a vault passphrase of at least 16 bytes. The CLI prompts for it without
-echoing it. For unattended execution, supply `ALLAIIS_VAULT_PASSPHRASE` through
-your process environment. The default data directory is `%APPDATA%\allaiis` on
-Windows, `~/Library/Application Support/allaiis` on macOS, and
-`${XDG_CONFIG_HOME:-~/.config}/allaiis` on Linux. Set `ALLAIIS_DATA_DIR` to
-use another directory.
-
-Edit the `config.json` printed by `init` and add a model alias. This example
-uses the DeepSeek API.
-
-```json
-{
-  "listen": "127.0.0.1:8420",
-  "min_privacy": "consumer_cloud",
-  "models": [
-    {
-      "id": "deepseek",
-      "provider": "deepseek",
-      "upstream_model": "deepseek-flash"
-    }
-  ]
-}
-```
-
-Set `DEEPSEEK_API_KEY` in the current shell using a key from your provider.
-Import it, capture the gateway key into your environment, and start the server.
-
-```sh
 ./allaiis import --from env --provider deepseek
+./allaiis models add --provider deepseek --upstream-model "${DEEPSEEK_MODEL_ID:-deepseek-flash}" --name flash
 export ALLAIIS_API_KEY="$(./allaiis key)"
 ./allaiis up
 ```
 
+</details>
+
+<details>
+<summary>Windows PowerShell</summary>
+
 ```powershell
+git clone https://github.com/KurumaOfficial/ALLAIIS_API.git
+cd ALLAIIS_API
+go build -o allaiis.exe ./core/cmd/allaiis
+.\allaiis.exe init
 .\allaiis.exe import --from env --provider deepseek
+.\allaiis.exe models add --provider deepseek --upstream-model $env:DEEPSEEK_MODEL_ID --name flash
 $env:ALLAIIS_API_KEY = .\allaiis.exe key
 .\allaiis.exe up
 ```
 
-Point your client at `http://127.0.0.1:8420/v1` with `ALLAIIS_API_KEY` as its
-bearer token. To make a streaming request from a second shell, make the same
-environment variable available there.
+</details>
+
+In your client, set the base URL to `http://127.0.0.1:8420/v1`, supply the local `ALLAIIS_API_KEY`, and select `flash-deepseek`. `allaiis up` runs in the foreground. For a second terminal, obtain the same local key with `allaiis key`.
+
+<details>
+<summary>Send a test request</summary>
 
 ```sh
 curl --no-buffer http://127.0.0.1:8420/v1/chat/completions \
   -H "Authorization: Bearer $ALLAIIS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"deepseek","messages":[{"role":"user","content":"Say hello."}],"stream":true}'
+  -d '{"model":"flash-deepseek","messages":[{"role":"user","content":"Say hello."}],"stream":true}'
 ```
 
 ```powershell
-$request = @{
-  model = 'deepseek'
+$body = @{
+  model = 'flash-deepseek'
   messages = @(@{ role = 'user'; content = 'Say hello.' })
 } | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8420/v1/chat/completions' `
+Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
   -Headers @{ Authorization = "Bearer $env:ALLAIIS_API_KEY" } `
-  -ContentType 'application/json' -Body $request
+  -ContentType 'application/json' -Body $body
 ```
+
+</details>
+
+## API
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /healthz` | Local liveness probe |
+| `GET /v1/models` | Aliases available under the configured privacy policy |
+| `POST /v1/chat/completions` | Chat Completions with native JSON or SSE |
+| `POST /v1/responses` | Foreground Responses creation with native JSON or SSE |
+| `POST /v1/messages` | Anthropic Messages creation with native JSON or SSE |
+
+Each model alias serves one generation endpoint. `models add` defaults to `chat`. `GET /v1/models` uses `allaiis_protocol` to identify Responses and Messages aliases. The gateway forwards native tool calls and usage when the configured API returns them.
+
+<details>
+<summary>Set up Responses and Messages</summary>
+
+Set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_MODEL_ID`, and `ANTHROPIC_MODEL_ID` in your shell.
+
+```sh
+./allaiis account add --provider openai --label work --key-env OPENAI_API_KEY
+./allaiis account add --provider anthropic --label work --key-env ANTHROPIC_API_KEY
+./allaiis models add --provider openai --upstream-model "$OPENAI_MODEL_ID" --name responses --protocol responses --label work
+./allaiis models add --provider anthropic --upstream-model "$ANTHROPIC_MODEL_ID" --name messages --protocol messages --label work
+```
+
+Restart the gateway after updating its configuration. Send `{"model":"responses-openai","input":"Say hello."}` to `/v1/responses`. A Responses alias requires a credential label. Use the same alias and upstream project for `previous_response_id` follow-ups. [OpenAI Responses](https://developers.openai.com/api/reference/resources/responses/methods/create)
+
+Send `{"model":"messages-anthropic","max_tokens":32,"messages":[{"role":"user","content":"Say hello."}]}` to `/v1/messages`. Supply the local key via `x-api-key` or `Authorization: Bearer`. ALLAIIS forwards `Anthropic-Version` and `Anthropic-Beta` and defaults to version `2026-10-21`. [Claude Messages](https://platform.claude.com/docs/en/api/messages/create)
+
+</details>
 
 ## Providers
 
-Pick an exact upstream model ID from the provider documentation and configure
-an alias for each model to expose. Use provider-issued API keys and plans that
-authorize the traffic you send.
-
-| Provider ID | Default API key variable | Documentation |
+| Provider ID | API key variable | Reference |
 | --- | --- | --- |
-| `openai` | `OPENAI_API_KEY` | [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat) |
-| `deepseek` | `DEEPSEEK_API_KEY` | [DeepSeek API](https://api-docs.deepseek.com/) |
-| `zai` | `ZAI_API_KEY` | [Z.ai Chat Completions](https://docs.z.ai/api-reference/llm/chat-completion) |
-| `venice` | `VENICE_API_KEY` | [Venice Chat Completions](https://docs.venice.ai/api-reference/endpoint/chat/completions) |
-| `qwen` | `DASHSCOPE_API_KEY` | [Alibaba Cloud Model Studio](https://help.aliyun.com/en/model-studio/compatibility-of-openai-with-dashscope) |
-| `gemini` | `GEMINI_API_KEY` | [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai) |
-| `anthropic` | `ANTHROPIC_API_KEY` | [Claude OpenAI compatibility](https://platform.claude.com/docs/en/api/openai-sdk) |
-| `arena-ai` | `ARENA_API_KEY` | [Arena API](https://platform.arena.ai/docs/api) |
+| `openai` | `OPENAI_API_KEY` | [OpenAI](https://platform.openai.com/docs/api-reference/chat) |
+| `deepseek` | `DEEPSEEK_API_KEY` | [DeepSeek](https://api-docs.deepseek.com/) |
+| `zai` | `ZAI_API_KEY` | [Z.ai](https://docs.z.ai/api-reference/llm/chat-completion) |
+| `venice` | `VENICE_API_KEY` | [Venice](https://docs.venice.ai/api-reference/endpoint/chat/completions) |
+| `qwen` | `DASHSCOPE_API_KEY` | [Alibaba Cloud](https://help.aliyun.com/en/model-studio/compatibility-of-openai-with-dashscope) |
+| `gemini` | `GEMINI_API_KEY` | [Gemini](https://ai.google.dev/gemini-api/docs/openai) |
+| `anthropic` | `ANTHROPIC_API_KEY` | [Claude](https://platform.claude.com/docs/en/api/openai-sdk) |
+| `arena-ai` | `ARENA_API_KEY` | [Arena](https://platform.arena.ai/docs/api) |
 | `opencode` | `OPENCODE_API_KEY` | [OpenCode Console](https://opencode.ai/docs/console/harnesses#base-urls) |
 | `opencode-go` | `OPENCODE_API_KEY` | [OpenCode Go](https://opencode.ai/docs/console/go/#where-can-i-use-it) |
-
-OpenCode Go is intended for coding-agent traffic. The gateway sends its own
-user agent and a stable `X-OpenCode-Session` identifier. The `qwen` preset uses
-the Singapore-compatible endpoint. For a regional or workspace-specific Qwen
-endpoint, add a custom provider with that endpoint. The `anthropic` preset
-uses Claude's OpenAI compatibility layer for chat and its native API for
-model discovery.
-
-## Discover provider models
 
 ```sh
 ./allaiis models discover --all
 ./allaiis models discover --all --with-keys
-./allaiis models discover --provider arena-ai --match DeepSeek
+./allaiis models discover --provider venice --match 'DeepSeek'
 ./allaiis models discover --provider opencode-go --label workspace
 ```
 
-`--all` checks built-in and configured providers. It reads the public Venice,
-OpenCode Console, and OpenCode Go catalogs without unlocking the vault. Venice's
-result includes all catalog types. Use `--with-keys` to query catalogs using
-stored credentials. A single private provider can also be queried directly
-with `--provider`. When a provider has multiple stored keys, select a label
-to get the catalog for that account or workspace.
+Discovery reports per-provider results. Public catalogs can be queried before `init`. Use `--with-keys` to include stored credentials in bulk discovery and `--label` to select a key for one provider. Register a chat-capable model separately with `models add`.
 
-The JSON report groups results by provider and identifies public and
-credential-specific results. It includes a status for each provider, including
-missing keys, ambiguous credential selection, and upstream errors. Use
-`--match` to filter by ID or name. Catalogs can contain models for capabilities
-other than Chat Completions. Register a chat-capable model separately with
-`models add` to expose it through the gateway's `/v1/models`.
+<details>
+<summary>Expose the same model from Venice and OpenCode Go</summary>
 
-For Qwen Model Studio workspace catalogs, use a custom provider with your
-regional workspace URL ending in `/compatible-mode/v1` and set
-`"catalog_format": "dashscope"`. Discovery uses the native list endpoint on
-that host and follows its pages. [Alibaba Cloud model catalog](https://help.aliyun.com/en/model-studio/list-models)
+```sh
+./allaiis models discover --provider venice --match 'DeepSeek V4.1 Flash'
+./allaiis models discover --provider opencode-go --match 'DeepSeek V4.1 Flash'
+./allaiis account add --provider venice --label personal
+./allaiis account add --provider opencode-go --label workspace
+./allaiis models add --provider venice --upstream-model "$VENICE_MODEL_ID" --name deepseek-flash --label personal
+./allaiis models add --provider opencode-go --upstream-model "$OPENCODE_MODEL_ID" --name deepseek-flash --label workspace
+```
 
-Use the optional `providers` object to configure a custom OpenAI-compatible
-API. The base URL is the part before `/chat/completions`. Choose an HTTPS
-endpoint or a numeric loopback HTTP endpoint you control. Custom providers use
-`<base_url>/models` by default. Set `"catalog_public": true` if that model
-list accepts anonymous requests.
+Set `VENICE_MODEL_ID` and `OPENCODE_MODEL_ID` to the IDs reported by discovery before registering the aliases. Select `deepseek-flash-venice` or `deepseek-flash-opencode-go` using the same local key. OpenCode Go is for coding-agent traffic and access to restricted models depends on the workspace. [OpenCode Go model access](https://opencode.ai/docs/console/go/#enable-restricted-models)
+
+</details>
+
+<details>
+<summary>Custom providers and regional endpoints</summary>
+
+Use HTTPS or a numeric loopback HTTP address. `base_url` is the prefix before the final API path. For example, a compatible local server can be registered in `config.json` as follows.
 
 ```json
 {
@@ -150,172 +157,51 @@ list accepts anonymous requests.
     }
   },
   "models": [
-    {
-      "id": "local-model",
-      "provider": "local",
-      "upstream_model": "your-installed-model"
-    }
+    { "id": "local-model", "provider": "local", "upstream_model": "your-installed-model" }
   ]
 }
 ```
 
-The gateway expects a stored API key for every route. For a local inference
-server that ignores bearer credentials, you may supply a placeholder in its
-dedicated key variable.
+Import a key before using a route. For a local server that ignores authorization, set a dedicated placeholder key. Custom catalogs default to `<base_url>/models`. Set `"catalog_public": true` for an anonymous catalog. A custom Qwen provider with a regional workspace URL ending in `/compatible-mode/v1` can set `"catalog_format": "dashscope"` for paginated native discovery. [Alibaba Cloud model catalog](https://help.aliyun.com/en/model-studio/list-models)
 
-### DeepSeek V4.1 Flash on Venice and OpenCode Go
-
-Use the public catalog commands to find each provider's exact model ID. These
-commands can run before `init` and use no API key.
-
-```sh
-./allaiis models discover --provider venice --match "DeepSeek V4.1 Flash"
-./allaiis models discover --provider opencode-go --match "DeepSeek V4.1 Flash"
-```
-
-After `init`, add an inference key from each provider. The prompts hide the
-keys. Use OpenCode Console's **Account → Personal API keys** to issue a key
-for the workspace with your Go plan. [OpenCode API keys](https://opencode.ai/docs/console/api/)
-
-```sh
-./allaiis account add --provider venice --label personal
-./allaiis account add --provider opencode-go --label workspace
-./allaiis models add --provider venice --upstream-model deepseek-v4-1-flash-1017 --name DeepSeek-v4.1-flash --label personal
-./allaiis models add --provider opencode-go --upstream-model deepseek-v4.1-flash --name DeepSeek-v4.1-flash --label workspace
-```
-
-The aliases `DeepSeek-v4.1-flash-venice` and
-`DeepSeek-v4.1-flash-opencode-go` point to the corresponding 1017 offerings.
-Select either alias with the same ALLAIIS bearer key. In OpenCode, select
-`allaiis/DeepSeek-v4.1-flash-venice` or
-`allaiis/DeepSeek-v4.1-flash-opencode-go` after importing the exported
-configuration. [Venice model](https://cdn.venice.ai/models/deepseek-v4-1-flash-1017) ·
-[OpenCode model catalog](https://opencode.ai/docs/console/api/models)
-
-OpenCode Go lists DeepSeek V4.1 Flash under restricted models. The workspace's
-privacy settings determine its availability. [OpenCode Go model access](https://opencode.ai/docs/console/go/#enable-restricted-models)
-
-`models add` appends the provider ID to the name and saves the route in
-`config.json`. With `--label`, the route uses only that named credential.
-Without a label it uses the provider's configured pool. Workspace permissions,
-allowances, and billing apply to the credential that serves the request.
-Use `--provider opencode` for OpenCode's pay-as-you-go catalog.
+</details>
 
 ## Keys and OpenCode
 
 ```sh
-./allaiis import --from env
 ./allaiis import --from opencode --path /path/to/opencode/auth.json
 ./allaiis account add --provider deepseek --label work --key-env WORK_DEEPSEEK_API_KEY
 ./allaiis status
 ./allaiis export opencode
 ```
 
-- Environment import uses the providers listed in `config.json`. Use
-  `--provider` to select one explicitly. OpenCode import reads API-key entries
-  of type `api` for recognized provider IDs. If you omit `--path`, it looks
-  under `XDG_DATA_HOME/opencode/auth.json` or
-  `~/.local/share/opencode/auth.json`. Use distinct `--label` values to import
-  keys from multiple files into the same pool.
-- Each pool is bound to one provider ID and base URL. Restart `allaiis up`
-  after changing configuration or keys. To remove a credential, use
-  `allaiis account remove --provider <provider> --label <label>`.
-- In automation, set the provider's key in a dedicated environment variable
-  and pass its variable name with `account add --key-env`.
-- To use ALLAIIS in OpenCode, merge the exported provider entry into
-  `opencode.json`, expose `ALLAIIS_API_KEY` to the OpenCode process, and
-  select `allaiis/<model-alias>`. The export includes Chat Completions aliases.
-  [OpenCode custom providers](https://opencode.ai/docs/providers/)
+Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for OpenCode, and select `allaiis/<model-alias>`. The export includes Chat Completions aliases. [OpenCode provider configuration](https://opencode.ai/docs/providers/)
 
-## Native APIs
+- **Vault.** Use a passphrase of at least 16 bytes. For unattended operation, set `ALLAIIS_VAULT_PASSPHRASE` in the process environment. Credentials in SQLite are encrypted with AES-256-GCM using an Argon2id-derived key.
+- **Data directory.** Set `ALLAIIS_DATA_DIR` to override the default. The defaults are `%APPDATA%\allaiis` on Windows, `~/Library/Application Support/allaiis` on macOS, and `${XDG_CONFIG_HOME:-~/.config}/allaiis` on Linux.
+- **Key pools.** A pool is bound to a provider ID and base URL. Pin a route with `--label`. To remove a key, run `allaiis account remove --provider <provider> --label <label>`. Restart after configuration or key changes.
+- **Routing.** Use `X-ALLAIIS-Session` or `X-OpenCode-Session` for stable key selection. `X-ALLAIIS-Min-Privacy` can raise the configured privacy floor. A provider `429` pauses its pool until `Retry-After`. The gateway accepts up to 8 MiB per request.
+- **OpenCode import.** Recognized `api` entries are imported from `auth.json`. By default the CLI checks `$XDG_DATA_HOME/opencode/auth.json` or `~/.local/share/opencode/auth.json`.
 
-Each alias serves one endpoint. The default protocol is `chat`. Register
-separate aliases for Responses and Messages with `models add --protocol`.
-The built-in provider for Responses is `openai`, and the built-in provider for
-Messages is `anthropic`. A custom provider can serve either protocol at
-`<base_url>/responses` or `<base_url>/messages`.
+## Status
 
-After `init`, set `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` in your environment.
-Set `OPENAI_MODEL_ID` and `ANTHROPIC_MODEL_ID` to model IDs available to those
-keys. Use `models discover --provider` after adding the keys if you need to look
-up the models.
+**Live provider tests recorded for this matrix: 0.**
+
+| Feature | Implemented | Tested offline | Tested live | Blocked |
+| --- | :---: | --- | :---: | --- |
+| Model routing, privacy and cooldowns | ✓ | `TestRoutingAndProviderCooldown` | — | — |
+| Native Responses and Messages | ✓ | `TestNativeProtocols` | — | — |
+| SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel` | — | — |
+| Local opt-in browser worker | ✓ | `TestBrowserWorkerBoundaryAndStreaming`, `TestCanceledRequestReleasesWorker` | — | — |
+| Private Venice web integration | — | Not covered | — | [Details](docs/BLOCKED.md) |
 
 ```sh
-./allaiis account add --provider openai --label work --key-env OPENAI_API_KEY
-./allaiis account add --provider anthropic --label work --key-env ANTHROPIC_API_KEY
-./allaiis models add --provider openai --upstream-model "$OPENAI_MODEL_ID" --name responses --protocol responses --label work
-./allaiis models add --provider anthropic --upstream-model "$ANTHROPIC_MODEL_ID" --name messages --protocol messages --label work
-export ALLAIIS_API_KEY="$(./allaiis key)"
-./allaiis up
+go test ./...
+go vet ./...
 ```
 
-With the gateway running, send requests using the local ALLAIIS key.
-
-```sh
-curl --no-buffer http://127.0.0.1:8420/v1/responses \
-  -H "Authorization: Bearer $ALLAIIS_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"responses-openai","input":"Say hello.","stream":true}'
-
-curl --no-buffer http://127.0.0.1:8420/v1/messages \
-  -H "x-api-key: $ALLAIIS_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"messages-anthropic","max_tokens":32,"messages":[{"role":"user","content":"Say hello."}],"stream":true}'
-```
-
-- Responses aliases require a credential label. Use the same alias and upstream
-  project for follow-ups with `previous_response_id`. The provider manages
-  response state and retention. ALLAIIS supports foreground creation over
-  HTTP. [OpenAI Responses](https://developers.openai.com/api/reference/resources/responses/methods/create)
-- Messages accepts `x-api-key` or `Authorization: Bearer` at the gateway.
-  ALLAIIS forwards `Anthropic-Version` and `Anthropic-Beta` and uses
-  `2026-10-21` if no version is specified.
-  [Claude Messages](https://platform.claude.com/docs/en/api/messages/create)
-- Both endpoints pass through native JSON and SSE, including tool events and
-  usage when the provider returns them. `GET /v1/models` identifies native
-  aliases with `allaiis_protocol`.
-
-## Routing and API behavior
-
-- `GET /v1/models` lists configured aliases with a key and sufficient privacy.
-  The generation endpoints support JSON and native SSE. Model-specific
-  parameters and features depend on the selected upstream. The response body
-  contains the provider's model ID.
-- For stable routing within a conversation, send `X-ALLAIIS-Session` or
-  `X-OpenCode-Session` when using a key pool. Without a session header, Chat
-  Completions and Messages use the opening messages through the first user
-  message to choose a key. The gateway computes a keyed hash and stores no
-  conversation text.
-- When a provider returns `429`, the gateway pauses that provider's entire
-  pool until its `Retry-After` expires. It uses roughly 30 seconds if the
-  header is missing or invalid. Cooldowns survive a gateway restart.
-- The gateway accepts request bodies up to 8 MiB. If a provider returns HTTP
-  `413`, ALLAIIS preserves that status and lets the client decide how to
-  reduce the request.
-- Routes default to `consumer_cloud`. Administrators can assign each model
-  alias a classification in `privacy` after verifying its data handling.
-  From lowest to highest, the values are `public_research`, `consumer_cloud`,
-  `zdr`, and `e2ee`. `X-ALLAIIS-Min-Privacy` can raise the configured floor
-  for a request. The gateway uses the configured labels to filter routes.
-- `GET /healthz` is a local liveness probe. Routed responses identify the
-  provider and requested alias in `X-ALLAIIS-Provider` and `X-ALLAIIS-Model`
-  and include `X-ALLAIIS-Transport-Tier: tier_a`.
-
-The listener is loopback-only. The local bearer key and provider API keys are
-encrypted in SQLite with Argon2id and AES-256-GCM. Keep the vault passphrase
-separate from your data directory. The gateway logs operational metadata and
-omits prompts, provider error bodies, and keys.
-
-## Project status
-
-The local gateway supports Chat Completions, Responses creation, Messages
-creation, model discovery, and key management. The browser bridge example
-connects a web application that opts in to its worker protocol. Check the
-[roadmap](ROADMAP.md) for upcoming work.
-
-Run the test suite and static checks with `go test ./...` and `go vet ./...`.
+[Roadmap](ROADMAP.md) · [Browser worker example](docs/browser-bridge.md) · [Related projects](docs/related-projects.md)
 
 ## License
 
-Distributed under the GNU General Public License, version 3 (`GPL-3.0-only`).
-See [LICENSE](LICENSE).
+GNU General Public License v3.0 only (`GPL-3.0-only`). [Full license](LICENSE)
