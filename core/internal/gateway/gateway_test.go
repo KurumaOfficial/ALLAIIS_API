@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -184,6 +185,7 @@ func TestStreamFlushAndCancel(t *testing.T) {
 func checkStreamFlushAndCancel(t *testing.T, path, payloadFields, event string, protocol config.Protocol) {
 	t.Helper()
 	upstreamCanceled := make(chan struct{})
+	var calls atomic.Int32
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != path || r.Header.Get("Accept") != "text/event-stream" {
 			t.Error("streaming request did not reach the expected endpoint with SSE")
@@ -194,8 +196,13 @@ func checkStreamFlushAndCancel(t *testing.T, path, payloadFields, event string, 
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprint(w, event)
 		w.(http.Flusher).Flush()
+		if calls.Add(1) > 1 {
+			return
+		}
 		select {
 		case <-r.Context().Done():
+			fmt.Fprint(w, "data: late-byte-from-canceled-request\n\n")
+			w.(http.Flusher).Flush()
 			close(upstreamCanceled)
 		case <-time.After(5 * time.Second):
 			t.Error("upstream stream was still running after the client canceled")
@@ -246,6 +253,21 @@ func checkStreamFlushAndCancel(t *testing.T, path, payloadFields, event string, 
 	case <-upstreamCanceled:
 	case <-time.After(3 * time.Second):
 		t.Fatal("client cancellation did not reach upstream")
+	}
+	next, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+path,
+		strings.NewReader(`{"model":"stream","stream":true,`+payloadFields+"}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	next.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	nextReply, err := server.Client().Do(next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nextReply.Body.Close()
+	nextEvent, err := io.ReadAll(nextReply.Body)
+	if err != nil || nextReply.StatusCode != http.StatusOK || string(nextEvent) != event {
+		t.Fatalf("canceled request affected the next stream: %d %q (%v)", nextReply.StatusCode, nextEvent, err)
 	}
 }
 

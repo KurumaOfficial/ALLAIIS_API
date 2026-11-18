@@ -195,6 +195,34 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Local opt-in browser worker | ✓ | `TestBrowserWorkerBoundaryAndStreaming`, `TestCanceledRequestReleasesWorker` | — | — |
 | Private Venice web integration | — | Not covered | — | [Details](docs/BLOCKED.md) |
 
+### Offline compatibility work in this checkout
+
+These tests run against synthetic input and loopback servers. This work is
+local to the checkout. The fixture catalog models and limits below are test data.
+
+| Feature | Implemented | Tested offline | Tested live | Blocked |
+| --- | :---: | --- | :---: | --- |
+| A1. Private Venice transport | — | Not covered | — | [Details](docs/BLOCKED.md) |
+| A2. SSE, truncation, errors, and denial fixtures | ✓ | `TestSSEFixtures` | — | — |
+| A3. Tool formats and recovery | ✓ | `TestToolFixtureCorpus`, `TestToolParserRecovery`, `TestToolsCancelAndRetry`, `TestReasoningBudgetCancelsAndReturnsStreamError` | — | — |
+| A4–A5. History and NUL cleanup | ✓ | `TestToolPolicyHistoryAndNUL`, `TestWorkerUsageNULAndLog` | — | — |
+| A6. Estimated usage on successful JSON and SSE results | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestWorkerUsageNULAndLog` | — | — |
+| A7. Context-specific 413 mapping and trimming | ✓ | `TestContextOverflowTrimsOrReturns400` | — | — |
+| A8. Free fixture catalog and agent tool rejection | ✓ | `TestOfflineCatalogAndAgentToolRejection` | — | — |
+| A9. Private web-session pools and 429 failover | — | Not covered | — | [Details](docs/BLOCKED.md) |
+| A10. Cancellation and late response isolation | ✓ | `TestStreamFlushAndCancel`, `TestCanceledRequestReleasesWorker` | — | — |
+| A11. Metadata and log rotation | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestWorkerUsageNULAndLog`, `TestCompletionLogRotation` | — | — |
+
+| Fixture ID | Context tokens | Output tokens | Tools |
+| --- | ---: | ---: | --- |
+| `zai-org-glm-5.2` | 131,072 | 8,192 | yes |
+| `agent-fixture.1` | 32,768 | 4,096 | no |
+
+`ALLAIIS_TOOL_FORMAT` accepts `glm`, `json`, `proxy`, or `dsml` in the
+offline compatibility runner. `ALLAIIS_CONTEXT_TRIM=off` disables its overflow
+retries. The local worker example accepts `--log-file` and keeps the previous
+1 MiB log as `.1`.
+
 ```sh
 go test ./...
 go vet ./...

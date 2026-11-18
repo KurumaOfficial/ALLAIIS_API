@@ -1,0 +1,8 @@
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":"partial"}
+
+event: error
+data: {"type":"error","message":"synthetic private upstream details"}
+
+data: [DONE]
+

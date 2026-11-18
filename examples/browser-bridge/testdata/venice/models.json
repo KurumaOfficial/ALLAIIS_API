@@ -1,0 +1,6 @@
+[
+  {"id":"zai-org-glm-5.2","usesCredits":false,"context":131072,"output":8192},
+  {"id":"agent-fixture.1","usesCredits":false,"agent":true,"context":32768,"output":4096},
+  {"id":"paid-fixture.1","usesCredits":true,"context":131072,"output":8192},
+  {"id":"unknown-billing.1","context":32768,"output":4096}
+]

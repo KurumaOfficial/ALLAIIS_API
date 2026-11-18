@@ -195,6 +195,34 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Локальный браузерный воркер с явным подключением | ✓ | `TestBrowserWorkerBoundaryAndStreaming`, `TestCanceledRequestReleasesWorker` | — | — |
 | Закрытая веб-интеграция Venice | — | Не покрыто | — | [Подробнее](docs/BLOCKED.md) |
 
+### Офлайн-разработка в этой рабочей копии
+
+Тесты используют синтетические данные и локальные серверы. Этот код находится
+в рабочей копии. Модели и лимиты ниже служат тестовыми данными.
+
+| Возможность | Реализовано | Офлайн-тест | Live-тест | Блокер |
+| --- | :---: | --- | :---: | --- |
+| A1. Закрытый транспорт Venice | — | Не покрыто | — | [Подробнее](docs/BLOCKED.md) |
+| A2. Фикстуры SSE, обрыва, ошибок и отказа в доступе | ✓ | `TestSSEFixtures` | — | — |
+| A3. Форматы инструментов и повтор при ошибке | ✓ | `TestToolFixtureCorpus`, `TestToolParserRecovery`, `TestToolsCancelAndRetry`, `TestReasoningBudgetCancelsAndReturnsStreamError` | — | — |
+| A4–A5. Нормализация истории и удаление NUL | ✓ | `TestToolPolicyHistoryAndNUL`, `TestWorkerUsageNULAndLog` | — | — |
+| A6. Оценка usage для успешных JSON и SSE | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestWorkerUsageNULAndLog` | — | — |
+| A7. Преобразование 413 переполнения и обрезка | ✓ | `TestContextOverflowTrimsOrReturns400` | — | — |
+| A8. Бесплатные модели в фикстуре и отказ по tools на агентских | ✓ | `TestOfflineCatalogAndAgentToolRejection` | — | — |
+| A9. Пул веб-сессий и переключение при 429 | — | Не покрыто | — | [Подробнее](docs/BLOCKED.md) |
+| A10. Отмена и изоляция поздних ответов | ✓ | `TestStreamFlushAndCancel`, `TestCanceledRequestReleasesWorker` | — | — |
+| A11. Метаданные и ротация логов | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestWorkerUsageNULAndLog`, `TestCompletionLogRotation` | — | — |
+
+| ID в фикстуре | Токены контекста | Токены вывода | Инструменты |
+| --- | ---: | ---: | --- |
+| `zai-org-glm-5.2` | 131 072 | 8 192 | Да |
+| `agent-fixture.1` | 32 768 | 4 096 | Нет |
+
+В офлайн-обработчике `ALLAIIS_TOOL_FORMAT` принимает `glm`, `json`, `proxy`
+или `dsml`. Переменная `ALLAIIS_CONTEXT_TRIM=off` отключает повторы после
+переполнения контекста. Пример локального воркера принимает `--log-file` и
+при ротации сохраняет предыдущий лог размером около 1 МиБ с суффиксом `.1`.
+
 ```sh
 go test ./...
 go vet ./...

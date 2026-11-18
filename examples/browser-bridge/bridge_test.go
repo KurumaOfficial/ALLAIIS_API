@@ -99,7 +99,7 @@ func TestAbsentWorkerTimesOut(t *testing.T) {
 func startTestBridge(t *testing.T, timeout time.Duration) *httptest.Server {
 	t.Helper()
 	server := httptest.NewUnstartedServer(nil)
-	server.Config.Handler = newBridge(server.Listener.Addr().String(), fixtureAPIKey, fixtureWorkerKey, timeout)
+	server.Config.Handler = newBridge(server.Listener.Addr().String(), fixtureAPIKey, fixtureWorkerKey, timeout, nil)
 	server.Start()
 	t.Cleanup(server.Close)
 	return server

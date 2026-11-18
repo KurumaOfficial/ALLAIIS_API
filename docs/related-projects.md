@@ -22,3 +22,8 @@ RfadnjdExt's treatment of oversized conversations prompted ALLAIIS to handle
 upstream HTTP `413` explicitly. ALLAIIS retains that status and returns a
 protocol-specific size error so clients can choose how to reduce the request.
 The gateway implementation and tests are original Go code.
+
+The local compatibility fixtures use the documented event names and tool
+encodings as references. The SSE files contain synthetic data.
+[Inference response events](https://github.com/crisazas/opencode-venice-web/blob/main/docs/PROTOCOL.md#3-inference-response) ·
+[Tool envelope formats](https://github.com/RfadnjdExt/venice-ai-chat-proxy#tool-calling-emulated)

@@ -1,0 +1,4 @@
+<tool_call>write_file
+<arg_key>path</arg_key><arg_value>PATH_FIXTURE</arg_value>
+<arg_key>content</arg_key><arg_value>CONTENT_FIXTURE</arg_value>
+</tool_call>

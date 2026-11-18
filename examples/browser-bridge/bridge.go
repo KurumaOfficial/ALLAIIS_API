@@ -4,18 +4,20 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
 	"encoding/json"
-	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const modelID = "browser-echo"
@@ -29,16 +31,18 @@ type job struct {
 	result   chan string
 	claimed  bool
 	finished bool
+	ctx      context.Context
 }
 
 type bridge struct {
 	mu      sync.Mutex
 	pending *job
 	timeout time.Duration
+	log     *slog.Logger
 }
 
-func newBridge(host, apiKey, workerKey string, timeout time.Duration) http.Handler {
-	b := &bridge{timeout: timeout}
+func newBridge(host, apiKey, workerKey string, timeout time.Duration, log *slog.Logger) http.Handler {
+	b := &bridge{timeout: timeout, log: log}
 	mux := http.NewServeMux()
 	origin := "http://" + host
 	worker := requireKey(workerKey, origin)
@@ -101,6 +105,16 @@ func models(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (b *bridge) complete(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	status, requestBytes, contentChars, attempts, nul := 0, 0, 0, 0, 0
+	if b.log != nil {
+		defer func() {
+			b.log.Info("completion", "origin", "browser-worker", "request_bytes", requestBytes,
+				"status", status, "model", modelID, "content_chars", contentChars, "reasoning_chars", 0,
+				"tools", 0, "calls", 0, "attempts", attempts, "nul_removed", nul,
+				"duration_ms", time.Since(start).Milliseconds())
+		}()
+	}
 	var request struct {
 		Model    string `json:"model"`
 		Stream   bool   `json:"stream"`
@@ -109,30 +123,39 @@ func (b *bridge) complete(w http.ResponseWriter, r *http.Request) {
 			Content string `json:"content"`
 		} `json:"messages"`
 	}
-	if !readJSON(w, r, &request) {
+	counter := &countedBody{ReadCloser: r.Body, bytes: &requestBytes}
+	r.Body = counter
+	if status = readJSON(w, r, &request); status != 0 {
 		return
 	}
 	if request.Model != modelID {
-		fail(w, http.StatusNotFound, "Model ID must be "+modelID+".")
+		status = http.StatusNotFound
+		fail(w, status, "Model ID must be "+modelID+".")
 		return
 	}
 	if len(request.Messages) == 0 || request.Messages[len(request.Messages)-1].Role != "user" {
-		fail(w, http.StatusBadRequest, "End the messages array with a user text message.")
+		status = http.StatusBadRequest
+		fail(w, status, "End the messages array with a user text message.")
 		return
 	}
 	text := request.Messages[len(request.Messages)-1].Content
+	nul = strings.Count(text, "\x00")
+	text = strings.ReplaceAll(text, "\x00", "")
 	if strings.TrimSpace(text) == "" || len(text) > 8<<10 {
-		fail(w, http.StatusBadRequest, "Send a non-empty text message of at most 8 KiB.")
+		status = http.StatusBadRequest
+		fail(w, status, "Send a non-empty text message of at most 8 KiB.")
 		return
 	}
-	j := &job{ID: "chatcmpl-" + rand.Text(), Text: text, result: make(chan string, 1)}
+	j := &job{ID: "chatcmpl-" + rand.Text(), Text: text, result: make(chan string, 1), ctx: r.Context()}
 	b.mu.Lock()
 	if b.pending != nil {
 		b.mu.Unlock()
-		fail(w, http.StatusServiceUnavailable, "The browser worker already has a request.")
+		status = http.StatusServiceUnavailable
+		fail(w, status, "The browser worker already has a request.")
 		return
 	}
 	b.pending = j
+	attempts++
 	b.mu.Unlock()
 	defer func() {
 		b.mu.Lock()
@@ -146,16 +169,20 @@ func (b *bridge) complete(w http.ResponseWriter, r *http.Request) {
 	case <-r.Context().Done():
 		return
 	case <-timer.C:
-		fail(w, http.StatusGatewayTimeout, "The browser worker did not reply.")
+		status = http.StatusGatewayTimeout
+		fail(w, status, "The browser worker did not reply.")
 	case answer := <-j.result:
-		completion(w, j.ID, answer, request.Stream)
+		if r.Context().Err() == nil {
+			status, contentChars = http.StatusOK, utf8.RuneCountInString(answer)
+			completion(w, j.ID, j.Text, answer, request.Stream)
+		}
 	}
 }
 
 func (b *bridge) claim(w http.ResponseWriter, _ *http.Request) {
 	b.mu.Lock()
 	j := b.pending
-	if j == nil || j.claimed {
+	if j == nil || j.claimed || j.ctx.Err() != nil {
 		b.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -170,7 +197,7 @@ func (b *bridge) reply(w http.ResponseWriter, r *http.Request) {
 		ID   string `json:"id"`
 		Text string `json:"text"`
 	}
-	if !readJSON(w, r, &input) {
+	if readJSON(w, r, &input) != 0 {
 		return
 	}
 	if input.Text == "" || len(input.Text) > (8<<10)+32 {
@@ -179,7 +206,7 @@ func (b *bridge) reply(w http.ResponseWriter, r *http.Request) {
 	}
 	b.mu.Lock()
 	j := b.pending
-	if j == nil || j.ID != input.ID || !j.claimed || j.finished {
+	if j == nil || j.ID != input.ID || !j.claimed || j.finished || j.ctx.Err() != nil {
 		b.mu.Unlock()
 		fail(w, http.StatusConflict, "This request is no longer awaiting a worker reply.")
 		return
@@ -190,42 +217,34 @@ func (b *bridge) reply(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func completion(w http.ResponseWriter, id, answer string, stream bool) {
-	result := map[string]any{"id": id, "created": time.Now().Unix(), "model": modelID}
-	if !stream {
-		result["object"] = "chat.completion"
-		result["choices"] = []map[string]any{
-			{"index": 0, "message": map[string]string{"role": "assistant", "content": answer}, "finish_reason": "stop"},
-		}
-		respond(w, http.StatusOK, result)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	result["object"] = "chat.completion.chunk"
-	for _, choice := range []map[string]any{
-		{"index": 0, "delta": map[string]string{"role": "assistant", "content": answer}, "finish_reason": nil},
-		{"index": 0, "delta": map[string]string{}, "finish_reason": "stop"},
-	} {
-		result["choices"] = []map[string]any{choice}
-		data, _ := json.Marshal(result)
-		fmt.Fprintf(w, "data: %s\n\n", data)
-	}
-	fmt.Fprint(w, "data: [DONE]\n\n")
+func completion(w http.ResponseWriter, id, prompt, answer string, stream bool) {
+	result := compatResult{content: answer, usage: estimateUsage(len(prompt), len(answer))}
+	writeCompatibility(w, id, modelID, result, stream, nil)
 }
 
-func readJSON(w http.ResponseWriter, r *http.Request, value any) bool {
+type countedBody struct {
+	io.ReadCloser
+	bytes *int
+}
+
+func (b *countedBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	*b.bytes += n
+	return n, err
+}
+
+func readJSON(w http.ResponseWriter, r *http.Request, value any) int {
 	media, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if media != "application/json" {
 		fail(w, http.StatusUnsupportedMediaType, "Send application/json.")
-		return false
+		return http.StatusUnsupportedMediaType
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 	if decoder.Decode(value) != nil || decoder.Decode(new(json.RawMessage)) != io.EOF {
 		fail(w, http.StatusBadRequest, "Invalid JSON request.")
-		return false
+		return http.StatusBadRequest
 	}
-	return true
+	return 0
 }
 
 func fail(w http.ResponseWriter, status int, message string) {

@@ -26,6 +26,8 @@
 
 The requested private authentication and inference commands are blocked. An authorized integration can start with the documented request format and test key issued for that endpoint. [Venice API reference](https://docs.venice.ai/api-reference/endpoint/chat/completions)
 
+A web-session pool that switches sessions in response to a provider's rate limit is also blocked. The existing official API key pools respect a provider cooldown. `TestRoutingAndProviderCooldown` covers this behavior offline.
+
 ## B3. Live acceptance checklist
 
 - [ ] Receive HTTP `200` with `Content-Type: text/event-stream` from an authorized inference endpoint.

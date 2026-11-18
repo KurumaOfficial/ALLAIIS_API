@@ -1,0 +1,1 @@
+<｜DSML｜ calls><｜DSML｜invoke name="write_file"><｜DSML｜parameter name="path" string="true">PATH_FIXTURE</｜DSML｜parameter><｜DSML｜parameter name="content" string="true">CONTENT_FIXTURE</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜calls>
