@@ -36,6 +36,14 @@ func (p Privacy) Meets(minimum Privacy) bool {
 	return privacyRank[p] >= privacyRank[minimum]
 }
 
+type Protocol string
+
+const (
+	Chat      Protocol = ""
+	Responses Protocol = "responses"
+	Messages  Protocol = "messages"
+)
+
 type Provider struct {
 	BaseURL       string        `json:"base_url"`
 	KeyEnv        string        `json:"key_env,omitempty"`
@@ -44,6 +52,7 @@ type Provider struct {
 	session       bool
 	catalogURL    string
 	customizable  bool
+	native        Protocol
 }
 
 func (p Provider) SendSession() bool { return p.session }
@@ -68,12 +77,12 @@ func (p Provider) CatalogURL() string {
 }
 
 var defaults = map[string]Provider{
-	"openai":   {BaseURL: "https://api.openai.com/v1", KeyEnv: "OPENAI_API_KEY"},
+	"openai":   {BaseURL: "https://api.openai.com/v1", KeyEnv: "OPENAI_API_KEY", native: Responses},
 	"deepseek": {BaseURL: "https://api.deepseek.com", KeyEnv: "DEEPSEEK_API_KEY"},
 	"zai":      {BaseURL: "https://api.z.ai/api/paas/v4", KeyEnv: "ZAI_API_KEY"},
 	"anthropic": {
 		BaseURL: "https://api.anthropic.com/v1", KeyEnv: "ANTHROPIC_API_KEY",
-		CatalogFormat: ClaudeCatalog, customizable: true,
+		CatalogFormat: ClaudeCatalog, customizable: true, native: Messages,
 	},
 	"arena-ai": {BaseURL: "https://api.arena.ai/v1", KeyEnv: "ARENA_API_KEY", customizable: true},
 	"venice": {
@@ -108,11 +117,12 @@ var (
 const maxConfigBytes = 1 << 20
 
 type Route struct {
-	ID              string  `json:"id"`
-	Provider        string  `json:"provider"`
-	UpstreamModel   string  `json:"upstream_model"`
-	Privacy         Privacy `json:"privacy,omitempty"`
-	CredentialLabel string  `json:"credential_label,omitempty"`
+	ID              string   `json:"id"`
+	Provider        string   `json:"provider"`
+	UpstreamModel   string   `json:"upstream_model"`
+	Privacy         Privacy  `json:"privacy,omitempty"`
+	CredentialLabel string   `json:"credential_label,omitempty"`
+	Protocol        Protocol `json:"protocol,omitempty"`
 }
 
 func ValidCredentialLabel(label string) bool { return credentialLabel.MatchString(label) }
@@ -234,6 +244,18 @@ func (c *Config) validate() error {
 		if _, ok := c.Provider(route.Provider); !ok {
 			return fmt.Errorf("model %q has an unknown provider", route.ID)
 		}
+		if route.Protocol == "chat" {
+			route.Protocol = Chat
+		}
+		switch route.Protocol {
+		case Chat, Responses, Messages:
+		default:
+			return fmt.Errorf("model %q: protocol must be chat, responses, or messages", route.ID)
+		}
+		if _, custom := c.Providers[route.Provider]; !custom && route.Protocol != Chat &&
+			defaults[route.Provider].native != route.Protocol {
+			return fmt.Errorf("model %q: provider %q has no %s endpoint configured", route.ID, route.Provider, route.Protocol)
+		}
 		if route.Privacy == "" {
 			route.Privacy = Consumer
 		}
@@ -242,6 +264,9 @@ func (c *Config) validate() error {
 		}
 		if route.CredentialLabel != "" && !ValidCredentialLabel(route.CredentialLabel) {
 			return fmt.Errorf("model %q has an invalid credential_label", route.ID)
+		}
+		if route.Protocol == Responses && route.CredentialLabel == "" {
+			return fmt.Errorf("model %q: responses routes require a credential_label", route.ID)
 		}
 	}
 	return nil

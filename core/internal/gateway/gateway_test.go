@@ -164,13 +164,35 @@ func TestProviderAliasesAndPinnedCredentials(t *testing.T) {
 }
 
 func TestStreamFlushAndCancel(t *testing.T) {
+	for _, tc := range []struct {
+		name, path, body, event string
+		protocol                config.Protocol
+	}{
+		{"chat", "/v1/chat/completions", `"messages":[{"role":"user","content":"hello"}]`,
+			"data: {\"choices\":[{\"delta\":{\"content\":\"first\"}}]}\n\n", config.Chat},
+		{"responses", "/v1/responses", `"input":"hello"`,
+			"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"first\"}\n\n", config.Responses},
+		{"messages", "/v1/messages", `"messages":[{"role":"user","content":"hello"}],"max_tokens":20`,
+			"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"first\"}}\n\n", config.Messages},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			checkStreamFlushAndCancel(t, tc.path, tc.body, tc.event, tc.protocol)
+		})
+	}
+}
+
+func checkStreamFlushAndCancel(t *testing.T, path, payloadFields, event string, protocol config.Protocol) {
+	t.Helper()
 	upstreamCanceled := make(chan struct{})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Accept") != "text/event-stream" {
-			t.Error("streaming request did not negotiate SSE")
+		if r.URL.Path != path || r.Header.Get("Accept") != "text/event-stream" {
+			t.Error("streaming request did not reach the expected endpoint with SSE")
+		}
+		if protocol == config.Messages && r.Header.Get("Anthropic-Version") != "2026-10-21" {
+			t.Error("Messages request did not receive the default API version")
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"first\"}}]}\n\n")
+		fmt.Fprint(w, event)
 		w.(http.Flusher).Flush()
 		select {
 		case <-r.Context().Done():
@@ -181,13 +203,17 @@ func TestStreamFlushAndCancel(t *testing.T) {
 	}))
 	t.Cleanup(upstream.Close)
 	store, cfg := setup(t, upstream.URL)
+	cfg.Models = append(cfg.Models, config.Route{
+		ID: "stream", Provider: "fixture", UpstreamModel: "real-model", Privacy: config.Consumer,
+		Protocol: protocol, CredentialLabel: "first",
+	})
 	server := httptest.NewServer(newGateway(t, cfg, store))
 	t.Cleanup(server.Close)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	body := strings.NewReader(strings.Replace(payload, `{"model"`, `{"stream":true,"model"`, 1))
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/v1/chat/completions", body)
+	body := strings.NewReader(`{"model":"stream","stream":true,` + payloadFields + "}")
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+path, body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,9 +226,20 @@ func TestStreamFlushAndCancel(t *testing.T) {
 	if response.StatusCode != http.StatusOK || response.Header.Get("Content-Type") != "text/event-stream" {
 		t.Fatalf("unexpected stream response: %d %v", response.StatusCode, response.Header)
 	}
-	line, err := bufio.NewReader(response.Body).ReadString('\n')
-	if err != nil || !strings.Contains(line, `"first"`) {
-		t.Fatalf("first event was not forwarded live: %q (%v)", line, err)
+	reader := bufio.NewReader(response.Body)
+	var got strings.Builder
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("first event was not forwarded live: %v", err)
+		}
+		got.WriteString(line)
+		if line == "\n" {
+			break
+		}
+	}
+	if got.String() != event {
+		t.Fatalf("first event changed: got %q, want %q", got.String(), event)
 	}
 	cancel()
 	select {

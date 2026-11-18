@@ -5,9 +5,53 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
+
+func TestAddModelValidatesProtocolAndCredentialScope(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"models":[]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		alias, provider, label string
+		protocol               Protocol
+		errorText              string
+	}{
+		{"claude-native", "anthropic", "", Messages, ""},
+		{"openai-response", "openai", "work", Responses, ""},
+		{"unbound", "openai", "", Responses, "require a credential_label"},
+		{"wrong-provider", "openai", "", Messages, "has no messages endpoint"},
+		{"unknown-protocol", "openai", "", "other", "protocol must be"},
+	} {
+		t.Run(tc.alias, func(t *testing.T) {
+			route := Route{ID: tc.alias, Provider: tc.provider, Protocol: tc.protocol,
+				UpstreamModel: "upstream", CredentialLabel: tc.label}
+			added, err := AddModel(t.Context(), path, route)
+			if tc.errorText != "" {
+				if added || err == nil || !strings.Contains(err.Error(), tc.errorText) {
+					t.Fatalf("unexpected result: added=%t, err=%v", added, err)
+				}
+				return
+			}
+			if !added || err != nil {
+				t.Fatalf("add native route: added=%t, err=%v", added, err)
+			}
+		})
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Models) != 2 || cfg.Models[0].Protocol != Messages ||
+		cfg.Models[1].Protocol != Responses || cfg.Models[1].CredentialLabel != "work" {
+		t.Fatalf("unexpected native routes after reload: %+v", cfg.Models)
+	}
+}
 
 func TestAddModelPreservesConcurrentEditsAndRejectsRemapping(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
@@ -54,6 +98,29 @@ func TestAddModelPreservesConcurrentEditsAndRejectsRemapping(t *testing.T) {
 		if models[route.ID] != route {
 			t.Errorf("incorrect stored route: %+v", models[route.ID])
 		}
+	}
+}
+
+func TestAddModelWithTemporaryWindowsReader(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows file sharing behavior")
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"models":[]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := make(chan error, 1)
+	time.AfterFunc(75*time.Millisecond, func() { closed <- reader.Close() })
+	added, addErr := AddModel(t.Context(), path, Route{ID: "demo", Provider: "openai", UpstreamModel: "upstream"})
+	if err := <-closed; err != nil {
+		t.Fatal(err)
+	}
+	if addErr != nil || !added {
+		t.Fatalf("add model after temporary reader closed: added=%t, err=%v", added, addErr)
 	}
 }
 

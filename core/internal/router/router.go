@@ -21,10 +21,11 @@ var (
 )
 
 type Model struct {
-	ID       string `json:"id"`
-	Object   string `json:"object"`
-	Created  int64  `json:"created"`
-	Provider string `json:"owned_by"`
+	ID       string          `json:"id"`
+	Object   string          `json:"object"`
+	Created  int64           `json:"created"`
+	Provider string          `json:"owned_by"`
+	Protocol config.Protocol `json:"allaiis_protocol,omitempty"`
 }
 
 type Target struct {
@@ -91,16 +92,16 @@ func (r *Router) Models(minimum config.Privacy) []Model {
 	for _, route := range r.routes {
 		_, available := r.pools[route.Provider].credential(route.CredentialLabel, [32]byte{})
 		if route.Privacy.Meets(minimum) && available {
-			models = append(models, Model{ID: route.ID, Object: "model", Provider: route.Provider})
+			models = append(models, Model{ID: route.ID, Object: "model", Provider: route.Provider, Protocol: route.Protocol})
 		}
 	}
 	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
 	return models
 }
 
-func (r *Router) Resolve(ctx context.Context, model string, minimum config.Privacy, session [32]byte) (Target, time.Time, error) {
+func (r *Router) Resolve(ctx context.Context, model string, protocol config.Protocol, minimum config.Privacy, session [32]byte) (Target, time.Time, error) {
 	route, ok := r.routes[model]
-	if !ok || !route.Privacy.Meets(minimum) {
+	if !ok || route.Protocol != protocol || !route.Privacy.Meets(minimum) {
 		return Target{}, time.Time{}, ErrModel
 	}
 	p := r.pools[route.Provider]

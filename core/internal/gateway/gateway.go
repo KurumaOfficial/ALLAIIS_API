@@ -24,9 +24,10 @@ import (
 )
 
 const (
-	tierHeader = "X-ALLAIIS-Transport-Tier"
-	maxRequest = 8 << 20
-	maxReply   = 16 << 20
+	tierHeader       = "X-ALLAIIS-Transport-Tier"
+	maxRequest       = 8 << 20
+	maxReply         = 16 << 20
+	anthropicVersion = "2026-10-21"
 )
 
 type Gateway struct {
@@ -56,26 +57,45 @@ func New(routes *router.Router, clientKey string, minimum config.Privacy) http.H
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
-	mux.HandleFunc("GET /v1/models", g.authorize(g.models))
-	mux.HandleFunc("POST /v1/chat/completions", g.authorize(g.chat))
+	mux.HandleFunc("GET /v1/models", g.authorize(config.Chat, g.models))
+	mux.HandleFunc("POST /v1/chat/completions", g.completion(config.Chat, "/chat/completions"))
+	mux.HandleFunc("POST /v1/responses", g.completion(config.Responses, "/responses"))
+	mux.HandleFunc("POST /v1/messages", g.completion(config.Messages, "/messages"))
 	return mux
 }
 
-func (g *Gateway) authorize(next http.HandlerFunc) http.HandlerFunc {
+func (g *Gateway) authorize(protocol config.Protocol, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		headers := r.Header.Values("Authorization")
-		if len(headers) == 1 {
-			scheme, secret, found := strings.Cut(headers[0], " ")
-			digest := sha256.Sum256([]byte(secret))
-			if found && strings.EqualFold(scheme, "Bearer") && subtle.ConstantTimeCompare(digest[:], g.keyDigest[:]) == 1 {
-				next(w, r)
-				return
-			}
+		if g.validKey(clientCredential(r, protocol)) {
+			next(w, r)
+			return
 		}
 		w.Header().Set("WWW-Authenticate", "Bearer")
-		writeError(w, http.StatusUnauthorized, "invalid_api_key", "A valid ALLAIIS bearer key is required.")
+		writeError(w, protocol, http.StatusUnauthorized, "invalid_api_key", "A valid ALLAIIS key is required.")
 	}
+}
+
+func clientCredential(r *http.Request, protocol config.Protocol) string {
+	auth := r.Header.Values("Authorization")
+	if keys := r.Header.Values("X-Api-Key"); protocol == config.Messages && len(keys) > 0 {
+		if len(keys) == 1 && len(auth) == 0 {
+			return keys[0]
+		}
+		return ""
+	}
+	if len(auth) == 1 {
+		scheme, secret, found := strings.Cut(auth[0], " ")
+		if found && strings.EqualFold(scheme, "Bearer") {
+			return secret
+		}
+	}
+	return ""
+}
+
+func (g *Gateway) validKey(key string) bool {
+	digest := sha256.Sum256([]byte(key))
+	return key != "" && subtle.ConstantTimeCompare(digest[:], g.keyDigest[:]) == 1
 }
 
 func (g *Gateway) privacy(r *http.Request) (config.Privacy, bool) {
@@ -96,32 +116,47 @@ func (g *Gateway) privacy(r *http.Request) (config.Privacy, bool) {
 func (g *Gateway) models(w http.ResponseWriter, r *http.Request) {
 	minimum, ok := g.privacy(r)
 	if !ok {
-		writeError(w, http.StatusBadRequest, "invalid_privacy", "Invalid X-ALLAIIS-Min-Privacy value.")
+		writeError(w, config.Chat, http.StatusBadRequest, "invalid_privacy", "Invalid X-ALLAIIS-Min-Privacy value.")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": g.router.Models(minimum)})
 }
 
-func (g *Gateway) chat(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) completion(protocol config.Protocol, path string) http.HandlerFunc {
+	return g.authorize(protocol, func(w http.ResponseWriter, r *http.Request) {
+		g.forwardCompletion(w, r, protocol, path)
+	})
+}
+
+func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, path string) {
 	minimum, ok := g.privacy(r)
 	if !ok {
-		writeError(w, http.StatusBadRequest, "invalid_privacy", "Invalid X-ALLAIIS-Min-Privacy value.")
+		writeError(w, protocol, http.StatusBadRequest, "invalid_privacy", "Invalid X-ALLAIIS-Min-Privacy value.")
 		return
+	}
+	var version string
+	if protocol == config.Messages {
+		var err error
+		version, err = messagesVersion(r.Header.Values("Anthropic-Version"))
+		if err != nil {
+			writeError(w, protocol, http.StatusBadRequest, "invalid_version", err.Error())
+			return
+		}
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequest))
 	var tooLarge *http.MaxBytesError
 	switch {
 	case errors.As(err, &tooLarge):
-		writeError(w, http.StatusRequestEntityTooLarge, "request_too_large", "The maximum request size is 8 MiB.")
+		writeError(w, protocol, http.StatusRequestEntityTooLarge, "request_too_large", "The maximum request size is 8 MiB.")
 		return
 	case err != nil:
-		writeError(w, http.StatusBadRequest, "invalid_request", "Could not read the request body.")
+		writeError(w, protocol, http.StatusBadRequest, "invalid_request", "Could not read the request body.")
 		return
 	}
 
-	fields, model, stream, prefix, err := parseChat(body)
+	fields, model, stream, prefix, err := parseCompletion(body, protocol)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 	sessionHeader := r.Header.Get("X-ALLAIIS-Session")
@@ -129,11 +164,11 @@ func (g *Gateway) chat(w http.ResponseWriter, r *http.Request) {
 		sessionHeader = r.Header.Get("X-OpenCode-Session")
 	}
 	if len(sessionHeader) > 256 {
-		writeError(w, http.StatusBadRequest, "invalid_session", "The session header must be at most 256 bytes.")
+		writeError(w, protocol, http.StatusBadRequest, "invalid_session", "The session header must be at most 256 bytes.")
 		return
 	}
 	session := g.sessionID(sessionHeader, prefix)
-	target, until, err := g.router.Resolve(r.Context(), model, minimum, session)
+	target, until, err := g.router.Resolve(r.Context(), model, protocol, minimum, session)
 	if target.Route.ID != "" {
 		w.Header().Set(tierHeader, "tier_a")
 		w.Header().Set("X-ALLAIIS-Provider", target.Route.Provider)
@@ -141,31 +176,39 @@ func (g *Gateway) chat(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case errors.Is(err, router.ErrModel):
-		writeError(w, http.StatusNotFound, "model_not_found", "The requested model is unavailable under the current policy.")
+		writeError(w, protocol, http.StatusNotFound, "model_not_found", "The requested model is unavailable for this endpoint under the current policy.")
 		return
 	case errors.Is(err, router.ErrCredentials):
-		writeError(w, http.StatusServiceUnavailable, "key_unconfigured", "No provider key is configured for this model.")
+		writeError(w, protocol, http.StatusServiceUnavailable, "key_unconfigured", "No provider key is configured for this model.")
 		return
 	case errors.Is(err, router.ErrCooldown):
-		rateLimited(w, until)
+		rateLimited(w, protocol, until)
 		return
 	case err != nil:
-		writeError(w, http.StatusServiceUnavailable, "routing_unavailable", "Could not read the routing state.")
+		writeError(w, protocol, http.StatusServiceUnavailable, "routing_unavailable", "Could not read the routing state.")
 		return
 	}
 
 	fields["model"], _ = json.Marshal(target.Route.UpstreamModel)
 	forward, err := json.Marshal(fields)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "Could not encode the chat request.")
+		writeError(w, protocol, http.StatusBadRequest, "invalid_request", "Could not encode the model request.")
 		return
 	}
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target.Provider.BaseURL+"/chat/completions", bytes.NewReader(forward))
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target.Provider.BaseURL+path, bytes.NewReader(forward))
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "upstream_unavailable", "Could not construct the provider request.")
+		writeError(w, protocol, http.StatusBadGateway, "upstream_unavailable", "Could not construct the provider request.")
 		return
 	}
-	request.Header.Set("Authorization", "Bearer "+target.Entry.Key)
+	if protocol == config.Messages {
+		request.Header.Set("X-Api-Key", target.Entry.Key)
+		request.Header.Set("Anthropic-Version", version)
+		for _, beta := range r.Header.Values("Anthropic-Beta") {
+			request.Header.Add("Anthropic-Beta", beta)
+		}
+	} else {
+		request.Header.Set("Authorization", "Bearer "+target.Entry.Key)
+	}
 	request.Header.Set("User-Agent", "ALLAIIS/0.1")
 	request.Header.Set("Content-Type", "application/json")
 	if stream {
@@ -181,7 +224,7 @@ func (g *Gateway) chat(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if r.Context().Err() == nil {
 			slog.Warn("provider request failed", "provider", target.Route.Provider)
-			writeError(w, http.StatusBadGateway, "upstream_unavailable", "Could not connect to the provider or complete the request in time.")
+			writeError(w, protocol, http.StatusBadGateway, "upstream_unavailable", "Could not connect to the provider or complete the request in time.")
 		}
 		return
 	}
@@ -196,13 +239,25 @@ func (g *Gateway) chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !stream && mediaType == "application/json" {
-		copyJSON(w, response.Body)
+		copyJSON(w, protocol, response.Body)
 		return
 	}
-	writeError(w, http.StatusBadGateway, "invalid_upstream_response", "The provider returned an unexpected response format.")
+	writeError(w, protocol, http.StatusBadGateway, "invalid_upstream_response", "The provider returned an unexpected response format.")
 }
 
-func parseChat(body []byte) (map[string]json.RawMessage, string, bool, []byte, error) {
+func messagesVersion(values []string) (string, error) {
+	if len(values) == 0 {
+		return anthropicVersion, nil
+	}
+	if len(values) == 1 {
+		if _, err := time.Parse(time.DateOnly, values[0]); err == nil {
+			return values[0], nil
+		}
+	}
+	return "", errors.New("Anthropic-Version must be a single date in YYYY-MM-DD format.")
+}
+
+func parseCompletion(body []byte, protocol config.Protocol) (map[string]json.RawMessage, string, bool, []byte, error) {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(body, &fields); err != nil || fields == nil {
 		return nil, "", false, nil, errors.New("expected a JSON object")
@@ -214,6 +269,12 @@ func parseChat(body []byte) (map[string]json.RawMessage, string, bool, []byte, e
 	var stream bool
 	if raw, ok := fields["stream"]; ok && json.Unmarshal(raw, &stream) != nil {
 		return nil, "", false, nil, errors.New("stream must be a boolean")
+	}
+	if protocol == config.Responses {
+		if bytes.Equal(fields["background"], []byte("true")) {
+			return nil, "", false, nil, errors.New("background generation is unavailable through this endpoint")
+		}
+		return fields, model, stream, nil, nil
 	}
 	var messages []struct {
 		Role    string          `json:"role"`
@@ -235,6 +296,9 @@ func parseChat(body []byte) (map[string]json.RawMessage, string, bool, []byte, e
 		prefixLength = len(messages)
 	}
 	prefix, err := json.Marshal(messages[:prefixLength])
+	if protocol == config.Messages {
+		prefix = append(append(bytes.Clone(fields["system"]), '\x00'), prefix...)
+	}
 	return fields, model, stream, prefix, err
 }
 
@@ -250,6 +314,7 @@ func (g *Gateway) sessionID(hint string, prefix []byte) [32]byte {
 }
 
 func (g *Gateway) upstreamError(w http.ResponseWriter, ctx context.Context, target router.Target, response *http.Response) {
+	protocol := target.Route.Protocol
 	status := response.StatusCode
 	switch status {
 	case http.StatusTooManyRequests:
@@ -259,13 +324,15 @@ func (g *Gateway) upstreamError(w http.ResponseWriter, ctx context.Context, targ
 		if err := g.router.SetCooldown(persist, target, until); err != nil {
 			slog.Warn("could not persist provider cooldown", "provider", target.Route.Provider)
 		}
-		rateLimited(w, until)
+		rateLimited(w, protocol, until)
 	case http.StatusBadRequest, http.StatusNotFound, http.StatusUnprocessableEntity:
-		writeError(w, status, "upstream_rejected_request", "The provider rejected this model or its request parameters.")
+		writeError(w, protocol, status, "upstream_rejected_request", "The provider rejected this model or its request parameters.")
+	case http.StatusRequestEntityTooLarge:
+		writeError(w, protocol, status, "request_too_large", "The model request exceeds the provider's size limit.")
 	case http.StatusUnauthorized, http.StatusForbidden:
-		writeError(w, http.StatusBadGateway, "upstream_access_denied", "The provider refused access. Check the API key and model permissions.")
+		writeError(w, protocol, http.StatusBadGateway, "upstream_access_denied", "The provider refused access. Check the API key and model permissions.")
 	default:
-		writeError(w, http.StatusBadGateway, "upstream_error", "The provider returned an unexpected status.")
+		writeError(w, protocol, http.StatusBadGateway, "upstream_error", "The provider returned an unexpected status.")
 	}
 }
 
@@ -279,19 +346,19 @@ func retryTime(value string, now time.Time) time.Time {
 	return now.Add(30 * time.Second)
 }
 
-func rateLimited(w http.ResponseWriter, until time.Time) {
+func rateLimited(w http.ResponseWriter, protocol config.Protocol, until time.Time) {
 	seconds := (time.Until(until) + time.Second - 1) / time.Second
 	if seconds < 1 {
 		seconds = 1
 	}
 	w.Header().Set("Retry-After", strconv.FormatInt(int64(seconds), 10))
-	writeError(w, http.StatusTooManyRequests, "rate_limit_exceeded", "The provider rate-limited this key pool. Retry after the stated delay.")
+	writeError(w, protocol, http.StatusTooManyRequests, "rate_limit_exceeded", "The provider rate-limited this key pool. Retry after the stated delay.")
 }
 
-func copyJSON(w http.ResponseWriter, body io.Reader) {
+func copyJSON(w http.ResponseWriter, protocol config.Protocol, body io.Reader) {
 	result, err := io.ReadAll(io.LimitReader(body, maxReply+1))
 	if err != nil || len(result) > maxReply || !json.Valid(result) {
-		writeError(w, http.StatusBadGateway, "invalid_upstream_response", "The provider returned an invalid or oversized JSON response.")
+		writeError(w, protocol, http.StatusBadGateway, "invalid_upstream_response", "The provider returned an invalid or oversized JSON response.")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -331,12 +398,26 @@ func streamSSE(w http.ResponseWriter, body io.Reader) {
 	}
 }
 
-func writeError(w http.ResponseWriter, status int, code, message string) {
+func writeError(w http.ResponseWriter, protocol config.Protocol, status int, code, message string) {
 	kind := "invalid_request_error"
 	if status >= 500 {
 		kind = "api_error"
 	} else if status == http.StatusTooManyRequests {
 		kind = "rate_limit_error"
+	}
+	if protocol == config.Messages {
+		switch status {
+		case http.StatusUnauthorized:
+			kind = "authentication_error"
+		case http.StatusNotFound:
+			kind = "not_found_error"
+		case http.StatusRequestEntityTooLarge:
+			kind = "request_too_large"
+		}
+		writeJSON(w, status, map[string]any{
+			"type": "error", "error": map[string]string{"type": kind, "message": message},
+		})
+		return
 	}
 	writeJSON(w, status, map[string]any{"error": map[string]string{
 		"message": message, "type": kind, "code": code,

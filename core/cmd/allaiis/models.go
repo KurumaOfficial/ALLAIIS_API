@@ -19,7 +19,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 	command := args[0]
 	flags := flag.NewFlagSet("models "+command, flag.ContinueOnError)
 	providerID := flags.String("provider", "", "provider ID")
-	var match, model, name, label, privacy string
+	var match, model, name, label, privacy, protocol string
 	var all, withKeys bool
 	switch command {
 	case "discover":
@@ -32,6 +32,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 		flags.StringVar(&name, "name", "", "alias base name (defaults to the upstream model ID)")
 		flags.StringVar(&label, "label", "", "bind this alias to a named credential")
 		flags.StringVar(&privacy, "privacy", string(config.Consumer), "privacy classification of the upstream route")
+		flags.StringVar(&protocol, "protocol", "chat", "route protocol: chat, responses, or messages")
 	default:
 		return fmt.Errorf("unknown models command %q", command)
 	}
@@ -57,7 +58,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 		}
 		route := config.Route{
 			ID: name + "-" + *providerID, Provider: *providerID, UpstreamModel: model,
-			Privacy: config.Privacy(privacy), CredentialLabel: label,
+			Privacy: config.Privacy(privacy), CredentialLabel: label, Protocol: config.Protocol(protocol),
 		}
 		added, err := config.AddModel(ctx, path, route)
 		if err != nil {

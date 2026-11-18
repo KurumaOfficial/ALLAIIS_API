@@ -35,7 +35,7 @@ const usage = `Usage: allaiis <command>
   account add       Add or replace a named API key
   account remove    Remove a key from the vault
   models discover   List upstream models from one or all provider catalogs
-  models add        Register a provider-specific model alias
+  models add        Register a model alias for chat, responses, or messages
   status            Show configured models, key labels, and provider cooldowns
   key               Print the local gateway bearer key
   export opencode   Print a custom provider config for OpenCode
@@ -287,12 +287,14 @@ func saveEntries(ctx context.Context, store *vault.Store, entries []vault.Entry)
 }
 
 func exportOpenCode(w io.Writer, listen string, models []router.Model) error {
-	if len(models) == 0 {
-		return errors.New("configure a model and import a provider key before exporting")
-	}
 	options := make(map[string]any, len(models))
 	for _, model := range models {
-		options[model.ID] = map[string]string{"name": model.ID}
+		if model.Protocol == config.Chat {
+			options[model.ID] = map[string]string{"name": model.ID}
+		}
+	}
+	if len(options) == 0 {
+		return errors.New("configure a Chat Completions model and import a provider key before exporting")
 	}
 	return writeJSON(w, map[string]any{
 		"$schema": "https://opencode.ai/config.json",

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"syscall"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -38,6 +40,9 @@ func AddModel(ctx context.Context, path string, route Route) (bool, error) {
 	if route.Privacy == "" {
 		route.Privacy = Consumer
 	}
+	if route.Protocol == "chat" {
+		route.Protocol = Chat
+	}
 	for _, existing := range cfg.Models {
 		if existing.ID == route.ID {
 			if existing == route {
@@ -57,13 +62,13 @@ func AddModel(ctx context.Context, path string, route Route) (bool, error) {
 	if len(body)+1 > maxConfigBytes {
 		return false, errors.New("edited configuration would exceed 1 MiB")
 	}
-	if err := replaceConfig(path, append(body, '\n')); err != nil {
+	if err := replaceConfig(ctx, path, append(body, '\n')); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func replaceConfig(path string, body []byte) error {
+func replaceConfig(ctx context.Context, path string, body []byte) error {
 	file, err := os.CreateTemp(filepath.Dir(path), ".config-*.tmp")
 	if err != nil {
 		return err
@@ -76,5 +81,23 @@ func replaceConfig(path string, body []byte) error {
 	if err := errors.Join(file.Sync(), file.Close()); err != nil {
 		return err
 	}
-	return os.Rename(file.Name(), path)
+
+	// Windows can refuse replacement while another process has the file open.
+	const windowsSharingViolation syscall.Errno = 32
+	retryUntil := time.Now().Add(time.Second)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := os.Rename(file.Name(), path)
+		if runtime.GOOS != "windows" || time.Now().After(retryUntil) ||
+			(!errors.Is(err, os.ErrPermission) && !errors.Is(err, windowsSharingViolation)) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
 }
