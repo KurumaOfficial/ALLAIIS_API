@@ -5,7 +5,7 @@ as OpenCode one local OpenAI-compatible endpoint for streaming chat, while
 provider-specific model names let you choose where each request runs.
 Provider API keys are stored in an encrypted local vault.
 
-[Project roadmap](ROADMAP.md)
+[Project roadmap](ROADMAP.md) · [Opt-in browser bridge example](docs/browser-bridge.md)
 
 ## Quick start
 
