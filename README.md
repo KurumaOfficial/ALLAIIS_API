@@ -15,7 +15,32 @@ ALLAIIS is a self-hosted Go gateway for AI clients such as OpenCode. Register mo
 
 ## Quick start
 
-Use Go 1.26.2 or later. Pick an exact model ID available to your DeepSeek account and set `DEEPSEEK_API_KEY` and `DEEPSEEK_MODEL_ID` in your shell before running the commands. `deepseek-flash` is the model used in this example.
+**Offline setup verified. Live provider checks recorded: 0.** The smoke test uses a loopback provider and fixture credentials.
+
+| Step | Status |
+| --- | --- |
+| Open a local checkout with Go 1.26.2 or later | Prerequisite |
+| Initialize the vault, import a key, and register a model alias | Tested offline in `TestQuickStartOffline` |
+| Read the local key and start the gateway | Tested offline in `TestQuickStartOffline` |
+| Send JSON and streaming requests | Tested offline in `TestQuickStartOffline` |
+
+```sh
+go test -count=1 -v -run '^TestQuickStartOffline$' ./core/cmd/allaiis
+```
+
+### After block B
+
+**Live walkthrough pending.** The commands below target the official DeepSeek API and are listed for a future provider check. [Integration status](docs/BLOCKED.md)
+
+| Step | Offline evidence | Live status |
+| --- | --- | --- |
+| Clone and build | Build checked with `go build ./...` | Local setup |
+| Set `DEEPSEEK_API_KEY` and choose `DEEPSEEK_MODEL_ID` | Real key and catalog selection are uncovered | Pending |
+| Run `init`, `import`, and `models add` | `TestQuickStartOffline`, fixture provider | Pending |
+| Read the gateway key and run `up` | `TestQuickStartOffline`, loopback only | Pending |
+| Send a Chat Completions request | `TestQuickStartOffline`, JSON and SSE fixture | Pending |
+
+Pick an exact model ID available to your DeepSeek account and export it as `DEEPSEEK_MODEL_ID`. The shell example falls back to `deepseek-flash`.
 
 <details open>
 <summary>Linux and macOS</summary>
@@ -195,10 +220,10 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Local opt-in browser worker | ✓ | `TestBrowserWorkerBoundaryAndStreaming`, `TestCanceledRequestReleasesWorker` | — | — |
 | Private Venice web integration | — | Not covered | — | [Details](docs/BLOCKED.md) |
 
-### Offline compatibility work in this checkout
+### Offline compatibility
 
-These tests run against synthetic input and loopback servers. This work is
-local to the checkout. The fixture catalog models and limits below are test data.
+These tests run against synthetic input and loopback servers. The fixture
+catalog models and limits below are test data.
 
 | Feature | Implemented | Tested offline | Tested live | Blocked |
 | --- | :---: | --- | :---: | --- |

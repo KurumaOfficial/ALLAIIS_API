@@ -13,6 +13,9 @@
 
 ## B2. Handoff
 
+1. **A1, real host.** Use the existing gateway against a provider-documented Chat Completions endpoint with an authorized API credential. Record whether the official endpoint returns HTTP `200` and `Content-Type: text/event-stream`. The protected web transport is blocked and uncovered. The gateway path has offline coverage in `TestQuickStartOffline`.
+2. **A9, two credentials.** Use two provider-issued API keys with separate labels on an authorized test account or workspace. Check that each pinned alias uses its own key and that the gateway waits for `Retry-After` when the provider throttles the pool. Private web-session switching after a rate limit is blocked and uncovered. `TestProviderAliasesAndPinnedCredentials` and `TestRoutingAndProviderCooldown` cover the official API behavior offline.
+
 | Item | Status | Supported handoff |
 | --- | --- | --- |
 | Browser session cookie import | blocked | Use a provider-issued API key with the existing key import command. |
@@ -26,11 +29,10 @@
 
 The requested private authentication and inference commands are blocked. An authorized integration can start with the documented request format and test key issued for that endpoint. [Venice API reference](https://docs.venice.ai/api-reference/endpoint/chat/completions)
 
-A web-session pool that switches sessions in response to a provider's rate limit is also blocked. The existing official API key pools respect a provider cooldown. `TestRoutingAndProviderCooldown` covers this behavior offline.
-
 ## B3. Live acceptance checklist
 
-- [ ] Receive HTTP `200` with `Content-Type: text/event-stream` from an authorized inference endpoint.
+- [ ] A1 authorized transport check. Receive HTTP `200` with `Content-Type: text/event-stream` through the gateway from a documented provider endpoint.
+- [ ] A9 two-credential check. Verify both named API routes and provider `Retry-After` handling within the permitted test scope.
 - [ ] Confirm the stream contains a content event and a terminal event.
 - [ ] Disconnect the client mid-stream and confirm upstream cancellation.
 - [ ] Record the test name, provider, model, and result in the README status matrix.
