@@ -1,0 +1,13 @@
+/allaiis
+/allaiis.exe
+/dist/
+/.allaiis/
+/profiles/
+.env
+.env.*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+vault.enc
+auth.json
