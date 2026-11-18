@@ -79,11 +79,12 @@ func OpenCode(cfg config.Config, providerIDs []string, path string) ([]vault.Ent
 	builtInAuthIDs := map[string]string{
 		"openai": "openai", "deepseek": "deepseek", "zai": "zai", "venice": "venice",
 		"qwen": "alibaba", "gemini": "google", "opencode": "opencode", "opencode-go": "opencode-go",
+		"anthropic": "anthropic", "arena-ai": "arena-ai",
 	}
 	var entries []vault.Entry
 	for _, id := range providerIDs {
 		authID, ok := builtInAuthIDs[id]
-		if !ok {
+		if _, custom := cfg.Providers[id]; !ok || custom {
 			continue
 		}
 		raw, ok := auth[authID]

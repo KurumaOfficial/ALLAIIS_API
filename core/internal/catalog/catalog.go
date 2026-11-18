@@ -4,39 +4,130 @@ package catalog
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
 
-const maxCatalogBytes = 8 << 20
+const (
+	maxCatalogBytes = 8 << 20
+	maxCatalogPages = 100
+	maxCatalogRows  = 25000
+)
 
 type Model struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Type    string   `json:"type,omitempty"`
+	Methods []string `json:"supported_generation_methods,omitempty"`
 }
 
-func List(ctx context.Context, endpoint, match string) ([]Model, error) {
+func List(ctx context.Context, endpoint string, format config.CatalogFormat, key, match string) ([]Model, error) {
+	endpointURL, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	query := endpointURL.Query()
+	pages := pagination{query: query}
+	switch format {
+	case config.DashScopeCatalog:
+		query.Set("page_no", "1")
+		query.Set("page_size", "100")
+	case config.GeminiCatalog:
+		query.Set("pageSize", "100")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
 	client := http.Client{
-		Timeout: 15 * time.Second,
+		Transport: transport,
+		Timeout:   15 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
+	defer client.CloseIdleConnections()
+
+	models := make([]Model, 0)
+	seen := make(map[[2]string]struct{})
+	parameters := make(map[string]struct{})
+	match = strings.ToLower(strings.TrimSpace(match))
+	for range maxCatalogPages {
+		endpointURL.RawQuery = query.Encode()
+		if _, duplicate := parameters[endpointURL.RawQuery]; duplicate {
+			return nil, errors.New("provider repeated a catalog page cursor")
+		}
+		parameters[endpointURL.RawQuery] = struct{}{}
+		body, err := readPage(ctx, &client, endpointURL.String(), format, key)
+		if err != nil {
+			return nil, err
+		}
+		rows, more, err := pages.decode(body, format)
+		if err != nil {
+			return nil, err
+		}
+		if pages.rows > maxCatalogRows {
+			return nil, errors.New("provider catalog exceeds 25,000 entries")
+		}
+		for _, row := range rows {
+			model := row.model(format)
+			if model.ID == "" {
+				continue
+			}
+			identity := [2]string{model.ID, model.Type}
+			if _, duplicate := seen[identity]; duplicate {
+				continue
+			}
+			seen[identity] = struct{}{}
+			if strings.Contains(strings.ToLower(model.ID), match) || strings.Contains(strings.ToLower(model.Name), match) {
+				models = append(models, model)
+			}
+		}
+		if !more {
+			slices.SortFunc(models, func(a, b Model) int {
+				if byID := strings.Compare(a.ID, b.ID); byID != 0 {
+					return byID
+				}
+				return strings.Compare(a.Type, b.Type)
+			})
+			return models, nil
+		}
+	}
+	return nil, errors.New("provider catalog exceeds 100 pages")
+}
+
+func readPage(ctx context.Context, client *http.Client, endpoint string, format config.CatalogFormat, key string) ([]byte, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("User-Agent", "ALLAIIS/0.1")
+	if key != "" {
+		switch format {
+		case config.ClaudeCatalog:
+			request.Header.Set("X-API-Key", key)
+			request.Header.Set("Anthropic-Version", "2023-06-01")
+		case config.GeminiCatalog:
+			request.Header.Set("X-Goog-Api-Key", key)
+		default:
+			request.Header.Set("Authorization", "Bearer "+key)
+		}
+	}
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, err
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, errors.New("could not reach the provider catalog")
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
@@ -49,41 +140,5 @@ func List(ctx context.Context, endpoint, match string) ([]Model, error) {
 	if len(body) > maxCatalogBytes {
 		return nil, errors.New("provider catalog exceeds 8 MiB")
 	}
-	return parse(body, match)
-}
-
-func parse(body []byte, match string) ([]Model, error) {
-	var catalog struct {
-		Data []struct {
-			Model
-			Spec struct {
-				Name string `json:"name"`
-			} `json:"model_spec"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &catalog); err != nil || catalog.Data == nil {
-		return nil, errors.New("provider returned an invalid model catalog")
-	}
-
-	models := make([]Model, 0, len(catalog.Data))
-	seen := make(map[string]bool)
-	match = strings.ToLower(strings.TrimSpace(match))
-	for _, item := range catalog.Data {
-		if item.ID == "" || seen[item.ID] {
-			continue
-		}
-		seen[item.ID] = true
-		name := item.Name
-		if name == "" {
-			name = item.Spec.Name
-		}
-		if name == "" {
-			name = item.ID
-		}
-		if strings.Contains(strings.ToLower(item.ID), match) || strings.Contains(strings.ToLower(name), match) {
-			models = append(models, Model{ID: item.ID, Name: name})
-		}
-	}
-	slices.SortFunc(models, func(a, b Model) int { return strings.Compare(a.ID, b.ID) })
-	return models, nil
+	return body, nil
 }

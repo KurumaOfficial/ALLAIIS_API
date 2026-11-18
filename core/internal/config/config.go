@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -35,33 +37,64 @@ func (p Privacy) Meets(minimum Privacy) bool {
 }
 
 type Provider struct {
-	BaseURL string `json:"base_url"`
-	KeyEnv  string `json:"key_env,omitempty"`
-	session bool
-	catalog string
+	BaseURL       string        `json:"base_url"`
+	KeyEnv        string        `json:"key_env,omitempty"`
+	CatalogFormat CatalogFormat `json:"catalog_format,omitempty"`
+	CatalogPublic bool          `json:"catalog_public,omitempty"`
+	session       bool
+	catalogURL    string
+	customizable  bool
 }
 
 func (p Provider) SendSession() bool { return p.session }
 
-func (p Provider) CatalogURL() string { return p.catalog }
+type CatalogFormat string
+
+const (
+	OpenAICatalog    CatalogFormat = ""
+	ClaudeCatalog    CatalogFormat = "anthropic"
+	GeminiCatalog    CatalogFormat = "gemini"
+	DashScopeCatalog CatalogFormat = "dashscope"
+)
+
+func (p Provider) CatalogURL() string {
+	if p.catalogURL != "" {
+		return p.catalogURL
+	}
+	if p.CatalogFormat == DashScopeCatalog {
+		return strings.TrimSuffix(p.BaseURL, "/compatible-mode/v1") + "/api/v1/models"
+	}
+	return p.BaseURL + "/models"
+}
 
 var defaults = map[string]Provider{
 	"openai":   {BaseURL: "https://api.openai.com/v1", KeyEnv: "OPENAI_API_KEY"},
 	"deepseek": {BaseURL: "https://api.deepseek.com", KeyEnv: "DEEPSEEK_API_KEY"},
 	"zai":      {BaseURL: "https://api.z.ai/api/paas/v4", KeyEnv: "ZAI_API_KEY"},
-	"venice": {
-		BaseURL: "https://api.venice.ai/api/v1", KeyEnv: "VENICE_API_KEY",
-		catalog: "https://api.venice.ai/api/v1/models?type=text",
+	"anthropic": {
+		BaseURL: "https://api.anthropic.com/v1", KeyEnv: "ANTHROPIC_API_KEY",
+		CatalogFormat: ClaudeCatalog, customizable: true,
 	},
-	"qwen":   {BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", KeyEnv: "DASHSCOPE_API_KEY"},
-	"gemini": {BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai", KeyEnv: "GEMINI_API_KEY"},
+	"arena-ai": {BaseURL: "https://api.arena.ai/v1", KeyEnv: "ARENA_API_KEY", customizable: true},
+	"venice": {
+		BaseURL: "https://api.venice.ai/api/v1", KeyEnv: "VENICE_API_KEY", CatalogPublic: true,
+		catalogURL: "https://api.venice.ai/api/v1/models?type=all",
+	},
+	"qwen": {
+		BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", KeyEnv: "DASHSCOPE_API_KEY",
+		CatalogFormat: DashScopeCatalog,
+	},
+	"gemini": {
+		BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai", KeyEnv: "GEMINI_API_KEY",
+		CatalogFormat: GeminiCatalog, catalogURL: "https://generativelanguage.googleapis.com/v1beta/models",
+	},
 	"opencode": {
-		BaseURL: "https://opencode.ai/inference/openai/v1", KeyEnv: "OPENCODE_API_KEY", session: true,
-		catalog: "https://opencode.ai/inference/v1/models",
+		BaseURL: "https://opencode.ai/inference/openai/v1", KeyEnv: "OPENCODE_API_KEY",
+		session: true, CatalogPublic: true, catalogURL: "https://opencode.ai/inference/v1/models",
 	},
 	"opencode-go": {
-		BaseURL: "https://opencode.ai/inference/go/openai/v1", KeyEnv: "OPENCODE_API_KEY", session: true,
-		catalog: "https://opencode.ai/inference/go/v1/models",
+		BaseURL: "https://opencode.ai/inference/go/openai/v1", KeyEnv: "OPENCODE_API_KEY",
+		session: true, CatalogPublic: true, catalogURL: "https://opencode.ai/inference/go/v1/models",
 	},
 }
 
@@ -96,11 +129,27 @@ func Default() Config {
 }
 
 func (c Config) Provider(id string) (Provider, bool) {
-	if p, ok := defaults[id]; ok {
+	if p, ok := c.Providers[id]; ok {
 		return p, true
 	}
-	p, ok := c.Providers[id]
+	p, ok := defaults[id]
+	if p.customizable {
+		for _, custom := range c.Providers {
+			if custom.BaseURL == p.BaseURL {
+				return Provider{}, false
+			}
+		}
+	}
 	return p, ok
+}
+
+func (c Config) ProviderIDs() []string {
+	providers := maps.Clone(defaults)
+	maps.Copy(providers, c.Providers)
+	return slices.DeleteFunc(slices.Sorted(maps.Keys(providers)), func(id string) bool {
+		_, available := c.Provider(id)
+		return !available
+	})
 }
 
 func Load(path string) (Config, error) {
@@ -145,10 +194,13 @@ func (c *Config) validate() error {
 	}
 	baseURLs := make(map[string]string, len(defaults)+len(c.Providers))
 	for id, p := range defaults {
-		baseURLs[p.BaseURL] = id
+		if !p.customizable {
+			baseURLs[p.BaseURL] = id
+		}
 	}
 	for id, p := range c.Providers {
-		if _, reserved := defaults[id]; reserved || !providerID.MatchString(id) {
+		preset, reserved := defaults[id]
+		if (reserved && !preset.customizable) || !providerID.MatchString(id) {
 			return fmt.Errorf("invalid or reserved provider ID %q", id)
 		}
 		baseURL, err := validateBaseURL(p.BaseURL)
@@ -162,6 +214,10 @@ func (c *Config) validate() error {
 		p.BaseURL = baseURL
 		if p.KeyEnv != "" && !envName.MatchString(p.KeyEnv) {
 			return fmt.Errorf("provider %q has an invalid key_env", id)
+		}
+		if p.CatalogFormat != OpenAICatalog && (p.CatalogFormat != DashScopeCatalog ||
+			!strings.HasSuffix(p.BaseURL, "/compatible-mode/v1")) {
+			return fmt.Errorf("provider %q: use catalog_format dashscope with a /compatible-mode/v1 base URL", id)
 		}
 		c.Providers[id] = p
 	}

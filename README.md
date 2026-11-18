@@ -1,8 +1,11 @@
 # ALLAIIS API
 
-ALLAIIS is a self-hosted Go gateway for official AI APIs. It exposes a local
-OpenAI-compatible Chat Completions endpoint and lets a client use one ALLAIIS
-key for the API providers you configure.
+ALLAIIS is a self-hosted Go gateway for official AI APIs. It gives tools such
+as OpenCode one local OpenAI-compatible endpoint for streaming chat, while
+provider-specific model names let you choose where each request runs.
+Provider API keys are stored in an encrypted local vault.
+
+[Project roadmap](ROADMAP.md)
 
 ## Quick start
 
@@ -90,17 +93,51 @@ authorize the traffic you send.
 | `venice` | `VENICE_API_KEY` | [Venice Chat Completions](https://docs.venice.ai/api-reference/endpoint/chat/completions) |
 | `qwen` | `DASHSCOPE_API_KEY` | [Alibaba Cloud Model Studio](https://help.aliyun.com/en/model-studio/compatibility-of-openai-with-dashscope) |
 | `gemini` | `GEMINI_API_KEY` | [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai) |
+| `anthropic` | `ANTHROPIC_API_KEY` | [Claude OpenAI compatibility](https://platform.claude.com/docs/en/api/openai-sdk) |
+| `arena-ai` | `ARENA_API_KEY` | [Arena API](https://platform.arena.ai/docs/api) |
 | `opencode` | `OPENCODE_API_KEY` | [OpenCode Console](https://opencode.ai/docs/console/harnesses#base-urls) |
 | `opencode-go` | `OPENCODE_API_KEY` | [OpenCode Go](https://opencode.ai/docs/console/go/#where-can-i-use-it) |
 
 OpenCode Go is intended for coding-agent traffic. The gateway sends its own
 user agent and a stable `X-OpenCode-Session` identifier. The `qwen` preset uses
 the Singapore-compatible endpoint. For a regional or workspace-specific Qwen
-endpoint, add a custom provider with that endpoint.
+endpoint, add a custom provider with that endpoint. The `anthropic` preset
+uses Claude's OpenAI compatibility layer for chat and its native API for
+model discovery.
+
+## Discover provider models
+
+```sh
+./allaiis models discover --all
+./allaiis models discover --all --with-keys
+./allaiis models discover --provider arena-ai --match DeepSeek
+./allaiis models discover --provider opencode-go --label workspace
+```
+
+`--all` checks built-in and configured providers. It reads the public Venice,
+OpenCode Console, and OpenCode Go catalogs without unlocking the vault. Venice's
+result includes all catalog types. Use `--with-keys` to query catalogs using
+stored credentials. A single private provider can also be queried directly
+with `--provider`. When a provider has multiple stored keys, select a label
+to get the catalog for that account or workspace.
+
+The JSON report groups results by provider and identifies public and
+credential-specific results. It includes a status for each provider, including
+missing keys, ambiguous credential selection, and upstream errors. Use
+`--match` to filter by ID or name. Catalogs can contain models for capabilities
+other than Chat Completions. Register a chat-capable model separately with
+`models add` to expose it through the gateway's `/v1/models`.
+
+For Qwen Model Studio workspace catalogs, use a custom provider with your
+regional workspace URL ending in `/compatible-mode/v1` and set
+`"catalog_format": "dashscope"`. Discovery uses the native list endpoint on
+that host and follows its pages. [Alibaba Cloud model catalog](https://help.aliyun.com/en/model-studio/list-models)
 
 Use the optional `providers` object to configure a custom OpenAI-compatible
 API. The base URL is the part before `/chat/completions`. Choose an HTTPS
-endpoint or a numeric loopback HTTP endpoint you control.
+endpoint or a numeric loopback HTTP endpoint you control. Custom providers use
+`<base_url>/models` by default. Set `"catalog_public": true` if that model
+list accepts anonymous requests.
 
 ```json
 {
@@ -217,9 +254,8 @@ omits prompts, provider error bodies, and keys.
 ## Project status
 
 Phase 0 provides the local daemon, Chat Completions, model discovery, key
-management, and basic routing. OAuth, browser adapters, the AAWP worker
-protocol, native Anthropic Messages and Gemini endpoints, and Responses API
-are outside the current implementation.
+management, and basic routing. Check the [roadmap](ROADMAP.md) for planned
+protocols and releases.
 
 Run the test suite and static checks with `go test ./...` and `go vet ./...`.
 

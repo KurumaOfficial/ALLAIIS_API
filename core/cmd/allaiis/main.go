@@ -34,7 +34,7 @@ const usage = `Usage: allaiis <command>
   import            Import API keys from environment variables or OpenCode
   account add       Add or replace a named API key
   account remove    Remove a key from the vault
-  models discover   List models from the Venice or OpenCode public catalog
+  models discover   List upstream models from one or all provider catalogs
   models add        Register a provider-specific model alias
   status            Show configured models, key labels, and provider cooldowns
   key               Print the local gateway bearer key

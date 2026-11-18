@@ -56,3 +56,37 @@ func TestAddModelPreservesConcurrentEditsAndRejectsRemapping(t *testing.T) {
 		}
 	}
 }
+
+func TestNewPresetsPreservePreviouslyConfiguredProviders(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	body := `{
+		"providers": {
+			"anthropic": {"base_url": "http://127.0.0.1:18202/v1"},
+			"arena": {"base_url": "https://api.arena.ai/v1"}
+		},
+		"models": []
+	}`
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	custom, found := cfg.Provider("anthropic")
+	if !found || custom.CatalogURL() != "http://127.0.0.1:18202/v1/models" || custom.CatalogFormat != OpenAICatalog {
+		t.Fatalf("existing provider was changed by a new preset: %+v", custom)
+	}
+	count := 0
+	for _, id := range cfg.ProviderIDs() {
+		if id == "arena-ai" {
+			t.Fatal("preset duplicated the base URL of the existing arena provider")
+		}
+		if id == "anthropic" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("custom provider and preset appeared %d times", count)
+	}
+}

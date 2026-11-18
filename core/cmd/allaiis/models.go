@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/catalog"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
 
@@ -21,9 +20,13 @@ func runModels(ctx context.Context, path string, args []string) error {
 	flags := flag.NewFlagSet("models "+command, flag.ContinueOnError)
 	providerID := flags.String("provider", "", "provider ID")
 	var match, model, name, label, privacy string
+	var all, withKeys bool
 	switch command {
 	case "discover":
 		flags.StringVar(&match, "match", "", "filter models by ID or name")
+		flags.BoolVar(&all, "all", false, "check all built-in and configured providers")
+		flags.BoolVar(&withKeys, "with-keys", false, "use stored API keys where available")
+		flags.StringVar(&label, "label", "", "use a specific stored credential (single provider)")
 	case "add":
 		flags.StringVar(&model, "upstream-model", "", "exact upstream model ID")
 		flags.StringVar(&name, "name", "", "alias base name (defaults to the upstream model ID)")
@@ -35,25 +38,19 @@ func runModels(ctx context.Context, path string, args []string) error {
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *providerID == "" {
-		return errors.New("--provider is required and positional arguments are unsupported")
+	if flags.NArg() != 0 {
+		return errors.New("unexpected positional arguments")
 	}
 
 	switch command {
 	case "discover":
-		cfg := config.Default()
-		provider, exists := cfg.Provider(*providerID)
-		if !exists || provider.CatalogURL() == "" {
-			return errors.New("public catalog discovery supports venice, opencode and opencode-go")
+		if all == (*providerID != "") || (all && label != "") {
+			return errors.New("use --all or --provider; --label requires a single provider")
 		}
-		models, err := catalog.List(ctx, provider.CatalogURL(), match)
-		if err != nil {
-			return fmt.Errorf("discover %s models: %w", *providerID, err)
-		}
-		return writeJSON(os.Stdout, map[string]any{"provider": *providerID, "models": models})
+		return discoverModels(ctx, path, *providerID, match, label, withKeys)
 	case "add":
-		if model == "" {
-			return errors.New("--upstream-model is required")
+		if *providerID == "" || model == "" {
+			return errors.New("--provider and --upstream-model are required")
 		}
 		if name == "" {
 			name = model
