@@ -98,8 +98,9 @@ runs sequentially.
 Each sweep also carries one tool probe: the first alias that passed is asked to
 call a `list_files` tool and the row passes only when a tool call comes back with
 that name, so a parser regression pages too. Only that one alias pays for the
-extra request; its row is named `<alias> (tools)`. A prose answer gets one firmer retry before the row fails, so a chatty model is
-not paged for. The probe call is marked with `X-ALLAIIS-Probe: smoke`, so its
+extra request; its row is named `<alias> (tools)`. A prose answer gets one firmer retry, and a second passing alias stands in when
+the first still cannot produce a call, so a chatty model or one without tool
+support is not paged for on its own. The probe call is marked with `X-ALLAIIS-Probe: smoke`, so its
 deliberately unknown `list_files` name does not count as a model mistake in the
 unknown counters or the name record, and a call under another name is reported as
 such instead of passing.

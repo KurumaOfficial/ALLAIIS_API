@@ -339,7 +339,7 @@ func (s *Server) smokeRun(ctx context.Context, alias string) ([]probeResult, int
 
 	results := make([]probeResult, 0, len(models)+1)
 	passed, failed := 0, 0
-	var toolRoute config.Route
+	var toolRoutes []config.Route
 	for _, route := range models {
 		if route.Disabled || (alias != "" && route.ID != alias) {
 			continue
@@ -371,8 +371,8 @@ func (s *Server) smokeRun(ctx context.Context, alias string) ([]probeResult, int
 		result.OK = result.Status == http.StatusOK && result.Text != ""
 		if result.OK {
 			passed++
-			if toolRoute.ID == "" {
-				toolRoute = route
+			if len(toolRoutes) < 2 {
+				toolRoutes = append(toolRoutes, route)
 			}
 		} else {
 			failed++
@@ -380,9 +380,14 @@ func (s *Server) smokeRun(ctx context.Context, alias string) ([]probeResult, int
 		results = append(results, result)
 	}
 	// One alias carries the tool probe, so a parser regression surfaces in the
-	// scheduled sweep without paying for a tool call on every alias.
-	if toolRoute.ID != "" {
-		tool := s.toolProbe(ctx, cfg, toolRoute)
+	// scheduled sweep without paying for a tool call on every alias. A second
+	// alias stands in when the first cannot produce a call at all, so a model
+	// without tool support does not keep the row red on its own.
+	if len(toolRoutes) > 0 {
+		tool := s.toolProbe(ctx, cfg, toolRoutes[0])
+		if !tool.OK && len(toolRoutes) > 1 {
+			tool = s.toolProbe(ctx, cfg, toolRoutes[1])
+		}
 		results = append(results, tool)
 		if tool.OK {
 			passed++

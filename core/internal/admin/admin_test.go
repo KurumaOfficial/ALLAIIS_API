@@ -30,18 +30,19 @@ type fixture struct {
 	upward *httptest.Server
 }
 
-// toolProseOnce makes the first tool probe answer in prose, so the retry path is
-// exercised by the smoke tests themselves.
-var toolProseOnce atomic.Int32
+// toolProseLeft counts how many tool probes still answer in prose, so the retry
+// and failover paths are exercised on purpose: each test sets what it needs.
+var toolProseLeft atomic.Int32
 
 func setup(t *testing.T) *fixture {
 	t.Helper()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := io.ReadAll(r.Body)
-		// The tool probe sends a tool list; answer it with a tool call.
+		// The tool probe sends a tool list; answer it with a tool call, or with
+		// prose while the test asked for it.
 		if bytes.Contains(body, []byte(`"tools"`)) {
-			if toolProseOnce.Add(1) == 1 {
+			if toolProseLeft.Add(-1) >= 0 {
 				w.Write([]byte(`{"choices":[{"message":{"content":"Sure, I can list them."}}]}`))
 				return
 			}
@@ -266,6 +267,8 @@ func TestSmokeProbesEveryAvailableAlias(t *testing.T) {
 	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")
 	f.call(t, http.MethodPost, "/api/models",
 		`{"provider":"fake","upstream_model":"gpt-x","name":"x-alias","label":"work"}`, "")
+	// One prose reply, so the retry is part of the path under test.
+	toolProseLeft.Store(1)
 	result := f.call(t, http.MethodPost, "/api/smoke", `{}`, "")
 	if result.Code != http.StatusOK {
 		t.Fatalf("smoke: %d %s", result.Code, result.Body)
@@ -468,5 +471,36 @@ func TestToolCallTextReadsEachProtocol(t *testing.T) {
 		if got != c.want || ok != (c.want != "") {
 			t.Fatalf("%s: got %q/%v, want %q", c.name, got, ok, c.want)
 		}
+	}
+}
+
+func TestToolProbeFailsOverToAnotherAlias(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")
+	for _, name := range []string{"a-alias", "x-alias"} {
+		f.call(t, http.MethodPost, "/api/models",
+			`{"provider":"fake","upstream_model":"gpt-x","name":"`+name+`","label":"work"}`, "")
+	}
+	// Two prose replies exhaust the retry, so the row has to move on.
+	toolProseLeft.Store(2)
+	result := f.call(t, http.MethodPost, "/api/smoke", `{}`, "")
+	var reply struct {
+		Passed  int `json:"passed"`
+		Failed  int `json:"failed"`
+		Results []struct {
+			Alias string `json:"alias"`
+			OK    bool   `json:"ok"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	// a-alias passes its own probe, so the tool row moves to x-alias and passes.
+	if reply.Failed != 0 || reply.Passed != 3 {
+		t.Fatalf("unexpected sweep: %+v", reply)
+	}
+	tooled := reply.Results[len(reply.Results)-1]
+	if !tooled.OK || tooled.Alias != "x-alias (tools)" {
+		t.Fatalf("tool row did not fail over: %+v", reply.Results)
 	}
 }
