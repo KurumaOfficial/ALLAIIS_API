@@ -5,6 +5,7 @@
 <p align="center">
   <a href="go.mod"><img alt="Go 1.26.2+" src="https://img.shields.io/badge/Go-1.26.2%2B-00ADD8?logo=go"></a>
   <a href="LICENSE"><img alt="GPL-3.0-only" src="https://img.shields.io/badge/license-GPL--3.0--only-4158A6"></a>
+  <a href="../../actions/workflows/ci.yml"><img alt="CI" src="../../actions/workflows/ci.yml/badge.svg"></a>
 </p>
 
 <p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
@@ -338,7 +339,11 @@ Run the tool fixture corpus with
 ```sh
 go test ./...
 go vet ./...
+gofmt -l core    # must print nothing
 ```
+
+CI runs those on Linux, macOS and Windows, plus `-race` on Linux
+(`.github/workflows/ci.yml`).
 
 [Roadmap](ROADMAP.md) · [Related projects](docs/related-projects.md)
 

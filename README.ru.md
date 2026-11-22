@@ -5,6 +5,7 @@
 <p align="center">
   <a href="go.mod"><img alt="Go 1.26.2+" src="https://img.shields.io/badge/Go-1.26.2%2B-00ADD8?logo=go"></a>
   <a href="LICENSE"><img alt="GPL-3.0-only" src="https://img.shields.io/badge/license-GPL--3.0--only-4158A6"></a>
+  <a href="../../actions/workflows/ci.yml"><img alt="CI" src="../../actions/workflows/ci.yml/badge.svg"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <strong>Русский</strong></p>
@@ -328,7 +329,11 @@ Go-тестах. Он использует синтетические данны
 ```sh
 go test ./...
 go vet ./...
+gofmt -l core    # ничего печатать не должен
 ```
+
+CI гоняет это на Linux, macOS и Windows, плюс `-race` на Linux
+(`.github/workflows/ci.yml`).
 
 [Дорожная карта](ROADMAP.md) · [Связанные проекты](docs/related-projects.md)
 
