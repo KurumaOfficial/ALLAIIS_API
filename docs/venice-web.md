@@ -122,8 +122,14 @@ Messages routes translate `system`, `content[]` blocks (text, image, tool_use,
 tool_result) into web turns and answer with real Anthropic events
 (`message_start`, `content_block_delta`, `message_delta`, `message_stop`) or a
 `message` object. Tool calls come back as `tool_use` blocks with
-`stop_reason: tool_use`. Responses (`/v1/responses`) is not wired to web routes
-yet.
+`stop_reason: tool_use`.
+
+`/v1/responses` is wired too: `instructions`, typed `input` items
+(`message`, `function_call`, `function_call_output`) and flat function tools are
+translated, and the reply uses `response.created`, `response.output_text.delta`,
+`response.function_call_arguments.delta` and `response.completed`, or a
+`response` object. Web routes are stateless, so a follow-up needs the full input
+history; `previous_response_id` alone cannot be replayed.
 
 ## Client setup (OpenCode)
 

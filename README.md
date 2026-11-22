@@ -105,7 +105,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | `GET /healthz` | Local liveness probe |
 | `GET /v1/models` | Aliases available under the configured privacy policy |
 | `POST /v1/chat/completions` | Chat Completions with native JSON or SSE |
-| `POST /v1/responses` | Foreground Responses creation with native JSON or SSE |
+| `POST /v1/responses` | Foreground Responses creation with native JSON or SSE, also on web routes |
 | `POST /v1/messages` | Anthropic Messages creation with native JSON or SSE, also on web routes |
 
 Each model alias serves one generation endpoint. `models add` defaults to `chat`. `GET /v1/models` uses `allaiis_protocol` to identify Responses and Messages aliases. The gateway forwards native tool calls and usage when the configured API returns them.
@@ -243,6 +243,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
 | Tier C tool emulation | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call | — |
 | Web routes on `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | Opus text and `tool_use` | — |
+| Web routes on `/v1/responses` | ✓ | `TestResponsesProtocolStreamAndTool`, `TestResponsesProtocolHistory` | adopted SSE shape | — |
 | Web image and file input | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | colour from a PNG, owner from a .txt | — |
 
 ### Offline compatibility

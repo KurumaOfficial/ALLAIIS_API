@@ -56,9 +56,10 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		if err == nil && stream && request.MaxTokens <= 0 {
 			request.MaxTokens = 4096
 		}
+	case config.Responses:
+		request, reason, tools, err = responsesRequest(payload, target.Route.UpstreamModel)
 	default:
-		writeError(w, protocol, http.StatusBadRequest, "protocol_unsupported",
-			"Web-transport providers serve Chat Completions and Anthropic Messages.")
+
 		return
 	}
 	if err != nil {
@@ -232,10 +233,14 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 }
 
 func replyID(protocol config.Protocol) string {
-	if protocol == config.Messages {
+	switch protocol {
+	case config.Messages:
 		return "msg_" + randomID()
+	case config.Responses:
+		return "resp_" + randomID()
+	default:
+		return "chatcmpl-" + randomID()
 	}
-	return "chatcmpl-" + randomID()
 }
 
 // writeStreamError reports a mid-stream failure in the inbound protocol.

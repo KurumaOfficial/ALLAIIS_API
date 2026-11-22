@@ -234,8 +234,11 @@ func (s *anthropicShape) reply(content string, calls []toolCall, usage map[strin
 }
 
 func newShape(protocol config.Protocol, w http.ResponseWriter, id, model string, _ int64) webShape {
-	if protocol == config.Messages {
+	switch protocol {
+	case config.Messages:
 		return &anthropicShape{w: w, id: id, model: model, block: -1}
+	case config.Responses:
+		return &responsesShape{w: w, id: id, model: model, created: nowUnix(), item: -1}
 	}
 	return &chatShape{w: w, id: id, model: model, created: nowUnix()}
 }
