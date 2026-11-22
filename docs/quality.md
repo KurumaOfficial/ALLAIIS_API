@@ -72,7 +72,9 @@ loopback gateway directly.
 per alias, protocol and status, duration and character sums, the served-model
 gauge and `allaiis_up`. The tool parser adds `allaiis_tool_unwrap_total`,
 `allaiis_tool_name_fold_total`, `allaiis_tool_name_suffix_total` and
-`allaiis_tool_unknown_total`, so reshaping is visible without the log; a rising
+`allaiis_tool_unknown_total`, so reshaping is visible without the log, plus the
+`allaiis_tool_name_ttl_seconds` and `allaiis_tool_name_expired` gauges, so a
+scrape can tell "no unknown names" from "names aged out unseen"; a rising
 unknown count means the model keeps naming tools outside the catalog; when the
 gateway reports names past retention they are counted in the detail instead of
 listed.

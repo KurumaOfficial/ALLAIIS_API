@@ -440,6 +440,8 @@ func TestMetricsExposition(t *testing.T) {
 	for _, line := range []string{
 		"allaiis_tool_unwrap_total ", "allaiis_tool_name_fold_total ",
 		"allaiis_tool_name_suffix_total ", "allaiis_tool_unknown_total ",
+		// Retention and expiry are the context the counters need.
+		"allaiis_tool_name_ttl_seconds ", "allaiis_tool_name_expired ",
 	} {
 		if !strings.Contains(body, line) {
 			t.Fatalf("tool counter missing (%s): %s", line, body)

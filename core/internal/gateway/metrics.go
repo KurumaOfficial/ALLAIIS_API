@@ -237,6 +237,14 @@ func (m *metrics) prometheus(models int) string {
 	out.WriteString("# HELP allaiis_tool_unknown_total Calls delivered with a name no tool declares.\n")
 	out.WriteString("# TYPE allaiis_tool_unknown_total counter\n")
 	fmt.Fprintf(&out, "allaiis_tool_unknown_total %d\n", toolCounters.unknown.Load())
+	// Retention and expiry are gauges, so a scrape can tell "no unknown names"
+	// from "names aged out unseen", which the counter alone cannot.
+	out.WriteString("# HELP allaiis_tool_name_ttl_seconds Retention of unknown names; 0 keeps them.\n")
+	out.WriteString("# TYPE allaiis_tool_name_ttl_seconds gauge\n")
+	fmt.Fprintf(&out, "allaiis_tool_name_ttl_seconds %d\n", toolNameTTL.Load())
+	out.WriteString("# HELP allaiis_tool_name_expired Count of remembered names past retention.\n")
+	out.WriteString("# TYPE allaiis_tool_name_expired gauge\n")
+	fmt.Fprintf(&out, "allaiis_tool_name_expired %d\n", expiredToolNames())
 	out.WriteString("# HELP allaiis_models_served gauge\n")
 	out.WriteString("# TYPE allaiis_models_served gauge\n")
 	fmt.Fprintf(&out, "allaiis_models_served %d\n", models)
