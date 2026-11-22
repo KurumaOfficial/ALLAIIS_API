@@ -43,6 +43,7 @@ const usage = `Usage: allaiis <command>
   status            Show configured models, key labels, and provider cooldowns
   doctor            Check config, vault, listener, aliases and capture browser
   backup            Save or restore the vault and config
+  update            Replace this binary with the latest release
   service           Register the gateway to start at logon
   tools             Inspect or clear the tool name record
   smoke             Probe aliases through an in-process gateway
@@ -84,6 +85,9 @@ func run(ctx context.Context, args []string) error {
 	}
 	if args[0] == "web" {
 		return runWeb(ctx, dir, configPath, vaultPath, args[1:])
+	}
+	if args[0] == "update" {
+		return runUpdate(ctx, args[1:])
 	}
 	if args[0] == "backup" {
 		return runBackup(ctx, dir, args[1:])

@@ -304,6 +304,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Старт при входе (`service`) | ✓ | `TestServiceInstallWritesALoginScript` | пусковой скрипт поднял гейтвей и панель, перезапустил после убийства | — |
 | Ротируемый лог | ✓ | `TestRotatingFileKeepsTheCap`, `TestRotatingFileCreatesTheDirectory` | гейтвей писал и ротировал лог | — |
 | Сохранение и восстановление с хэшами | ✓ | `TestBackupAndRestoreRoundTrip`, `TestRestoreRejectsATamperedFile` | хранилище, конфиг и запись сохранены и восстановлены | — |
+| Самообновление со сверкой хэша | ✓ | `TestWantedSumFindsTheFile`, `TestDownloadWritesTheBody`, `TestSwapBinaryReplacesAndKeepsTheOld` | `update --check` чисто ответил «релизов пока нет» | нужен опубликованный тег | — |
 | Настраиваемый лимит тела запроса | ✓ | `TestRequestCapComesFromTheConfig`, `TestMaxRequestDefaultsAndParses`, `TestMaxRequestRange` | тело на 9 МиБ получило `request_too_large` с пределом | — |
 
 ### Офлайн-совместимость

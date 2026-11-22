@@ -311,6 +311,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Start at logon (`service`) | ✓ | `TestServiceInstallWritesALoginScript` | launcher started gateway and panel, restarted after a kill | — |
 | Rotated log file | ✓ | `TestRotatingFileKeepsTheCap`, `TestRotatingFileCreatesTheDirectory` | gateway wrote and rotated the log | — |
 | Backup and restore with hashes | ✓ | `TestBackupAndRestoreRoundTrip`, `TestRestoreRejectsATamperedFile` | vault, config and record saved and restored | — |
+| Signed-off self update | ✓ | `TestWantedSumFindsTheFile`, `TestDownloadWritesTheBody`, `TestSwapBinaryReplacesAndKeepsTheOld` | `update --check` answered "no releases yet" cleanly | needs a published tag | — |
 | Configurable request size cap | ✓ | `TestRequestCapComesFromTheConfig`, `TestMaxRequestDefaultsAndParses`, `TestMaxRequestRange` | 9 MiB body answered `request_too_large` with the limit | — |
 
 ### Offline compatibility

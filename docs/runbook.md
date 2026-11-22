@@ -62,15 +62,27 @@ restore.
 ## Upgrade
 
 ```powershell
-.\allaiis.exe service remove
-go build -o allaiis.exe ./core/cmd/allaiis
-.\allaiis.exe doctor
-.\allaiis.exe service install
+.llaiis.exe update --check    # what is the latest tag
+.llaiis.exe update            # download, verify the checksum, swap
 ```
 
-The vault and config are untouched by a rebuild. `doctor` runs before you put
-the new binary back on the task, and the service is registered again with the
-new executable path.
+`update` takes the build for this OS and architecture from the newest GitHub
+release, checks it against the release's `SHA256SUMS`, renames the running binary
+to `.old` and puts the new one in place. A private repository needs
+`GITHUB_TOKEN` in the environment. Restart the gateway afterwards; the service
+script does that by itself within five seconds.
+
+Without a release, or to try local changes, rebuild by hand:
+
+```powershell
+.llaiis.exe service remove
+go build -o allaiis.exe ./core/cmd/allaiis
+.llaiis.exe doctor
+.llaiis.exe service install
+```
+
+The vault and config are untouched by either way. `doctor` runs before the new
+binary goes back on autostart.
 
 ## When something breaks
 

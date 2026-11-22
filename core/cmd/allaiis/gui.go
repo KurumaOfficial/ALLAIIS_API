@@ -18,7 +18,8 @@ import (
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
 )
 
-const version = "0.1.0"
+// version is a var so a release build can set it with -ldflags.
+var version = "0.1.0"
 
 // runGUI serves the gateway and the loopback control panel together.
 func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, openBrowser bool, smokeEvery time.Duration, smokeWebhook string, noToolProbe bool) error {
