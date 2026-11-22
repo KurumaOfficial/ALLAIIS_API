@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
@@ -121,6 +122,16 @@ func toolShape(tool toolSpec) string {
 }
 
 // toolGuard splits a text stream into visible text and parsed tool blocks.
+// toolCounters record how often the parser had to reshape a call. They are
+// process-wide because the guard is built per request and /metrics is scraped
+// across requests.
+var toolCounters struct {
+	unwrap  atomic.Int64
+	fold    atomic.Int64
+	suffix  atomic.Int64
+	unknown atomic.Int64
+}
+
 type toolGuard struct {
 	tools   []toolSpec
 	buf     strings.Builder
@@ -193,6 +204,7 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 		}
 		if count == 1 {
 			calls[i].Function.Name = match
+			toolCounters.fold.Add(1)
 		}
 	}
 	for i := range calls {
@@ -204,7 +216,11 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 		head, _, _ := strings.Cut(name, " ")
 		if head != name && g.known(head) {
 			calls[i].Function.Name = head
+			toolCounters.suffix.Add(1)
+			continue
 		}
+		// Nothing matched: the name goes to the client as it is.
+		toolCounters.unknown.Add(1)
 	}
 	return calls
 }
@@ -594,6 +610,12 @@ const maxArgumentDepth = 4
 // object it declared. The wrapper value is usually an object, but a model that
 // stringifies it must be unwrapped too.
 func unwrapArguments(values map[string]any) any {
+	flattened := false
+	defer func() {
+		if flattened {
+			toolCounters.unwrap.Add(1)
+		}
+	}()
 	var current any = values
 	for range maxArgumentDepth {
 		object, ok := current.(map[string]any)
@@ -628,6 +650,7 @@ func unwrapArguments(values map[string]any) any {
 		switch inner.(type) {
 		case map[string]any, []any:
 			current = inner
+			flattened = true
 		default:
 			return current
 		}

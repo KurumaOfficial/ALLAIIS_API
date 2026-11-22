@@ -70,8 +70,11 @@ loopback gateway directly.
 
 `GET /metrics` serves Prometheus text without a key: `allaiis_requests_total`
 per alias, protocol and status, duration and character sums, the served-model
-gauge and `allaiis_up`. Cardinality follows the configured aliases. Scrape it
-from a loopback collector.
+gauge and `allaiis_up`. The tool parser adds `allaiis_tool_unwrap_total`,
+`allaiis_tool_name_fold_total`, `allaiis_tool_name_suffix_total` and
+`allaiis_tool_unknown_total`, so reshaping is visible without the log; a rising
+unknown count means the model keeps naming tools outside the catalog.
+Cardinality follows the configured aliases. Scrape it from a loopback collector.
 
 ## Graceful shutdown
 

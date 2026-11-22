@@ -60,6 +60,9 @@ function render () {
   $('ov-requests').textContent = state.usage.total || 0
   $('ov-errors').textContent = (state.usage.errors || 0) + ' errors'
   $('ov-chars').textContent = (state.usage.chars || 0).toLocaleString()
+  const reshaped = (state.usage.tool_unwrap || 0) + (state.usage.tool_fold || 0) + (state.usage.tool_suffix || 0)
+  $('ov-tools').textContent = reshaped.toLocaleString()
+  $('ov-tools-unknown').textContent = (state.usage.tool_unknown || 0) + ' unknown names'
   $('base-url').textContent = 'http://' + state.listen + '/v1'
   $('client-key').textContent = keyVisible ? state.client_key : '•'.repeat(32)
   $('fact-data').textContent = state.data_dir

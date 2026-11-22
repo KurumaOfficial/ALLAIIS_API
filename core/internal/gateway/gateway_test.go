@@ -437,6 +437,14 @@ func TestMetricsExposition(t *testing.T) {
 	if !strings.Contains(body, "allaiis_models_served 3") || !strings.Contains(body, "allaiis_up 1") {
 		t.Fatalf("gauges missing: %s", body)
 	}
+	for _, line := range []string{
+		"allaiis_tool_unwrap_total ", "allaiis_tool_name_fold_total ",
+		"allaiis_tool_name_suffix_total ", "allaiis_tool_unknown_total ",
+	} {
+		if !strings.Contains(body, line) {
+			t.Fatalf("tool counter missing (%s): %s", line, body)
+		}
+	}
 }
 
 func TestMetricsNeedsNoKey(t *testing.T) {

@@ -657,3 +657,37 @@ func TestToolGuardUnwrapsSeveralKeyValuePairs(t *testing.T) {
 		t.Fatalf("pairs: %+v %v", calls, err)
 	}
 }
+
+func TestToolCountersTrackReshaping(t *testing.T) {
+	unwrapBefore, foldBefore, suffixBefore, unknownBefore :=
+		toolCounters.unwrap.Load(), toolCounters.fold.Load(),
+		toolCounters.suffix.Load(), toolCounters.unknown.Load()
+
+	guard := guardFor("shell")
+	if _, _, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"Shell","input":{"arguments":{"command":"ls"}}}]}` + toolClose); err != nil {
+		t.Fatal(err)
+	}
+	guard = guardFor("shell")
+	if _, _, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"shell command","arguments":{"command":"ls"}}]}` + toolClose); err != nil {
+		t.Fatal(err)
+	}
+	guard = guardFor("shell")
+	if _, _, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"bash","arguments":{"command":"ls"}}]}` + toolClose); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := toolCounters.unwrap.Load() - unwrapBefore; got != 3 {
+		t.Fatalf("unwrap counter: %d", got)
+	}
+	if got := toolCounters.fold.Load() - foldBefore; got != 1 {
+		t.Fatalf("fold counter: %d", got)
+	}
+	if got := toolCounters.suffix.Load() - suffixBefore; got != 1 {
+		t.Fatalf("suffix counter: %d", got)
+	}
+	// The folded names are known again by the time the suffix pass runs, so only
+	// the genuinely unknown bash counts here.
+	if got := toolCounters.unknown.Load() - unknownBefore; got != 1 {
+		t.Fatalf("unknown counter: %d", got)
+	}
+}

@@ -100,6 +100,10 @@ func (m *metrics) summary() map[string]any {
 	return map[string]any{
 		"total": m.total, "errors": m.errors, "chars": m.chars,
 		"models": models, "recent": recent,
+		"tool_unwrap":  toolCounters.unwrap.Load(),
+		"tool_fold":    toolCounters.fold.Load(),
+		"tool_suffix":  toolCounters.suffix.Load(),
+		"tool_unknown": toolCounters.unknown.Load(),
 	}
 }
 
@@ -176,6 +180,21 @@ func (m *metrics) prometheus(models int) string {
 		fmt.Fprintf(&out, "allaiis_response_characters_total{model=%q,status=%q} %d\n",
 			key.model, key.status, value.chars)
 	}
+	// Counters for the reshaping the tool parser did, so its effect is visible
+	// without reading the log.
+	out.WriteString("# HELP allaiis_tool_unwrap_total Calls whose arguments had a wrapper removed.\n")
+	out.WriteString("# TYPE allaiis_tool_unwrap_total counter\n")
+	fmt.Fprintf(&out, "allaiis_tool_unwrap_total %d\n", toolCounters.unwrap.Load())
+	out.WriteString("# HELP allaiis_tool_name_fold_total Calls whose unknown name was folded onto a tool.\n")
+	out.WriteString("# TYPE allaiis_tool_name_fold_total counter\n")
+	fmt.Fprintf(&out, "allaiis_tool_name_fold_total %d\n", toolCounters.fold.Load())
+	out.WriteString("# HELP allaiis_tool_name_suffix_total Calls that lost a trailing word after the tool name.\n")
+	out.WriteString("# TYPE allaiis_tool_name_suffix_total counter\n")
+	fmt.Fprintf(&out, "allaiis_tool_name_suffix_total %d\n", toolCounters.suffix.Load())
+	out.WriteString("# HELP allaiis_tool_unknown_total Calls delivered with a name no tool declares.\n")
+	out.WriteString("# TYPE allaiis_tool_unknown_total counter\n")
+	fmt.Fprintf(&out, "allaiis_tool_unknown_total %d\n", toolCounters.unknown.Load())
+	out.WriteString("# HELP allaiis_models_served gauge\n")
 	out.WriteString("# TYPE allaiis_models_served gauge\n")
 	fmt.Fprintf(&out, "allaiis_models_served %d\n", models)
 	out.WriteString("# TYPE allaiis_up gauge\n")
