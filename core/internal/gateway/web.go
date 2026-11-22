@@ -507,8 +507,8 @@ func writeStreamError(w http.ResponseWriter, protocol config.Protocol, err error
 func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, target router.Target, err error) {
 	switch {
 	case errors.Is(err, webprov.ErrRateLimited):
-		until := time.Now().Add(10 * time.Minute)
-		if reset, ok := webprov.RateLimitReset(err); ok {
+		until := time.Now().Add(maxRateCooldown)
+		if reset, ok := webprov.RateLimitReset(err); ok && reset.Before(until) {
 			until = reset
 		}
 		persist, cancel := context.WithTimeout(context.Background(), 5*time.Second)

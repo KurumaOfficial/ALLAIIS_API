@@ -566,6 +566,9 @@ func (g *Gateway) upstreamError(w http.ResponseWriter, ctx context.Context, targ
 	switch status {
 	case http.StatusTooManyRequests:
 		until := retryTime(response.Header.Get("Retry-After"), time.Now())
+		if ceiling := time.Now().Add(maxRateCooldown); until.After(ceiling) {
+			until = ceiling
+		}
 		persist, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		if err := g.table().routes.SetCooldown(persist, target, until); err != nil {
@@ -582,6 +585,11 @@ func (g *Gateway) upstreamError(w http.ResponseWriter, ctx context.Context, targ
 		writeError(w, protocol, http.StatusBadGateway, "upstream_error", "The provider returned an unexpected status.")
 	}
 }
+
+// maxRateCooldown stops a provider's long reset from parking a pool for hours.
+// A burst window usually clears well before the published quota reset, so a
+// capped retry costs nothing while a 17 hour sleep costs the whole session.
+const maxRateCooldown = 10 * time.Minute
 
 func retryTime(value string, now time.Time) time.Time {
 	if seconds, err := strconv.ParseUint(strings.TrimSpace(value), 10, 32); err == nil {

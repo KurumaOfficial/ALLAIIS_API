@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -445,5 +446,23 @@ func TestMetricsNeedsNoKey(t *testing.T) {
 	handler.ServeHTTP(result, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	if result.Code != http.StatusOK {
 		t.Fatalf("metrics behind auth: %d", result.Code)
+	}
+}
+
+func TestHugeRetryAfterIsCapped(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "86400")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	t.Cleanup(upstream.Close)
+	store, cfg := setup(t, upstream.URL)
+	handler := newGateway(t, cfg, store)
+	rate := complete(handler, store.ClientKey(), "", payload)
+	if rate.Code != http.StatusTooManyRequests {
+		t.Fatalf("429 mapped to %d", rate.Code)
+	}
+	seconds, err := strconv.Atoi(rate.Header().Get("Retry-After"))
+	if err != nil || seconds > 600 {
+		t.Fatalf("cooldown was not capped: %q", rate.Header().Get("Retry-After"))
 	}
 }

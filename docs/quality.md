@@ -18,7 +18,7 @@ clients can read it. Quote it when reporting a problem.
 | Clerk session JWT | one credential hash | token expiry (about a minute) | expiry, credential replacement, `Reload` sweep |
 | Attestation token pool | one subject | token expiry (about four minutes, single use) | use, `403` retry, credential replacement, sweep |
 | Catalog results (panel) | provider + label + filter | 10 minutes | **bypass cache**, key add/remove/recapture, restart |
-| Cooldowns | one credential label or an unpinned provider | the upstream reset header | **Resume**, key replacement or removal, expiry |
+| Cooldowns | one credential label or an unpinned provider | the upstream reset header, capped at ten minutes | **Resume**, key replacement or removal, expiry |
 | HTTP/2 connection | client | process | process restart |
 
 The in-process sweeper runs every few seconds while `up` or `gui` is serving and

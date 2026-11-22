@@ -148,6 +148,23 @@ func TestWebCompletionErrorsAndCooldown(t *testing.T) {
 	}
 }
 
+func TestHugeRateLimitResetIsCapped(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		w.Header().Set("x-ratelimit-resets", fmt.Sprint(time.Now().Add(17*time.Hour).UnixMilli()))
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	handler, store := webGateway(t, server.URL)
+	request := `{"model":"` + webModel + `","messages":[{"role":"user","content":"hi"}]}`
+	rate := complete(handler, store.ClientKey(), "s", request)
+	if rate.Code != http.StatusTooManyRequests {
+		t.Fatalf("429 mapped to %d", rate.Code)
+	}
+	seconds, err := strconv.Atoi(rate.Header().Get("Retry-After"))
+	if err != nil || seconds > 600 || seconds < 120 {
+		t.Fatalf("cooldown was not capped, Retry-After=%q", rate.Header().Get("Retry-After"))
+	}
+}
+
 func TestWebProviderRejectsOtherProtocols(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		io.WriteString(w, `{"kind":"content","content":"x"}`)

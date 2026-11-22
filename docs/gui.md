@@ -37,7 +37,8 @@ anonymous, which is the first thing to check when a plan quota looks wrong.
 A `429` cools only the credential that hit the limit; other labels of the same
 provider keep working. The Overview shows which label is cooling and until when,
 and **Resume** lifts it early once the plan has reset. A provider-wide cooldown
-only appears for unpinned pools.
+only appears for unpinned pools. A reset the provider publishes further out than
+ten minutes is capped at ten, so a burst limit cannot park a pool for hours.
 
 ## Capturing a Venice session
 

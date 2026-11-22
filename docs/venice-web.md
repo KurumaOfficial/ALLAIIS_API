@@ -101,8 +101,10 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   `X-ALLAIIS-Emulated-Features: tools`.
 - **Cooldowns are per credential.** A `429` on one captured session cools only
   that label, so a limited guest does not block a Pro alias of the same provider.
-  An unpinned alias sits in a shared pool and cools the whole provider. The panel
-  can lift a cooldown with **Resume** once the plan resets.
+  An unpinned alias sits in a shared pool and cools the whole provider. A published
+  reset longer than ten minutes is capped at ten, because a burst window clears
+  long before the quota reset Venice reports. The panel can lift a cooldown with
+  **Resume** once the plan resets.
 - **Pin aliases to a label.** A pool with several captured sessions picks one by
   request hash. Pass `--label` to `models add` so a route always uses the
   intended account.
