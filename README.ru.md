@@ -266,6 +266,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Инвалидация кеша при смене ключа | ✓ | `TestForgetDropsTokenAndAttestationCaches`, `TestReplacingAKeyClearsItsCooldown` | — | — |
 | Кеш каталога с обходом | ✓ | `TestCatalogCacheServesAndBypasses` | кеш и обход в панели | — |
 | Повтор пустого ответа и первый пустой чанк | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
+| Линейный скан guard и лимит блока | ✓ | `TestGuardScansForwardThroughLongProse`, `TestGuardRejectsOversizedUnclosedBlock` | 5/5 прогонов агента после правки | — |
 | Дефолтный лимит ответа и финиш `length` | ✓ | `TestDefaultResponseCapWhenClientOmitsTokens`, `TestReplyNearTheTokenCapReportsLength` | 9/9 прогонов агента без обрыва | — |
 | Диалект тулов DeepSeek DSML и растущие индексы вызовов | ✓ | `TestToolGuardParsesDeepSeekDSML`, `TestStreamedToolCallIndexesKeepRising`, `TestWebToolCallStreamDSML`, `TestToolGuardFlushRepairsTruncatedBlock`, `TestWhitespaceAssistantTextKeepsToolCalls` | цикл агента OpenCode на `deepseek-v4-1-flash-uncensored`: 9 вызовов, 5 шагов, 16 с | — |
 | Usage в стриме по `stream_options.include_usage` | ✓ | `TestChatStreamUsageOnlyWhenRequested` | OpenCode видит ненулевые токены | — |

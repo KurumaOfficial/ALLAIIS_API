@@ -15,9 +15,12 @@ import (
 // Web conversations have no native tool parameter, so a sentinel envelope and a
 // streaming guard buffer emulate tool calls. The client never sees the marker.
 const (
-	toolOpen       = "<<<ALLAIIS_TOOL_CALL>>>"
-	toolClose      = "<<<END_TOOL_CALL>>>"
-	toolKeep       = 64
+	toolOpen      = "<<<ALLAIIS_TOOL_CALL>>>"
+	toolClose     = "<<<END_TOOL_CALL>>>"
+	toolKeep      = 64
+	maxToolBuffer = 512 << 10
+	// toolOverlap is the longest marker prefix search look-back.
+	toolOverlap    = 24
 	toolRepairNote = "System validation error: the tool block was not valid JSON or missed required arguments. " +
 		"Output ONLY a valid block starting with " + toolOpen + " and ending with " + toolClose + "."
 )
@@ -71,9 +74,10 @@ func toolEnvelope(system string, tools []toolSpec) string {
 
 // toolGuard splits a text stream into visible text and parsed tool blocks.
 type toolGuard struct {
-	tools  []toolSpec
-	buf    strings.Builder
-	recent []string
+	tools   []toolSpec
+	buf     strings.Builder
+	recent  []string
+	scanned int
 }
 
 // unique drops a call that repeats the previous one, which happens when a model
@@ -107,6 +111,7 @@ func (g *toolGuard) add(tools []toolSpec) { g.tools = tools }
 func (g *toolGuard) reset() {
 	g.buf.Reset()
 	g.recent = nil
+	g.scanned = 0
 }
 
 // known reports whether name was offered in this request.
@@ -134,20 +139,26 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 	g.buf.WriteString(chunk)
 	for {
 		current := g.buf.String()
-		start := strings.Index(current, toolOpen)
+		from := min(g.scanned, len(current))
+		if opensWithMarker(current) {
+			from = 0
+		}
+		start := indexFrom(current, toolOpen, from)
 		if start < 0 {
 			if at := dsmlLeadingClose(current); at >= 0 {
 				loc := dsmlEnd.FindStringSubmatchIndex(current[at:])
 				if loc == nil {
 					g.buf.Reset()
 					g.buf.WriteString(current[at:])
+					g.scanned = 0
 					return current[:at], nil, nil
 				}
 				g.buf.Reset()
 				g.buf.WriteString(current[at+loc[1]:])
+				g.scanned = 0
 				continue
 			}
-			if dsmlStart := dsmlIndex(current); dsmlStart >= 0 {
+			if dsmlStart := dsmlIndexFrom(current, from); dsmlStart >= 0 {
 				head, calls, used, complete, err := consumeDSML(current[dsmlStart:])
 				if err != nil {
 					g.buf.Reset()
@@ -157,15 +168,20 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 				if !complete || !g.knownCalls(calls) {
 					g.buf.Reset()
 					g.buf.WriteString(current[dsmlStart:])
+					if g.buf.Len() > maxToolBuffer {
+						return current[:dsmlStart], nil, errNoToolBlock
+					}
+					g.scanned = max(0, g.buf.Len()-toolOverlap)
 					return current[:dsmlStart], nil, nil
 				}
 				calls = g.unique(calls)
 				rest := current[dsmlStart+used:]
 				g.buf.Reset()
 				g.buf.WriteString(rest)
+				g.scanned = 0
 				return current[:dsmlStart] + head, calls, nil
 			}
-			if xmlStart := invokeIndex(current); xmlStart >= 0 {
+			if xmlStart := invokeIndexFrom(current, from); xmlStart >= 0 {
 				head, calls, used, complete, err := consumeInvokes(current[xmlStart:])
 				if err != nil {
 					g.buf.Reset()
@@ -175,17 +191,23 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 				if !complete {
 					g.buf.Reset()
 					g.buf.WriteString(current[xmlStart:])
+					if g.buf.Len() > maxToolBuffer {
+						return current[:xmlStart], nil, errNoToolBlock
+					}
+					g.scanned = max(0, g.buf.Len()-toolOverlap)
 					return current[:xmlStart], nil, nil
 				}
 				if !g.knownCalls(calls) {
 					g.buf.Reset()
 					g.buf.WriteString(current[xmlStart:])
+					g.scanned = max(0, g.buf.Len()-toolOverlap)
 					return current[:xmlStart], nil, errNoToolBlock
 				}
 				calls = g.unique(calls)
 				rest := current[xmlStart+used:]
 				g.buf.Reset()
 				g.buf.WriteString(rest)
+				g.scanned = 0
 				return current[:xmlStart] + head, calls, nil
 			}
 			// Keep a possible marker or tag prefix at the tail buffered.
@@ -196,6 +218,7 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 			flush := current[:len(current)-keep]
 			g.buf.Reset()
 			g.buf.WriteString(current[len(current)-keep:])
+			g.scanned = 0
 			return flush, nil, nil
 		}
 		head := current[:start]
@@ -204,11 +227,16 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 		if end < 0 {
 			g.buf.Reset()
 			g.buf.WriteString(current[start:])
+			if g.buf.Len() > maxToolBuffer {
+				return head, nil, errNoToolBlock
+			}
+			g.scanned = max(0, g.buf.Len()-toolOverlap)
 			return head, nil, nil
 		}
 		parsed, err := g.parse(rest[:end])
 		g.buf.Reset()
 		g.buf.WriteString(rest[end+len(toolClose):])
+		g.scanned = 0
 		if err != nil {
 			return head, nil, err
 		}
@@ -270,6 +298,28 @@ func (g *toolGuard) Flush() (string, []toolCall, error) {
 
 var invokeMarkers = []string{"<invoke", "<function_calls"}
 
+// opensWithMarker reports whether the buffer starts with a block marker, in
+// which case scanning must start at zero again.
+func opensWithMarker(current string) bool {
+	for _, marker := range []string{toolOpen, "<invoke", "<function_calls", "<|DSML|", "<｜DSML｜", "<|/DSML|", "<｜/DSML｜"} {
+		if strings.HasPrefix(current, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// indexFrom finds sub at or after from.
+func indexFrom(current, sub string, from int) int {
+	if from >= len(current) {
+		return -1
+	}
+	if index := strings.Index(current[from:], sub); index >= 0 {
+		return from + index
+	}
+	return -1
+}
+
 // DeepSeek emits its native DSML tool syntax as text. The bar can be ASCII or
 // full width and the closing tag may be written two ways.
 var (
@@ -281,9 +331,15 @@ var (
 )
 
 // dsmlIndex reports the first DSML block start, envelope or bare invoke.
-func dsmlIndex(current string) int {
-	if loc := dsmlPrefix.FindStringIndex(current); loc != nil {
-		return loc[0]
+func dsmlIndex(current string) int { return dsmlIndexFrom(current, 0) }
+
+// dsmlIndexFrom reports the first DSML block start at or after from.
+func dsmlIndexFrom(current string, from int) int {
+	if from >= len(current) {
+		return -1
+	}
+	if loc := dsmlPrefix.FindStringIndex(current[from:]); loc != nil {
+		return from + loc[0]
 	}
 	return -1
 }
@@ -454,10 +510,13 @@ func markerKeep(current string) int {
 	return keep
 }
 
-func invokeIndex(current string) int {
+func invokeIndex(current string) int { return invokeIndexFrom(current, 0) }
+
+// invokeIndexFrom reports the first XML invoke marker at or after from.
+func invokeIndexFrom(current string, from int) int {
 	found := -1
 	for _, marker := range invokeMarkers {
-		if index := strings.Index(current, marker); index >= 0 && (found < 0 || index < found) {
+		if index := indexFrom(current, marker, from); index >= 0 && (found < 0 || index < found) {
 			found = index
 		}
 	}
@@ -566,6 +625,24 @@ func escapeControl(raw string) string {
 	return out.String()
 }
 
+// lastCloseBefore finds the last closing marker before the next opening marker,
+// so a literal close tag inside a value does not cut it short.
+func lastCloseBefore(body, openMarker, closeMarker string) int {
+	segment := body
+	if next := strings.Index(body, openMarker); next >= 0 {
+		segment = body[:next]
+	}
+	last, offset := -1, 0
+	for {
+		index := strings.Index(segment[offset:], closeMarker)
+		if index < 0 {
+			return last
+		}
+		last = offset + index
+		offset = last + len(closeMarker)
+	}
+}
+
 // invokeName reads the name attribute from an invoke open tag.
 func invokeName(tag string) string {
 	for _, quote := range []byte{'"', '\''} {
@@ -613,7 +690,7 @@ func buildCallFromBody(name, body string) (toolCall, error) {
 				body = after
 				continue
 			}
-			end := strings.Index(after, "</parameter>")
+			end := lastCloseBefore(after, "<parameter", "</parameter>")
 			if end < 0 {
 				object[parameter] = strings.TrimSpace(after)
 				body = ""
@@ -669,8 +746,9 @@ func parameterValue(raw string) any {
 	}
 	var fragments []any
 	var text strings.Builder
+	var stack []string
 	nested := false
-	decoder := xml.NewDecoder(strings.NewReader("<value>" + raw + "</value>"))
+	decoder := xml.NewDecoder(strings.NewReader("<value>" + escapeStrayClose(raw) + "</value>"))
 	for {
 		token, err := decoder.Token()
 		if err != nil {
@@ -679,12 +757,24 @@ func parameterValue(raw string) any {
 		switch value := token.(type) {
 		case xml.StartElement:
 			if value.Name.Local != "value" {
+				stack = append(stack, value.Name.Local)
 				nested = true
 			}
 		case xml.EndElement:
-			if value.Name.Local != "value" && text.Len() > 0 {
-				fragments = append(fragments, typedOrText(text.String()))
-				text.Reset()
+			if value.Name.Local == "value" {
+				break
+			}
+			if len(stack) > 0 && stack[len(stack)-1] == value.Name.Local {
+				stack = stack[:len(stack)-1]
+				if text.Len() > 0 {
+					fragments = append(fragments, typedOrText(text.String()))
+					text.Reset()
+				}
+			} else {
+				// A close tag for an element this value never opened.
+				if text.Len() > 0 {
+					text.WriteString("</" + value.Name.Local + ">")
+				}
 			}
 		case xml.CharData:
 			text.Write(value)
@@ -697,6 +787,58 @@ func parameterValue(raw string) any {
 		return fragments[0]
 	}
 	return fragments
+}
+
+// escapeStrayClose escapes close tags for elements the value never opened, so
+// the XML decoder does not stop at a literal "</parameter>" in the text.
+func escapeStrayClose(raw string) string {
+	var out strings.Builder
+	var stack []string
+	letter := func(b byte) bool {
+		return b == '_' || b == '-' || b == ':' || b >= 'a' && b <= 'z' ||
+			b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
+	}
+	for i := 0; i < len(raw); {
+		if raw[i] != '<' {
+			out.WriteByte(raw[i])
+			i++
+			continue
+		}
+		closing, j := false, i+1
+		if j < len(raw) && raw[j] == '/' {
+			closing, j = true, j+1
+		}
+		start := j
+		for j < len(raw) && letter(raw[j]) {
+			j++
+		}
+		name := raw[start:j]
+		end := -1
+		if name != "" {
+			end = strings.IndexByte(raw[j:], '>')
+		}
+		if end < 0 {
+			out.WriteString("&lt;")
+			i++
+			continue
+		}
+		tag := raw[i : j+end+1]
+		self := strings.HasSuffix(strings.TrimSpace(tag[:len(tag)-1]), "/")
+		switch {
+		case !closing:
+			if !self {
+				stack = append(stack, name)
+			}
+			out.WriteString(tag)
+		case len(stack) > 0 && stack[len(stack)-1] == name:
+			stack = stack[:len(stack)-1]
+			out.WriteString(tag)
+		default:
+			out.WriteString("&lt;/" + name + "&gt;")
+		}
+		i = j + end + 1
+	}
+	return out.String()
 }
 
 func typedOrText(raw string) any {

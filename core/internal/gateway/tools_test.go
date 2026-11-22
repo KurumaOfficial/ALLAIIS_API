@@ -313,3 +313,49 @@ func TestDSMLValueKeepsLiteralCloseTag(t *testing.T) {
 		t.Fatalf("arguments %q", decoded["code"])
 	}
 }
+
+func TestInvokeXMLKeepsLiteralCloseTag(t *testing.T) {
+	guard := guardFor("execute")
+	fragment := `<invoke name="execute"><parameter name="code">` +
+		`const s = "</parameter>";` +
+		`</parameter></invoke>`
+	_, calls, err := guard.Write(fragment)
+	if err != nil || len(calls) != 1 {
+		t.Fatalf("calls %+v %v", calls, err)
+	}
+	var decoded map[string]string
+	if err := json.Unmarshal([]byte(calls[0].Function.Arguments), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["code"] != `const s = "</parameter>";` {
+		t.Fatalf("arguments %q", decoded["code"])
+	}
+}
+
+func TestGuardScansForwardThroughLongProse(t *testing.T) {
+	guard := guardFor("read_file")
+	prose := strings.Repeat("plain words without markers. ", 4000)
+	var text strings.Builder
+	for start := 0; start < len(prose); start += 997 {
+		safe, calls, err := guard.Write(prose[start:min(start+997, len(prose))])
+		if err != nil || len(calls) != 0 {
+			t.Fatalf("prose %d %v", len(calls), err)
+		}
+		text.WriteString(safe)
+	}
+	_, calls, err := guard.Write(`<invoke name="read_file"><parameter name="path">a.txt</parameter></invoke>`)
+	if err != nil || len(calls) != 1 {
+		t.Fatalf("call after prose: %+v %v", calls, err)
+	}
+	if got := len(text.String()); got != len(prose) {
+		t.Fatalf("prose length %d != %d", got, len(prose))
+	}
+}
+
+func TestGuardRejectsOversizedUnclosedBlock(t *testing.T) {
+	guard := guardFor("read_file")
+	guard.Write(toolOpen + strings.Repeat("x", maxToolBuffer+1))
+	if _, _, err := guard.Write("more"); err == nil {
+		t.Fatal("oversized block accepted")
+	}
+}
