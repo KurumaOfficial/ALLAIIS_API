@@ -682,3 +682,36 @@ func TestReasoningIsDroppedWithoutTheCapability(t *testing.T) {
 		t.Fatalf("reasoning replayed without the capability: %v", replayed)
 	}
 }
+
+func TestVideoLimitRejectsBeforeUpload(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		t.Error("sent despite the video limit")
+	})
+	store, cfg := setup(t, server.URL)
+	cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+	cfg.Models = []config.Route{{
+		ID: "video", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer, MaxVideos: 1,
+	}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "web", Endpoint: server.URL, Label: "one",
+		Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	clip := `"image_url":{"url":"data:video/mp4;base64,AAAA"}`
+	body := `{"model":"video","messages":[{"role":"user","content":[` +
+		`{"type":"text","text":"compare"},{"type":"image_url",` + clip + `},{"type":"image_url",` + clip + `}]}]}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "video") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}

@@ -373,6 +373,7 @@ func (s *Server) addModel(w http.ResponseWriter, r *http.Request) {
 		Presence      bool            `json:"presence_penalty"`
 		Replacement   string          `json:"replacement"`
 		RoundTrip     bool            `json:"reasoning_round_trip"`
+		MaxVideos     int             `json:"max_videos"`
 		Temperature   *float64        `json:"temperature"`
 		TopP          *float64        `json:"top_p"`
 	}
@@ -399,7 +400,7 @@ func (s *Server) addModel(w http.ResponseWriter, r *http.Request) {
 		MaxImages: input.MaxImages, MaxTools: input.MaxTools, WebSearch: input.WebSearch,
 		LargeContext: input.LargeContext, StrictOrder: input.StrictOrder, InactivityMS: input.InactivityMS,
 		NoSampling: input.NoSampling, Frequency: input.Frequency, Presence: input.Presence,
-		Replacement: input.Replacement, ReasoningRoundTrip: input.RoundTrip,
+		Replacement: input.Replacement, ReasoningRoundTrip: input.RoundTrip, MaxVideos: input.MaxVideos,
 		Temperature: input.Temperature, TopP: input.TopP,
 	}
 	added, err := config.AddModel(r.Context(), s.options.ConfigPath, route)

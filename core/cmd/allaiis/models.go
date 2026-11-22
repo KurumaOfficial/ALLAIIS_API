@@ -44,7 +44,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 	flags := flag.NewFlagSet("models "+command, flag.ContinueOnError)
 	providerID := flags.String("provider", "", "provider ID")
 	var match, model, name, label, privacy, protocol, reasoning string
-	var maxContext, maxResponse, maxImages, maxTools, inactivity int
+	var maxContext, maxResponse, maxImages, maxTools, inactivity, maxVideos int
 	var webSearch, largeContext, strictOrder, roundTrip bool
 	var all, withKeys bool
 	switch command {
@@ -64,6 +64,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 		flags.IntVar(&maxResponse, "max-response", 0, "maximum response tokens")
 		flags.IntVar(&maxImages, "max-images", 0, "maximum attachments per request")
 		flags.IntVar(&maxTools, "max-tools", 0, "maximum tools per request")
+		flags.IntVar(&maxVideos, "max-videos", 0, "maximum videos per request")
 		flags.BoolVar(&webSearch, "web-search", false, "enable the provider's web tool")
 		flags.BoolVar(&largeContext, "large-context", false, "ask for the extended-context mode")
 		flags.BoolVar(&strictOrder, "strict-order", false, "merge consecutive turns for strict models")
@@ -101,7 +102,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 			Privacy: config.Privacy(privacy), CredentialLabel: label, Protocol: config.Protocol(protocol),
 			Reasoning: thinking, MaxContext: maxContext, MaxResponse: maxResponse, MaxImages: maxImages,
 			MaxTools: maxTools, WebSearch: webSearch, LargeContext: largeContext,
-			StrictOrder: strictOrder, InactivityMS: inactivity, ReasoningRoundTrip: roundTrip,
+			StrictOrder: strictOrder, InactivityMS: inactivity, ReasoningRoundTrip: roundTrip, MaxVideos: maxVideos,
 		}
 		added, err := config.AddModel(ctx, path, route)
 		if err != nil {

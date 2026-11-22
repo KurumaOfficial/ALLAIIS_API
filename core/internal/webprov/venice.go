@@ -388,6 +388,25 @@ func (r Request) Images() int {
 	return total
 }
 
+// ImageCount and VideoCount split attachments by MIME.
+func (r Request) ImageCount() int { images, _ := r.attachmentCounts(); return images }
+
+// VideoCount reports video attachments.
+func (r Request) VideoCount() int { _, videos := r.attachmentCounts(); return videos }
+
+func (r Request) attachmentCounts() (images, videos int) {
+	for _, message := range r.Messages {
+		for _, attachment := range message.Images {
+			if strings.HasPrefix(attachment.MIME, "video/") {
+				videos++
+				continue
+			}
+			images++
+		}
+	}
+	return images, videos
+}
+
 func venicePayload(cred Credential, req Request, userID string) map[string]any {
 	prompt := make([]Message, len(req.Messages))
 	copy(prompt, req.Messages)

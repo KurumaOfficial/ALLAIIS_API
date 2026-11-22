@@ -589,3 +589,12 @@ func TestLargeContextReachesThePayload(t *testing.T) {
 		t.Fatalf("large context flag %v", large)
 	}
 }
+
+func TestAttachmentCountsSplitByMIME(t *testing.T) {
+	request := Request{Messages: []Message{{Role: "user", Images: []Image{
+		{MIME: "image/png"}, {MIME: "video/mp4"}, {MIME: "text/plain"}, {MIME: "video/webm"},
+	}}}}
+	if request.ImageCount() != 2 || request.VideoCount() != 2 || request.Images() != 4 {
+		t.Fatalf("counts %d/%d/%d", request.ImageCount(), request.VideoCount(), request.Images())
+	}
+}

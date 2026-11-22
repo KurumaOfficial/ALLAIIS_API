@@ -95,9 +95,14 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	if target.Route.WebSearch {
 		request.WebSearch = true
 	}
-	if limit := imageLimit(target.Route); request.Images() > limit {
+	if limit := imageLimit(target.Route); request.ImageCount() > limit {
 		writeError(w, protocol, http.StatusBadRequest, "too_many_attachments",
 			fmt.Sprintf("This model accepts at most %d attachment(s).", limit))
+		return 0, 0
+	}
+	if target.Route.MaxVideos > 0 && request.VideoCount() > target.Route.MaxVideos {
+		writeError(w, protocol, http.StatusBadRequest, "too_many_attachments",
+			fmt.Sprintf("This model accepts at most %d video(s).", target.Route.MaxVideos))
 		return 0, 0
 	}
 	envelope := ""

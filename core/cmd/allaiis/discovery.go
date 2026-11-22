@@ -123,6 +123,7 @@ func discoverProvider(ctx context.Context, store *vault.Store, id string, provid
 				LargeContext: model.LargeContext, StrictOrder: model.StrictOrder, Inactivity: model.InactivityMS,
 				Sampling: model.Sampling, Frequency: model.Frequency, Presence: model.Presence,
 				Replacement: model.Replacement, Retiring: model.Retiring, RoundTrip: model.RoundTrip,
+				Video: model.Video, MaxVideos: model.MaxVideos,
 			})
 		}
 		result.Status = "ok"

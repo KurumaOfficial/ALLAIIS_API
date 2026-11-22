@@ -280,6 +280,7 @@ function bind () {
         data.presence_penalty = !!pickedModel.presence_penalty
         data.replacement = pickedModel.replacement || ''
         data.reasoning_round_trip = !!pickedModel.reasoning_round_trip
+        data.max_videos = pickedModel.max_videos || 0
         data.temperature = pickedModel.temperature
         data.top_p = pickedModel.top_p
       }
@@ -361,6 +362,7 @@ function bind () {
         if (model.retiring) caps.push('retiring')
         if (model.replacement) caps.push('→ ' + model.replacement)
         if (model.reasoning_round_trip) caps.push('thinking replay')
+        if (model.video) caps.push('video')
         if (model.max_context) caps.push(Math.round(model.max_context / 1000) + 'K ctx')
         line.innerHTML = '<code>' + esc(model.id) + '</code><span class="muted tiny">' + esc(model.name || '') + '</span>' +
           caps.map(cap => ' <span class="badge">' + esc(cap) + '</span>').join('')
@@ -384,6 +386,7 @@ function bind () {
           if (model.inactivity_ms) caps.push(model.inactivity_ms + 'ms watchdog')
           if (model.replacement) caps.push('replacement ' + model.replacement)
           if (model.reasoning_round_trip) caps.push('replays thinking')
+          if (model.video) caps.push('video ×' + (model.max_videos || 1))
           $('model-caps').textContent = caps.length ? 'inherits ' + caps.join(', ') : 'no published capabilities'
           switchView('aliases')
         }
