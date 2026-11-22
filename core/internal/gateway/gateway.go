@@ -100,6 +100,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) { g.mux.Serv
 
 func (g *Gateway) table() *table { return g.live.Load() }
 
+// ClearCooldown lifts a stored and in-memory cooldown.
+func (g *Gateway) ClearCooldown(ctx context.Context, provider config.Provider, providerID, label string) error {
+	return g.table().routes.ClearCooldown(ctx, provider, providerID, label)
+}
+
 // Models lists every configured alias, without the privacy filter.
 func (g *Gateway) Models() []router.Model { return g.table().routes.Models(config.Public) }
 
@@ -182,6 +187,12 @@ func (g *Gateway) Watch(ctx context.Context) {
 		}
 		if err := g.Reload(ctx); err != nil {
 			slog.Warn("configuration reload failed, keeping the previous routes", "error", err)
+			// Remember the broken file so the warning repeats only after the next
+			// edit instead of every tick.
+			if info, statErr := os.Stat(g.reload.path); statErr == nil {
+				g.reload.mtime.Store(info.ModTime().UnixNano())
+				g.reload.size.Store(info.Size())
+			}
 			continue
 		}
 	}

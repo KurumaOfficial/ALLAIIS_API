@@ -115,3 +115,21 @@ func TestWatchReloadsChangedConfig(t *testing.T) {
 	}
 	t.Fatalf("watcher did not reload, models %d", len(live.Models()))
 }
+
+func TestMutedAliasLeavesModelsAndRouting(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	cfg.Models[0].Disabled = true
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy)
+	for _, model := range live.Models() {
+		if model.ID == cfg.Models[0].ID {
+			t.Fatalf("muted alias still listed: %s", model.ID)
+		}
+	}
+	if _, _, err := routes.Resolve(t.Context(), cfg.Models[0].ID, config.Chat, config.Consumer, [32]byte{}); err == nil {
+		t.Fatal("muted alias still routable")
+	}
+}

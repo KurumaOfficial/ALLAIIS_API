@@ -157,3 +157,23 @@ func TestNewPresetsPreservePreviouslyConfiguredProviders(t *testing.T) {
 		t.Fatalf("custom provider and preset appeared %d times", count)
 	}
 }
+
+func TestSetModelDisabled(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"models":[{"id":"a","provider":"openai","upstream_model":"m"}]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetModelDisabled(t.Context(), path, "a", true); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Models[0].Disabled {
+		t.Fatal("alias not muted")
+	}
+	if err := SetModelDisabled(t.Context(), path, "missing", true); err == nil {
+		t.Fatal("unknown alias accepted")
+	}
+}

@@ -251,16 +251,20 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Feature | Implemented | Tested offline | Tested live | Blocked |
 | --- | :---: | --- | :---: | --- |
 | Model routing, privacy and cooldowns | ✓ | `TestRoutingAndProviderCooldown` | — | — |
+| Cooldown scoped to a credential label | ✓ | `TestCooldownIsScopedToThePinnedLabel`, `TestCooldownOnUnpinnedPoolCoolsEveryLabel` | guest kept working while Pro cooled | — |
+| Lift a cooldown from the panel | ✓ | `TestClearCooldownEndpoint` | — | — |
 | Native Responses and Messages | ✓ | `TestNativeProtocols` | — | — |
 | SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel` | — | — |
 | Venice web transport (guest) | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | Chat JSON + SSE | — |
 | Venice web quota probe and catalog | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Venice web Pro session | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
+| Empty-reply retry and lead-in handling | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
 | Tier C tool emulation (sentinel and XML dialects) | ✓ | `TestToolGuardSplitsMarkers`, `TestToolGuardParsesInvokeXML`, `TestToolGuardDropsDuplicatedDialect`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call on all three protocols | — |
 | Web routes on `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | Opus text and `tool_use` | — |
 | Web routes on `/v1/responses` | ✓ | `TestResponsesFollowUpByPreviousId` (survives a new handler) | adopted SSE shape, encrypted follow-ups | — |
 | Local control panel (`allaiis gui`) | ✓ | `TestPanelAddKeyAndAlias`, `TestPanelRejectsMissingToken` | alias add, probe, delete via the panel | — |
+| Mute an alias without deleting it | ✓ | `TestSetModelDisabled`, `TestToggleMutesAlias` | — | — |
 | Hot config reload and watcher | ✓ | `TestReloadSwapsAndKeepsPreviousOnError`, `TestWatchReloadsChangedConfig` | changes applied without a restart | — |
 | Gateway key rotation | ✓ | `TestPanelDeleteAndRotate` | — | — |
 | Request metrics and live log | ✓ | `TestPanelProbe` | panel overview counters | — |

@@ -136,6 +136,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 					}
 				}
 			}
+			if text == "" {
+				return nil
+			}
 			// Venice opens the stream with a literal "processing" status chunk.
 			if !firstSeen {
 				firstSeen = true
@@ -185,15 +188,26 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		if errors.Is(err, errToolRepair) && attempts < 2 && !sent {
 			request.Messages = repairMessages(reason.messages(envelope), reason.text.String())
 			reason.text.Reset()
+			guard.reset()
+			firstSeen, held = false, ""
+			continue
+		}
+		// A 200 with no content at all is worth one more try, like a bad block.
+		if err == nil && reason.text.Len() == 0 && len(calls) == 0 && attempts < 2 && !sent {
+			guard.reset()
+			firstSeen, held = false, ""
 			continue
 		}
 		break
 	}
 	if held != "" {
-		reason.append(held)
-		if stream {
-			startStream()
-			shape.text(held)
+		// A lone "processing" status is not an answer.
+		if held != "processing" {
+			reason.append(held)
+			if stream {
+				startStream()
+				shape.text(held)
+			}
 		}
 		held = ""
 	}
@@ -296,13 +310,13 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 		rateLimited(w, protocol, until)
 	case errors.Is(err, webprov.ErrSignInRequired):
 		writeError(w, protocol, http.StatusBadRequest, "sign_in_required",
-			"This model needs a signed-in web session. Log in through `allaiis web chrome` and capture it again.")
+			"This model needs a signed-in web session. Log in through `allaiis web chrome` and capture it again, or press Recapture in the control panel.")
 	case errors.Is(err, webprov.ErrUnauthorized):
 		writeError(w, protocol, http.StatusBadGateway, "web_session_expired",
 			"The web session expired. Re-run the capture command for this account.")
 	case errors.Is(err, webprov.ErrCloudflare):
 		writeError(w, protocol, http.StatusBadGateway, "cloudflare_challenge",
-			"Cloudflare rejected the stored clearance. Re-run the capture command for this account.")
+			"Cloudflare rejected the stored clearance. Recapture this account with `allaiis web login` or the panel's Recapture button.")
 	case errors.Is(err, webprov.ErrContextTooLong()):
 		writeError(w, protocol, http.StatusBadRequest, "context_length_exceeded",
 			"The prompt exceeds the model context window.")

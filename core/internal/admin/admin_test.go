@@ -280,3 +280,40 @@ func TestSmokeSkipsAliasesWithoutCredentials(t *testing.T) {
 		t.Fatalf("unexpected: %d %s", result.Code, result.Body)
 	}
 }
+
+func TestToggleMutesAlias(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")
+	f.call(t, http.MethodPost, "/api/models",
+		`{"provider":"fake","upstream_model":"gpt-x","name":"x-alias","label":"work"}`, "")
+	if len(f.live.Models()) != 1 {
+		t.Fatal("alias not served before muting")
+	}
+	result := f.call(t, http.MethodPost, "/api/models/toggle", `{"id":"x-alias","disabled":true}`, "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("toggle: %d %s", result.Code, result.Body)
+	}
+	if len(f.live.Models()) != 0 {
+		t.Fatal("muted alias still served")
+	}
+	state := f.call(t, http.MethodGet, "/api/state", "", "")
+	if !strings.Contains(state.Body.String(), `"disabled":true`) {
+		t.Fatalf("state missed the mute: %s", state.Body)
+	}
+}
+
+func TestClearCooldownEndpoint(t *testing.T) {
+	f := setup(t)
+	key := f.upward.URL + "\x00work"
+	if err := f.store.SetCooldown(t.Context(), "fake", key, time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	result := f.call(t, http.MethodPost, "/api/cooldown/clear", `{"provider":"fake","label":"work"}`, "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("clear: %d %s", result.Code, result.Body)
+	}
+	until, err := f.store.Cooldown(t.Context(), "fake", key)
+	if err != nil || !until.IsZero() {
+		t.Fatalf("cooldown survived: %v %v", until, err)
+	}
+}

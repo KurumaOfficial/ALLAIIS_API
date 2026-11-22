@@ -72,8 +72,23 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 	var results []smokeResult
 	passed, failed := 0, 0
 	for _, target := range targets {
+		provider, _ := cfg.Provider(target.Provider)
+		key := provider.BaseURL
+		if target.CredentialLabel != "" {
+			key += "\x00" + target.CredentialLabel
+		}
+		cooling, _ := store.Cooldown(ctx, target.Provider, key)
 		for attempt := 1; attempt <= attempts; attempt++ {
-			result := smokeOne(ctx, client, server.URL, store.ClientKey(), target, attempt)
+			result := smokeResult{Alias: target.ID, Protocol: string(target.Protocol), Attempt: attempt}
+			if result.Protocol == "" {
+				result.Protocol = "chat"
+			}
+			if time.Now().Before(cooling) {
+				result.Status = http.StatusTooManyRequests
+				result.Detail = "provider cooling until " + cooling.Format("15:04:05")
+			} else {
+				result = smokeOne(ctx, client, server.URL, store.ClientKey(), target, attempt)
+			}
 			results = append(results, result)
 			if result.OK {
 				passed++
@@ -108,7 +123,7 @@ func smokeTargets(cfg config.Config, store *vault.Store, alias string) []config.
 	labels := map[string][]string{}
 	targets := make([]config.Route, 0, len(cfg.Models))
 	for _, route := range cfg.Models {
-		if alias != "" && route.ID != alias {
+		if route.Disabled || (alias != "" && route.ID != alias) {
 			continue
 		}
 		provider, ok := cfg.Provider(route.Provider)

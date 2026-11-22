@@ -14,8 +14,8 @@ port, `--listen 127.0.0.1:9000` overrides the gateway address for this run and
 
 | Tab | Purpose |
 |---|---|
-| Overview | Gateway health, served alias count, request counters, recent requests, provider readiness, gateway key reveal/copy |
-| Aliases | Register and delete model aliases, including protocol and privacy |
+| Overview | Gateway health, served alias count, request counters, recent requests, provider readiness with Recapture and Resume, gateway key reveal/copy |
+| Aliases | Register, mute and delete model aliases, including protocol and privacy |
 | Keys | Add API keys, remove credentials, capture a Venice web session, rotate the gateway key |
 | Discovery | Browse an upstream catalog with a stored credential and create an alias from a model |
 | Playground | Send a real probe, or probe every alias at once with status, latency and the upstream model |
@@ -24,6 +24,13 @@ port, `--listen 127.0.0.1:9000` overrides the gateway address for this run and
 
 There is no build step: the page is plain HTML, CSS and JavaScript embedded in
 the binary.
+
+## Cooldowns
+
+A `429` cools only the credential that hit the limit; other labels of the same
+provider keep working. The Overview shows which label is cooling and until when,
+and **Resume** lifts it early once the plan has reset. A provider-wide cooldown
+only appears for unpinned pools.
 
 ## Capturing a Venice session
 
@@ -43,6 +50,13 @@ then pushed into the running gateway with an atomic table swap. The watcher also
 picks up edits made by the CLI or a text editor within a few seconds. A request
 in flight keeps the old snapshot; a failed reload keeps the previous routes and
 logs a warning. Pressing **Reload config from disk** forces the check.
+
+## Muting an alias
+
+The checkbox in the alias table mutes a route without deleting it: it leaves
+`/v1/models`, routing and smoke runs, and its name stays in the config. Useful
+while a provider is degraded or a credential is being refreshed. The same effect
+is available as `"disabled": true` on a route in `config.json`.
 
 ## Probes and smoke
 

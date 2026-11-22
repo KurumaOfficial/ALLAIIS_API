@@ -77,6 +77,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/keys/rotate", s.guard(s.rotateKey))
 	mux.HandleFunc("POST /api/models", s.guard(s.addModel))
 	mux.HandleFunc("POST /api/models/delete", s.guard(s.removeModel))
+	mux.HandleFunc("POST /api/models/toggle", s.guard(s.toggleModel))
+	mux.HandleFunc("POST /api/cooldown/clear", s.guard(s.clearCooldown))
 	mux.HandleFunc("POST /api/settings", s.guard(s.saveSettings))
 	mux.HandleFunc("POST /api/reload", s.guard(s.reloadConfig))
 	mux.HandleFunc("GET /api/discover", s.guard(s.discover))
@@ -394,6 +396,55 @@ func (s *Server) removeModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"removed": removed})
+}
+
+func (s *Server) toggleModel(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if err := config.SetModelDisabled(r.Context(), s.options.ConfigPath, input.ID, input.Disabled); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.reloadFile(r.Context()); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": input.ID, "disabled": input.Disabled})
+}
+
+// clearCooldown lifts a cooldown so a recovered session can answer at once.
+func (s *Server) clearCooldown(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Provider string `json:"provider"`
+		Label    string `json:"label"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	cfg, err := s.loadConfig()
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	provider, ok := cfg.Provider(input.Provider)
+	if !ok {
+		fail(w, http.StatusBadRequest, "unknown provider")
+		return
+	}
+	if input.Label != "" && !config.ValidCredentialLabel(input.Label) {
+		fail(w, http.StatusBadRequest, "invalid credential label")
+		return
+	}
+	if err := s.options.Gateway.ClearCooldown(r.Context(), provider, input.Provider, input.Label); err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"cleared": true})
 }
 
 func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {

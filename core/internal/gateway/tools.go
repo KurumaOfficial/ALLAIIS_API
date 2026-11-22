@@ -93,6 +93,12 @@ func (g *toolGuard) unique(calls []toolCall) []toolCall {
 
 func (g *toolGuard) add(tools []toolSpec) { g.tools = tools }
 
+// reset drops buffered and dedupe state before a retry.
+func (g *toolGuard) reset() {
+	g.buf.Reset()
+	g.last = nil
+}
+
 // known reports whether name was offered in this request.
 func (g *toolGuard) known(name string) bool {
 	for _, tool := range g.tools {
@@ -356,7 +362,8 @@ func parameterName(tag string) string {
 	return ""
 }
 
-// parameterValue keeps plain text and JSON as-is, and flattens nested elements.
+// parameterValue keeps JSON and scalars typed, and collects repeated nested
+// elements into an array.
 func parameterValue(raw string) any {
 	trimmed := strings.TrimSpace(raw)
 	if json.Valid([]byte(trimmed)) {
@@ -365,21 +372,84 @@ func parameterValue(raw string) any {
 			return value
 		}
 	}
+	if scalar, ok := typedScalar(trimmed); ok {
+		return scalar
+	}
 	if !strings.Contains(trimmed, "<") {
 		return raw
 	}
+	var fragments []any
 	var text strings.Builder
+	nested := false
 	decoder := xml.NewDecoder(strings.NewReader("<value>" + raw + "</value>"))
 	for {
 		token, err := decoder.Token()
 		if err != nil {
 			break
 		}
-		if data, ok := token.(xml.CharData); ok {
-			text.Write(data)
+		switch value := token.(type) {
+		case xml.StartElement:
+			if value.Name.Local != "value" {
+				nested = true
+			}
+		case xml.EndElement:
+			if value.Name.Local != "value" && text.Len() > 0 {
+				fragments = append(fragments, typedOrText(text.String()))
+				text.Reset()
+			}
+		case xml.CharData:
+			text.Write(value)
 		}
 	}
-	return text.String()
+	if text.Len() > 0 {
+		fragments = append(fragments, typedOrText(text.String()))
+	}
+	if !nested && len(fragments) == 1 {
+		return fragments[0]
+	}
+	return fragments
+}
+
+func typedOrText(raw string) any {
+	trimmed := strings.TrimSpace(raw)
+	if scalar, ok := typedScalar(trimmed); ok {
+		return scalar
+	}
+	return raw
+}
+
+// typedScalar parses a bare number, boolean or null.
+func typedScalar(trimmed string) (any, bool) {
+	switch trimmed {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	case "null":
+		return nil, true
+	}
+	if trimmed == "" {
+		return nil, false
+	}
+	digits := 0
+	for index, r := range trimmed {
+		switch {
+		case r >= '0' && r <= '9':
+			digits++
+		case r == '-' && index == 0:
+		case r == '.' || r == 'e' || r == 'E' || r == '+':
+		default:
+			return nil, false
+		}
+	}
+	if digits == 0 {
+		return nil, false
+	}
+	var value any
+	if json.Unmarshal([]byte(trimmed), &value) != nil {
+		return nil, false
+	}
+	return value, true
 }
 
 func (g *toolGuard) parse(block string) ([]toolCall, error) {

@@ -141,6 +141,8 @@ type Route struct {
 	Privacy         Privacy  `json:"privacy,omitempty"`
 	CredentialLabel string   `json:"credential_label,omitempty"`
 	Protocol        Protocol `json:"protocol,omitempty"`
+	// Disabled keeps the alias configured but out of `/v1/models` and routing.
+	Disabled bool `json:"disabled,omitempty"`
 }
 
 func ValidCredentialLabel(label string) bool { return credentialLabel.MatchString(label) }

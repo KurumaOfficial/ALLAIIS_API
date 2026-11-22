@@ -251,10 +251,12 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Проба квоты и каталог Venice web | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Гостевой и Pro алиасы рядом | ✓ | `TestProviderAliasesAndPinnedCredentials` | гость + Pro в одном прогоне | — |
+| Повтор пустого ответа и первый пустой чанк | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
 | Эмуляция тулов Тира C (sentinel и XML) | ✓ | `TestToolGuardSplitsMarkers`, `TestToolGuardParsesInvokeXML`, `TestToolGuardDropsDuplicatedDialect`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | вызов `read_file` на всех трёх протоколах | — |
 | Веб-маршруты на `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | текст Opus и `tool_use` | — |
 | Веб-маршруты на `/v1/responses` | ✓ | `TestResponsesFollowUpByPreviousId` (переживает новый handler) | SSE-формат, шифрованные продолжения | — |
 | Локальная панель (`allaiis gui`) | ✓ | `TestPanelAddKeyAndAlias`, `TestPanelRejectsMissingToken` | добавление алиаса, проба и удаление через панель | — |
+| Отключение алиаса без удаления | ✓ | `TestSetModelDisabled`, `TestToggleMutesAlias` | — | — |
 | Горячая перезагрузка и наблюдатель | ✓ | `TestReloadSwapsAndKeepsPreviousOnError`, `TestWatchReloadsChangedConfig` | изменения без рестарта | — |
 | Ротация ключа гейтвея | ✓ | `TestPanelDeleteAndRotate` | — | — |
 | Прогон алиасов (`smoke`, панель) | ✓ | `TestSmokePassesEveryAlias`, `TestSmokeReportsFailures` | 20 подряд запусков с инструментами, все алиасы | — |

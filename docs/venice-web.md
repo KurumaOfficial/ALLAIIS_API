@@ -86,6 +86,9 @@ signed in or a guest. `allaiis up` prints every alias it serves.
 - **Transient failures retry once.** A transport error, a `5xx`, a spent
   attestation, or a stream that dies before its first event triggers one retry
   with a fresh attestation. A stream that already delivered text is not retried.
+- **Empty replies are retried.** A 200 with no content (or only the `processing`
+  status) gets one more attempt, and an empty first event no longer swallows the
+  text after it.
 - **Tool calls** are emulated: the gateway injects a call envelope, hides the
   call block from the client, validates JSON, retries once on a malformed block,
   and returns native `tool_calls` with `finish_reason: tool_calls`. Two call
@@ -94,6 +97,10 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   form that Claude models often prefer. Both are normalized, and a model that
   emits the same call twice in both forms yields one call. Declared via
   `X-ALLAIIS-Emulated-Features: tools`.
+- **Cooldowns are per credential.** A `429` on one captured session cools only
+  that label, so a limited guest does not block a Pro alias of the same provider.
+  An unpinned alias sits in a shared pool and cools the whole provider. The panel
+  can lift a cooldown with **Resume** once the plan resets.
 - **Pin aliases to a label.** A pool with several captured sessions picks one by
   request hash. Pass `--label` to `models add` so a route always uses the
   intended account.

@@ -71,10 +71,28 @@ function render () {
   for (const provider of state.providers) {
     const line = document.createElement('div')
     line.className = 'row'
-    const bad = provider.cooldown_until && new Date(provider.cooldown_until) > new Date()
+    const coolingLabels = Object.keys(provider.cooldowns || {})
+    const bad = (provider.cooldown_until && new Date(provider.cooldown_until) > new Date()) || coolingLabels.length > 0
     line.innerHTML = '<span class="badge ' + (bad ? 'bad' : 'ok') + '">' + (bad ? 'cooling' : 'ready') + '</span>' +
       '<strong>' + esc(provider.id) + '</strong><span class="muted tiny">' + (provider.web ? 'web transport' : 'API') +
-      ' · ' + provider.labels.length + ' credential(s)' + (bad ? ' · until ' + stamp(provider.cooldown_until) : '') + '</span>'
+      ' · ' + provider.labels.length + ' credential(s)' +
+      (coolingLabels.length
+        ? ' · cooling: ' + coolingLabels.map(label => label + ' until ' + stamp(provider.cooldowns[label])).join(', ')
+        : provider.cooldown_until ? ' · provider cooling until ' + stamp(provider.cooldown_until) : '') + '</span>'
+    if (bad) {
+      const resume = document.createElement('button')
+      resume.className = 'ghost'
+      resume.textContent = 'Resume'
+      resume.title = 'Lift the cooldown now'
+      resume.onclick = async () => {
+        try {
+          await api('/api/cooldown/clear', { method: 'POST', body: JSON.stringify({ provider: provider.id, label: coolingLabels[0] || '' }) })
+          toast('Cooldown cleared')
+          refresh()
+        } catch (error) { toast(error.message, true) }
+      }
+      line.append(resume)
+    }
     if (provider.web) {
       const recapture = document.createElement('button')
       recapture.className = 'ghost'
@@ -101,6 +119,19 @@ function render () {
       '</span></td><td>' + esc(model.privacy) + '</td><td>' + (model.label ? esc(model.label) : '<span class="muted">pool</span>') +
       '</td><td class="wrap muted">' + esc(model.upstream_model) + '</td><td></td>'
     const cell = row.lastElementChild
+    const toggle = document.createElement('input')
+    toggle.type = 'checkbox'
+    toggle.title = 'Serve this alias'
+    toggle.checked = !model.disabled
+    toggle.onchange = async () => {
+      try {
+        await api('/api/models/toggle', { method: 'POST', body: JSON.stringify({ id: model.id, disabled: !toggle.checked }) })
+        toast(model.id + (toggle.checked ? ' enabled' : ' muted'))
+        refresh()
+      } catch (error) { toggle.checked = !toggle.checked; toast(error.message, true) }
+    }
+    cell.append(toggle)
+    if (model.disabled) row.classList.add('disabled')
     const remove = document.createElement('button')
     remove.className = 'danger'
     remove.textContent = 'Delete'
@@ -110,6 +141,7 @@ function render () {
     }
     cell.append(remove)
     if (!model.available) row.firstElementChild.innerHTML = esc(model.id) + ' <span class="badge bad">no key</span>'
+    if (model.disabled) row.firstElementChild.innerHTML += ' <span class="badge">muted</span>'
   }
 
   const credentials = $('credential-list')

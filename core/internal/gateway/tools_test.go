@@ -152,8 +152,14 @@ func TestToolGuardInvokeJSONBodyAndUnknownTool(t *testing.T) {
 		t.Fatal("unknown tool accepted")
 	}
 	guard = guardFor("read_file")
-	if _, _, err := guard.Write(`<invoke name="read_file"><parameter name="items"><item>a</item><item>b</item></parameter></invoke>`); err != nil {
-		t.Fatal(err)
+	_, calls, err = guard.Write(`<invoke name="read_file"><parameter name="items"><item>a</item><item>2</item></parameter></invoke>`)
+	if err != nil || calls[0].Function.Arguments != `{"items":["a",2]}` {
+		t.Fatalf("nested list: %+v %v", calls, err)
+	}
+	guard = guardFor("read_file")
+	_, calls, err = guard.Write(`<invoke name="read_file"><parameter name="path">2024</parameter></invoke>`)
+	if err != nil || calls[0].Function.Arguments != `{"path":2024}` {
+		t.Fatalf("scalar: %+v %v", calls, err)
 	}
 }
 

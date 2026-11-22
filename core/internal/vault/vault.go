@@ -298,6 +298,12 @@ func (s *Store) SetCooldown(ctx context.Context, provider, endpoint string, unti
 	return err
 }
 
+// ClearCooldown removes a stored cooldown row.
+func (s *Store) ClearCooldown(ctx context.Context, provider, endpoint string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM cooldowns WHERE provider = ? AND endpoint = ?`, provider, endpoint)
+	return err
+}
+
 // SaveResponse stores one encrypted Responses turn list.
 func (s *Store) SaveResponse(ctx context.Context, id string, turns []byte, expires time.Time) error {
 	if id == "" || len(turns) == 0 {

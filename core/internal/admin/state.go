@@ -20,12 +20,13 @@ import (
 )
 
 type providerView struct {
-	ID            string     `json:"id"`
-	BaseURL       string     `json:"base_url"`
-	Web           bool       `json:"web"`
-	CatalogPublic bool       `json:"catalog_public"`
-	Labels        []string   `json:"labels"`
-	CooldownUntil *time.Time `json:"cooldown_until,omitempty"`
+	ID            string               `json:"id"`
+	BaseURL       string               `json:"base_url"`
+	Web           bool                 `json:"web"`
+	CatalogPublic bool                 `json:"catalog_public"`
+	Labels        []string             `json:"labels"`
+	Cooldowns     map[string]time.Time `json:"cooldowns,omitempty"`
+	CooldownUntil *time.Time           `json:"cooldown_until,omitempty"`
 }
 
 type modelView struct {
@@ -36,6 +37,7 @@ type modelView struct {
 	Privacy       config.Privacy  `json:"privacy"`
 	Label         string          `json:"label"`
 	Available     bool            `json:"available"`
+	Disabled      bool            `json:"disabled"`
 }
 
 type stateView struct {
@@ -90,6 +92,12 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 		}
 		for _, entry := range entries {
 			record.Labels = append(record.Labels, entry.Label)
+			if until, err := s.options.Store.Cooldown(ctx, id, provider.BaseURL+"\x00"+entry.Label); err == nil && time.Now().Before(until) {
+				if record.Cooldowns == nil {
+					record.Cooldowns = map[string]time.Time{}
+				}
+				record.Cooldowns[entry.Label] = until
+			}
 		}
 		if until, err := s.options.Store.Cooldown(ctx, id, provider.BaseURL); err == nil && time.Now().Before(until) {
 			record.CooldownUntil = &until
@@ -100,6 +108,7 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 		record := modelView{
 			ID: route.ID, Provider: route.Provider, UpstreamModel: route.UpstreamModel,
 			Protocol: route.Protocol, Privacy: route.Privacy, Label: route.CredentialLabel,
+			Disabled: route.Disabled,
 		}
 		for _, provider := range view.Providers {
 			if provider.ID != route.Provider {
@@ -276,14 +285,24 @@ func (s *Server) smoke(w http.ResponseWriter, r *http.Request) {
 	results := make([]probeResult, 0, len(models))
 	passed, failed := 0, 0
 	for _, route := range models {
-		if input.Alias != "" && route.ID != input.Alias {
+		if route.Disabled || (input.Alias != "" && route.ID != input.Alias) {
 			continue
 		}
 		names := labels[route.Provider]
 		if (route.CredentialLabel == "" && len(names) == 0) || (route.CredentialLabel != "" && !contains(names, route.CredentialLabel)) {
 			continue
 		}
-		result := s.probeOne(r.Context(), cfg, route, "Reply with the single word: ready")
+		provider, _ := cfg.Provider(route.Provider)
+		result := probeResult{Status: http.StatusTooManyRequests}
+		key := provider.BaseURL
+		if route.CredentialLabel != "" {
+			key += "\x00" + route.CredentialLabel
+		}
+		if until, err := s.options.Store.Cooldown(r.Context(), route.Provider, key); err == nil && time.Now().Before(until) {
+			result.Error = "provider cooling until " + until.Format("15:04:05")
+		} else {
+			result = s.probeOne(r.Context(), cfg, route, "Reply with the single word: ready")
+		}
 		result.Alias = route.ID
 		result.Protocol = string(route.Protocol)
 		if result.Protocol == "" {

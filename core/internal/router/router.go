@@ -35,9 +35,20 @@ type Target struct {
 }
 
 type ProviderStatus struct {
-	Provider      string     `json:"provider"`
-	Credentials   []string   `json:"credentials"`
+	Provider    string               `json:"provider"`
+	Credentials []string             `json:"credentials"`
+	Cooldowns   map[string]time.Time `json:"cooldowns,omitempty"`
+	// CooldownUntil is the provider-wide cooldown used by unpinned pools.
 	CooldownUntil *time.Time `json:"cooldown_until,omitempty"`
+}
+
+// cooldownKey scopes a cooldown to one credential label. An unpinned pool cools
+// the whole provider, because any label there can serve the request.
+func cooldownKey(provider config.Provider, label string) string {
+	if label == "" {
+		return provider.BaseURL
+	}
+	return provider.BaseURL + "\x00" + label
 }
 
 type pool struct {
@@ -90,6 +101,9 @@ func New(ctx context.Context, cfg config.Config, store *vault.Store) (*Router, e
 func (r *Router) Models(minimum config.Privacy) []Model {
 	models := make([]Model, 0, len(r.routes))
 	for _, route := range r.routes {
+		if route.Disabled {
+			continue
+		}
 		_, available := r.pools[route.Provider].credential(route.CredentialLabel, [32]byte{})
 		if route.Privacy.Meets(minimum) && available {
 			models = append(models, Model{ID: route.ID, Object: "model", Provider: route.Provider, Protocol: route.Protocol})
@@ -101,7 +115,7 @@ func (r *Router) Models(minimum config.Privacy) []Model {
 
 func (r *Router) Resolve(ctx context.Context, model string, protocol config.Protocol, minimum config.Privacy, session [32]byte) (Target, time.Time, error) {
 	route, ok := r.routes[model]
-	if !ok || route.Protocol != protocol || !route.Privacy.Meets(minimum) {
+	if !ok || route.Disabled || route.Protocol != protocol || !route.Privacy.Meets(minimum) {
 		return Target{}, time.Time{}, ErrModel
 	}
 	p := r.pools[route.Provider]
@@ -110,7 +124,7 @@ func (r *Router) Resolve(ctx context.Context, model string, protocol config.Prot
 		return Target{}, time.Time{}, ErrCredentials
 	}
 	target := Target{Route: route, Provider: p.provider, Entry: entry}
-	until, err := r.cooldown(ctx, route.Provider, p.provider.BaseURL)
+	until, err := r.cooldown(ctx, route.Provider, p.provider, route.CredentialLabel)
 	if err != nil {
 		return Target{}, time.Time{}, err
 	}
@@ -121,12 +135,22 @@ func (r *Router) Resolve(ctx context.Context, model string, protocol config.Prot
 }
 
 func (r *Router) SetCooldown(ctx context.Context, target Target, until time.Time) error {
+	key := cooldownKey(target.Provider, target.Route.CredentialLabel)
 	r.mu.Lock()
-	if until.After(r.blocked[target.Route.Provider]) {
-		r.blocked[target.Route.Provider] = until
+	if until.After(r.blocked[key]) {
+		r.blocked[key] = until
 	}
 	r.mu.Unlock()
-	return r.store.SetCooldown(ctx, target.Route.Provider, target.Provider.BaseURL, until)
+	return r.store.SetCooldown(ctx, target.Route.Provider, key, until)
+}
+
+// ClearCooldown lifts a cooldown for one alias target or a whole provider.
+func (r *Router) ClearCooldown(ctx context.Context, provider config.Provider, providerID, label string) error {
+	key := cooldownKey(provider, label)
+	r.mu.Lock()
+	delete(r.blocked, key)
+	r.mu.Unlock()
+	return r.store.ClearCooldown(ctx, providerID, key)
 }
 
 // SaveResponse persists a Responses turn list for follow-ups.
@@ -139,16 +163,34 @@ func (r *Router) LoadResponse(ctx context.Context, id string) ([]byte, bool) {
 	return r.store.LoadResponse(ctx, id)
 }
 
-func (r *Router) cooldown(ctx context.Context, provider, endpoint string) (time.Time, error) {
-	persisted, err := r.store.Cooldown(ctx, provider, endpoint)
+// cooldown returns the latest cooldown for a route, looking at the pinned
+// label, the provider-wide row and the in-memory copy.
+func (r *Router) cooldown(ctx context.Context, provider string, p config.Provider, label string) (time.Time, error) {
+	key := cooldownKey(p, label)
+	persisted, err := r.store.Cooldown(ctx, provider, key)
 	if err != nil {
 		return time.Time{}, err
 	}
 	r.mu.Lock()
-	local := r.blocked[provider]
+	local := r.blocked[key]
 	r.mu.Unlock()
 	if local.After(persisted) {
-		return local, nil
+		persisted = local
+	}
+	if label != "" {
+		bare, err := r.store.Cooldown(ctx, provider, p.BaseURL)
+		if err != nil {
+			return time.Time{}, err
+		}
+		r.mu.Lock()
+		local = r.blocked[p.BaseURL]
+		r.mu.Unlock()
+		if local.After(bare) {
+			bare = local
+		}
+		if bare.After(persisted) {
+			persisted = bare
+		}
 	}
 	return persisted, nil
 }
@@ -159,8 +201,18 @@ func (r *Router) Status(ctx context.Context) ([]ProviderStatus, error) {
 		record := ProviderStatus{Provider: id, Credentials: make([]string, 0, len(p.entries))}
 		for _, entry := range p.entries {
 			record.Credentials = append(record.Credentials, entry.Label)
+			until, err := r.cooldown(ctx, id, p.provider, entry.Label)
+			if err != nil {
+				return nil, err
+			}
+			if time.Now().Before(until) {
+				if record.Cooldowns == nil {
+					record.Cooldowns = map[string]time.Time{}
+				}
+				record.Cooldowns[entry.Label] = until
+			}
 		}
-		until, err := r.cooldown(ctx, id, p.provider.BaseURL)
+		until, err := r.cooldown(ctx, id, p.provider, "")
 		if err != nil {
 			return nil, err
 		}

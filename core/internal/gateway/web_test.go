@@ -211,3 +211,55 @@ func TestWebVisionUsesAgentMultipart(t *testing.T) {
 		t.Fatalf("got %d %s", result.Code, result.Body.String())
 	}
 }
+
+func TestWebEmptyFirstEventKeepsLaterText(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		fmt.Fprint(w, `{"kind":"content","content":""}
+{"kind":"content","content":"Hello"}
+{"kind":"content","content":" there"}
+`)
+	})
+	handler, store := webGateway(t, server.URL)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"`+webModel+`","messages":[{"role":"user","content":"hi"}]}`))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+	var reply struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	if got := reply.Choices[0].Message.Content; got != "Hello there" {
+		t.Fatalf("content %q", got)
+	}
+}
+
+func TestWebEmptyReplyRetriesOnce(t *testing.T) {
+	calls := 0
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		calls++
+		if calls == 1 {
+			fmt.Fprint(w, `{"kind":"content","content":"processing"}`)
+			return
+		}
+		fmt.Fprint(w, `{"kind":"content","content":"Recovered"}`)
+	})
+	handler, store := webGateway(t, server.URL)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"`+webModel+`","messages":[{"role":"user","content":"hi"}]}`))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "Recovered") {
+		t.Fatalf("retry failed: %d %s", result.Code, result.Body)
+	}
+}

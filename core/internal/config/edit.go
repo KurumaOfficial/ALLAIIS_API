@@ -78,6 +78,19 @@ func UpdateProvider(ctx context.Context, path, id string, provider Provider) err
 	})
 }
 
+// SetModelDisabled mutes or unmutes an alias without deleting it.
+func SetModelDisabled(ctx context.Context, path, id string, disabled bool) error {
+	return edit(ctx, path, func(cfg *Config) error {
+		for index := range cfg.Models {
+			if cfg.Models[index].ID == id {
+				cfg.Models[index].Disabled = disabled
+				return nil
+			}
+		}
+		return fmt.Errorf("model alias %q is not configured", id)
+	})
+}
+
 // SetMinPrivacy updates the gateway-wide privacy floor.
 func SetMinPrivacy(ctx context.Context, path string, level Privacy) error {
 	return edit(ctx, path, func(cfg *Config) error {
