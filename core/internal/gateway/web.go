@@ -25,13 +25,17 @@ var errToolRepair = errors.New("tool block needs a repair attempt")
 
 var webDebug = os.Getenv("ALLAIIS_WEB_DEBUG") != ""
 
+// webShape renders a web reply in one inbound protocol.
+type webShape interface {
+	reasoning(string)
+	text(string)
+	calls([]toolCall)
+	end(reason string)
+	reply(content string, calls []toolCall, usage map[string]any)
+}
+
 // webCompletion serves a route whose provider has no documented API.
 func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, target router.Target, payload []byte, stream bool) {
-	if protocol != config.Chat {
-		writeError(w, protocol, http.StatusBadRequest, "protocol_unsupported",
-			"Web-transport providers serve Chat Completions only.")
-		return
-	}
 	credential, err := webprov.ParseCredential(target.Entry.Key)
 	if err != nil {
 		writeError(w, protocol, http.StatusServiceUnavailable, "credential_invalid",
@@ -41,7 +45,22 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	if credential.DistinctID == "" {
 		credential.DistinctID = randomID()
 	}
-	request, reason, tools, err := webRequest(payload, target.Route.UpstreamModel)
+	var request webprov.Request
+	var reason *webReason
+	var tools []toolSpec
+	switch protocol {
+	case config.Chat:
+		request, reason, tools, err = webRequest(payload, target.Route.UpstreamModel)
+	case config.Messages:
+		request, reason, tools, err = messagesRequest(payload, target.Route.UpstreamModel)
+		if err == nil && stream && request.MaxTokens <= 0 {
+			request.MaxTokens = 4096
+		}
+	default:
+		writeError(w, protocol, http.StatusBadRequest, "protocol_unsupported",
+			"Web-transport providers serve Chat Completions and Anthropic Messages.")
+		return
+	}
 	if err != nil {
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return
@@ -60,7 +79,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	w.Header().Set("X-ALLAIIS-Model", target.Route.ID)
 	w.Header().Set("X-ALLAIIS-Emulated-Features", emulated)
 
-	id := "chatcmpl-" + randomID()
+	id := replyID(protocol)
 	created := time.Now().Unix()
 	sent := false
 	finish := "stop"
@@ -68,6 +87,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 
 	guard := &toolGuard{}
 	guard.add(tools)
+
+	shape := newShape(protocol, w, id, target.Route.ID, created)
 
 	var startStream func()
 	firstSeen, held := false, ""
@@ -86,7 +107,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			reason.reasoningChars += len([]rune(event.Content))
 			if stream {
 				startStream()
-				writeChunk(w, id, target.Route.ID, created, map[string]any{"reasoning_content": event.Content})
+				shape.reasoning(event.Content)
 			}
 			return nil
 		case "content":
@@ -101,7 +122,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 					calls = append(calls, parsed...)
 					if stream {
 						startStream()
-						writeToolChunks(w, id, target.Route.ID, created, parsed, false)
+						shape.calls(parsed)
 					}
 				}
 			}
@@ -125,7 +146,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			reason.append(text)
 			if stream {
 				startStream()
-				writeChunk(w, id, target.Route.ID, created, map[string]any{"content": text})
+				shape.text(text)
 			}
 			return nil
 		}
@@ -162,7 +183,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		reason.append(held)
 		if stream {
 			startStream()
-			writeChunk(w, id, target.Route.ID, created, map[string]any{"content": held})
+			shape.text(held)
 		}
 		held = ""
 	}
@@ -172,13 +193,13 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				reason.append(tail)
 				if stream {
 					startStream()
-					writeChunk(w, id, target.Route.ID, created, map[string]any{"content": tail})
+					shape.text(tail)
 				}
 			}
 			calls = append(calls, parsed...)
 			if len(parsed) > 0 && stream {
 				startStream()
-				writeToolChunks(w, id, target.Route.ID, created, parsed, false)
+				shape.calls(parsed)
 			}
 		}
 	}
@@ -186,8 +207,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		finish = "tool_calls"
 	}
 	if err != nil && sent {
-		fmt.Fprintf(w, "data: {\"error\":{\"message\":%q,\"type\":\"upstream_error\"}}\n\n", err.Error())
-		fmt.Fprint(w, "data: [DONE]\n\n")
+		writeStreamError(w, protocol, err)
 		slog.Warn("web provider stream failed", "provider", target.Route.Provider, "error", err)
 		return
 	}
@@ -195,31 +215,41 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		g.webError(w, protocol, target, err)
 		return
 	}
+	promptTokens := estimateChars(len(payload))
+	usage := map[string]any{
+		"prompt_tokens": promptTokens, "completion_tokens": reason.chars(),
+		"total_tokens": promptTokens + reason.chars(), "estimated": true,
+	}
 	if stream {
 		startStream()
-		if len(calls) > 0 {
-			writeToolChunks(w, id, target.Route.ID, created, nil, true)
-		}
-		finished(w, id, target.Route.ID, created, finish)
-		fmt.Fprint(w, "data: [DONE]\n\n")
+		shape.end(finish)
 	} else {
-		message := map[string]any{"role": "assistant", "content": reason.text.String()}
-		if len(calls) > 0 {
-			message["content"] = nil
-			message["tool_calls"] = calls
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"id": id, "object": "chat.completion", "created": created, "model": target.Route.ID,
-			"choices": []any{map[string]any{"index": 0, "finish_reason": finish, "message": message}},
-			"usage": map[string]any{
-				"prompt_tokens": estimateChars(len(payload)), "completion_tokens": reason.chars(),
-				"total_tokens": estimateChars(len(payload)) + reason.chars(), "estimated": true,
-			},
-		})
+		shape.reply(reason.text.String(), calls, usage)
 	}
 	slog.Info("web completion", "provider", target.Route.Provider, "model", target.Route.ID,
-		"stream", stream, "chars", reason.chars(), "calls", len(calls), "attempts", attempts,
-		"duration_ms", time.Since(started).Milliseconds())
+		"protocol", protocol, "stream", stream, "chars", reason.chars(), "calls", len(calls),
+		"attempts", attempts, "duration_ms", time.Since(started).Milliseconds())
+}
+
+func replyID(protocol config.Protocol) string {
+	if protocol == config.Messages {
+		return "msg_" + randomID()
+	}
+	return "chatcmpl-" + randomID()
+}
+
+// writeStreamError reports a mid-stream failure in the inbound protocol.
+func writeStreamError(w http.ResponseWriter, protocol config.Protocol, err error) {
+	switch protocol {
+	case config.Messages:
+		payload, _ := json.Marshal(map[string]any{
+			"type": "error", "error": map[string]string{"type": "api_error", "message": err.Error()},
+		})
+		fmt.Fprintf(w, "event: error\ndata: %s\n\n", payload)
+	default:
+		fmt.Fprintf(w, "data: {\"error\":{\"message\":%q,\"type\":\"upstream_error\"}}\n\n", err.Error())
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}
 }
 
 func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, target router.Target, err error) {
@@ -283,44 +313,6 @@ func (r *webReason) messages(system string) []webprov.Message {
 		return built
 	}
 	return append([]webprov.Message{{Role: "system", Content: system}}, built...)
-}
-
-func (r *webReason) finish(w http.ResponseWriter, id, model string, created int64) {
-	finished(w, id, model, created, "stop")
-}
-
-func finished(w http.ResponseWriter, id, model string, created int64, reason string) {
-	data, _ := json.Marshal(map[string]any{
-		"id": id, "object": "chat.completion.chunk", "created": created, "model": model,
-		"choices": []any{map[string]any{"index": 0, "delta": map[string]any{}, "finish_reason": reason}},
-	})
-	fmt.Fprintf(w, "data: %s\n\n", data)
-}
-
-func writeChunk(w http.ResponseWriter, id, model string, created int64, delta map[string]any) {
-	data, _ := json.Marshal(map[string]any{
-		"id": id, "object": "chat.completion.chunk", "created": created, "model": model,
-		"choices": []any{map[string]any{"index": 0, "delta": delta, "finish_reason": nil}},
-	})
-	fmt.Fprintf(w, "data: %s\n\n", data)
-}
-
-// writeToolChunks emits tool deltas, or only the final empty delta when calls is nil.
-func writeToolChunks(w http.ResponseWriter, id, model string, created int64, calls []toolCall, final bool) {
-	if !final && len(calls) == 0 {
-		return
-	}
-	delta := make([]any, 0, len(calls))
-	for index, call := range calls {
-		delta = append(delta, map[string]any{
-			"index": index, "id": call.ID, "type": "function",
-			"function": map[string]string{"name": call.Function.Name, "arguments": call.Function.Arguments},
-		})
-	}
-	if len(delta) == 0 {
-		return
-	}
-	writeChunk(w, id, model, created, map[string]any{"tool_calls": delta})
 }
 
 func estimateChars(n int) int {
@@ -414,7 +406,8 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 			Name string `json:"filename"`
 			Data string `json:"file_data"`
 		} `json:"file"`
-		URL string `json:"url"`
+		ToolResult json.RawMessage `json:"content"`
+		URL        string          `json:"url"`
 	}
 	if json.Unmarshal(raw, &parts) != nil {
 		return string(raw), nil
@@ -433,6 +426,12 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 			images = append(images, image)
 		} else if image, ok := fetchImage(url); ok {
 			images = append(images, image)
+		}
+		if strings.HasPrefix(part.Type, "tool_result") && part.ToolResult != nil {
+			result, _ := messageParts(part.ToolResult)
+			if result != "" {
+				joined.WriteString("\n" + result)
+			}
 		}
 		if part.File != nil {
 			if file, ok := decodeDataURL(part.File.Data); ok {
@@ -509,7 +508,10 @@ func messageToolCalls(raw json.RawMessage) []toolCall {
 
 // renderToolCalls replays an earlier assistant call as text the web model can read.
 func renderToolCalls(text string, raw json.RawMessage) string {
-	calls := messageToolCalls(raw)
+	return renderCallList(text, messageToolCalls(raw))
+}
+
+func renderCallList(text string, calls []toolCall) string {
 	if len(calls) == 0 {
 		return text
 	}

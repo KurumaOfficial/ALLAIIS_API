@@ -106,7 +106,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | `GET /v1/models` | Алиасы, доступные по настроенной политике приватности |
 | `POST /v1/chat/completions` | Chat Completions с нативным JSON или SSE |
 | `POST /v1/responses` | Создание Responses в синхронном режиме с JSON или SSE |
-| `POST /v1/messages` | Создание Anthropic Messages с нативным JSON или SSE |
+| `POST /v1/messages` | Создание Anthropic Messages с нативным JSON или SSE, в том числе на веб-маршрутах |
 
 Каждый алиас обслуживает один эндпоинт генерации. По умолчанию `models add` выбирает протокол `chat`. `GET /v1/models` помечает алиасы Responses и Messages полем `allaiis_protocol`. Шлюз передаёт нативные вызовы инструментов и статистику токенов, если их возвращает настроенный API.
 
@@ -236,6 +236,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Гостевой и Pro алиасы рядом | ✓ | `TestProviderAliasesAndPinnedCredentials` | гость + Pro в одном прогоне | — |
 | Эмуляция тулов Тира C | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | вызов `read_file` | — |
+| Веб-маршруты на `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | текст Opus и `tool_use` | — |
 | Ввод изображений и файлов | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | цвет по PNG, поле из .txt | — |
 
 ### Офлайн-совместимость

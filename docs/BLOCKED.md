@@ -2,11 +2,10 @@
 
 ## B1. Open items
 
-Venice web works live as a guest session and on a Pro session. Remaining gaps
-are the cross-platform login walkthrough, multi-session isolation and feature
-parity with the official API.
+Venice web works live as a guest and on a Pro session, over Chat Completions
+and Anthropic Messages. Remaining gaps are protocol parity for Responses, larger
+attachments and a second provider.
 
-- Windows, Linux, and macOS walkthrough for the login step.
 - A second web provider on the same capture flow.
 
 ## B2. Handoff

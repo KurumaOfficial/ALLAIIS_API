@@ -109,6 +109,22 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   are served over the same plain transport; per-field client-side encryption is
   not implemented.
 
+## Inbound protocols
+
+A web route can be registered for Chat Completions or Anthropic Messages:
+
+```sh
+./allaiis models add --provider venice-web --upstream-model claude-opus-5-5 \
+  --name cc --label pro --protocol messages
+```
+
+Messages routes translate `system`, `content[]` blocks (text, image, tool_use,
+tool_result) into web turns and answer with real Anthropic events
+(`message_start`, `content_block_delta`, `message_delta`, `message_stop`) or a
+`message` object. Tool calls come back as `tool_use` blocks with
+`stop_reason: tool_use`. Responses (`/v1/responses`) is not wired to web routes
+yet.
+
 ## Client setup (OpenCode)
 
 ```sh

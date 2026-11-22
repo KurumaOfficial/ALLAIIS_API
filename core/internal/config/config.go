@@ -278,12 +278,10 @@ func (c *Config) validate() error {
 		default:
 			return fmt.Errorf("model %q: protocol must be chat, responses, or messages", route.ID)
 		}
-		if _, custom := c.Providers[route.Provider]; !custom && route.Protocol != Chat &&
+		provider, _ := c.Provider(route.Provider)
+		if _, custom := c.Providers[route.Provider]; !custom && !provider.Web() && route.Protocol != Chat &&
 			defaults[route.Provider].native != route.Protocol {
 			return fmt.Errorf("model %q: provider %q has no %s endpoint configured", route.ID, route.Provider, route.Protocol)
-		}
-		if provider, ok := c.Provider(route.Provider); ok && provider.Web() && route.Protocol != Chat {
-			return fmt.Errorf("model %q: web providers serve chat completions only", route.ID)
 		}
 		if route.Privacy == "" {
 			route.Privacy = Consumer
