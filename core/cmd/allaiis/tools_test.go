@@ -258,6 +258,9 @@ func TestToolsShowStatesTheRetention(t *testing.T) {
 	if !strings.Contains(out.String(), "Retention: 5m from config") {
 		t.Fatalf("retention missing: %q", out.String())
 	}
+	if !strings.Contains(out.String(), "File: ") {
+		t.Fatalf("file path missing: %q", out.String())
+	}
 }
 
 func TestRetentionText(t *testing.T) {

@@ -104,6 +104,9 @@ func showToolNames(out io.Writer, path string, ttl time.Duration, source string,
 	if asJSON {
 		return writeJSON(out, record)
 	}
+	// The data directory comes from the environment, so name the file: a wrong
+	// variable must not silently show another profile's record.
+	fmt.Fprintf(out, "File: %s\n", path)
 	fmt.Fprintf(out, "Retention: %s\n", retentionText(ttl, source))
 	repaired := record.Folded + record.Suffixed
 	fmt.Fprintf(out, "Repaired names: %d (folded %d, trailing word %d)\n", repaired, record.Folded, record.Suffixed)
