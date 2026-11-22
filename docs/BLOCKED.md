@@ -3,7 +3,7 @@
 ## B1. Open items
 
 Venice web works live as a guest and on a Pro session, over Chat Completions
-Anthropic Messages and OpenAI Responses. Remaining gaps are stateful follow-ups, larger attachments and a second provider.
+Anthropic Messages and OpenAI Responses. Remaining gaps are larger attachments, follow-ups that survive a restart, and a second provider.
 
 - A second web provider on the same capture flow.
 

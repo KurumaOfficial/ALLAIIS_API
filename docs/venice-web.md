@@ -128,8 +128,12 @@ tool_result) into web turns and answer with real Anthropic events
 (`message`, `function_call`, `function_call_output`) and flat function tools are
 translated, and the reply uses `response.created`, `response.output_text.delta`,
 `response.function_call_arguments.delta` and `response.completed`, or a
-`response` object. Web routes are stateless, so a follow-up needs the full input
-history; `previous_response_id` alone cannot be replayed.
+`response` object.
+
+The transport is stateless, so the gateway keeps the last 64 turn lists for an
+hour and replays one when a request sends only `previous_response_id`. A cold
+gateway (restart) loses them, so a long-lived client should still send the full
+`input` when it can.
 
 ## Client setup (OpenCode)
 

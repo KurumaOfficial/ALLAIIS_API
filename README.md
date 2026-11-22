@@ -243,7 +243,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
 | Tier C tool emulation | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call | — |
 | Web routes on `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | Opus text and `tool_use` | — |
-| Web routes on `/v1/responses` | ✓ | `TestResponsesProtocolStreamAndTool`, `TestResponsesProtocolHistory` | adopted SSE shape | — |
+| Web routes on `/v1/responses` | ✓ | `TestResponsesProtocolStreamAndTool`, `TestResponsesProtocolHistory`, `TestResponsesFollowUpByPreviousId` | adopted SSE shape, follow-up by id | — |
 | Web image and file input | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | colour from a PNG, owner from a .txt | — |
 
 ### Offline compatibility
