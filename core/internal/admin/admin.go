@@ -42,8 +42,11 @@ type Options struct {
 	Passphrase []byte
 	Version    string
 	// SmokeEvery enables the scheduled probe sweep when non-zero.
-	SmokeEvery   time.Duration
+	SmokeEvery time.Duration
+	// SmokeWebhook receives failures and regressions.
 	SmokeWebhook string
+	// NoToolProbe leaves the parser probe out of manual and scheduled sweeps.
+	NoToolProbe bool
 }
 
 type Server struct {

@@ -68,7 +68,7 @@ func smokeFixture(t *testing.T, fail bool) (dir, configPath, vaultPath string) {
 func TestSmokePassesEveryAlias(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, false)
 	capture(t, func() {
-		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "", 2, 20*time.Second, false); err != nil {
+		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "", 2, 20*time.Second, false, false); err != nil {
 			t.Fatalf("smoke failed: %v", err)
 		}
 	})
@@ -77,7 +77,7 @@ func TestSmokePassesEveryAlias(t *testing.T) {
 func TestSmokeReportsFailures(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, true)
 	capture(t, func() {
-		err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, false)
+		err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, false, false)
 		if err == nil {
 			t.Fatal("failing upstream reported success")
 		}
@@ -87,7 +87,7 @@ func TestSmokeReportsFailures(t *testing.T) {
 func TestSmokeRejectsUnknownAlias(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, false)
 	capture(t, func() {
-		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "missing", 1, 20*time.Second, false); err == nil {
+		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "missing", 1, 20*time.Second, false, false); err == nil {
 			t.Fatal("unknown alias accepted")
 		}
 	})
@@ -117,7 +117,7 @@ func capture(t *testing.T, fn func()) string {
 func TestSmokeCarriesAToolProbe(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, false)
 	out := capture(t, func() {
-		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, true); err != nil {
+		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, true, false); err != nil {
 			t.Fatalf("smoke failed: %v", err)
 		}
 	})
@@ -161,5 +161,17 @@ func TestSmokeToolProbeNeedsTheArgument(t *testing.T) {
 	result := smokeTools(t.Context(), &http.Client{Timeout: 5 * time.Second}, upstream.URL, "sk", config.Route{ID: "one"})
 	if result.OK || !strings.Contains(result.Detail, "without path") {
 		t.Fatalf("empty arguments accepted: %+v", result)
+	}
+}
+
+func TestSmokeCanSkipTheToolProbe(t *testing.T) {
+	dir, configPath, vaultPath := smokeFixture(t, false)
+	out := capture(t, func() {
+		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, true, true); err != nil {
+			t.Fatalf("smoke failed: %v", err)
+		}
+	})
+	if strings.Contains(out, "(tools)") || !strings.Contains(out, `"passed": 1`) {
+		t.Fatalf("probe not skipped: %s", out)
 	}
 }

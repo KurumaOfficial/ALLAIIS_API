@@ -21,7 +21,7 @@ import (
 const version = "0.1.0"
 
 // runGUI serves the gateway and the loopback control panel together.
-func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, openBrowser bool, smokeEvery time.Duration, smokeWebhook string) error {
+func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, openBrowser bool, smokeEvery time.Duration, smokeWebhook string, noToolProbe bool) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
@@ -51,7 +51,7 @@ func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, 
 	panel, err := admin.New(admin.Options{
 		Gateway: live, Store: store, ConfigPath: configPath, DataDir: dir,
 		Passphrase: append([]byte{}, passphrase...), Version: version,
-		SmokeEvery: smokeEvery, SmokeWebhook: smokeWebhook,
+		SmokeEvery: smokeEvery, SmokeWebhook: smokeWebhook, NoToolProbe: noToolProbe,
 	})
 	if err != nil {
 		return err

@@ -408,7 +408,7 @@ func (s *Server) smokeRun(ctx context.Context, alias string) ([]probeResult, int
 	// scheduled sweep without paying for a tool call on every alias. A second
 	// alias stands in when the first cannot produce a call at all, so a model
 	// without tool support does not keep the row red on its own.
-	if len(toolRoutes) > 0 {
+	if len(toolRoutes) > 0 && !s.options.NoToolProbe {
 		tool := s.toolProbe(ctx, cfg, toolRoutes[0])
 		if !tool.OK && len(toolRoutes) > 1 {
 			tool = s.toolProbe(ctx, cfg, toolRoutes[1])

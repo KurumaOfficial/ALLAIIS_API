@@ -103,6 +103,8 @@ func run(ctx context.Context, args []string) error {
 	var attempts int
 	var timeout, smokeEvery time.Duration
 	var smokeWebhook string
+	// Probing tools costs a request per sweep; an operator may switch it off.
+	var noToolProbe bool
 	switch command {
 	case "import":
 		flags.Func("from", "key source, env or opencode (repeatable)", func(source string) error {
@@ -129,12 +131,14 @@ func run(ctx context.Context, args []string) error {
 		flags.BoolVar(&noOpen, "no-open", false, "do not open a browser")
 		flags.DurationVar(&smokeEvery, "smoke-every", 0, "probe every alias on this interval (e.g. 15m)")
 		flags.StringVar(&smokeWebhook, "smoke-webhook", "", "POST failures and regressions to this URL")
+		flags.BoolVar(&noToolProbe, "no-tools", false, "skip the tool parser probe")
 		fallthrough
 	case "smoke":
 		flags.StringVar(&label, "alias", "", "probe only this alias")
 		flags.IntVar(&attempts, "attempts", 1, "repeat every probe this many times")
 		flags.DurationVar(&timeout, "timeout", 4*time.Minute, "per-request timeout")
 		flags.BoolVar(&asJSON, "json", false, "print JSON instead of a table")
+		flags.BoolVar(&noToolProbe, "no-tools", false, "skip the tool parser probe")
 		fallthrough
 	case "init", "key", "status", "doctor", "export opencode", "up":
 	default:
@@ -154,10 +158,10 @@ func run(ctx context.Context, args []string) error {
 		return errors.New("--provider and --label are required")
 	}
 	if command == "gui" {
-		return runGUI(ctx, dir, configPath, vaultPath, listen, ui, !noOpen, smokeEvery, smokeWebhook)
+		return runGUI(ctx, dir, configPath, vaultPath, listen, ui, !noOpen, smokeEvery, smokeWebhook, noToolProbe)
 	}
 	if command == "smoke" {
-		return runSmoke(ctx, dir, configPath, vaultPath, label, attempts, timeout, asJSON)
+		return runSmoke(ctx, dir, configPath, vaultPath, label, attempts, timeout, asJSON, noToolProbe)
 	}
 	passphrase, err := readPassphrase()
 	if err != nil {

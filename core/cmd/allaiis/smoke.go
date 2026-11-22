@@ -35,7 +35,7 @@ type smokeResult struct {
 
 // runSmoke exercises every alias (or one alias, repeatedly) against an
 // in-process gateway, so a live gateway and its port are not disturbed.
-func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, attempts int, timeout time.Duration, asJSON bool) error {
+func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, attempts int, timeout time.Duration, asJSON, noToolProbe bool) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
@@ -114,7 +114,7 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 	}
 	// One tool probe per run: an alias that answers words can still lose the
 	// parser, and that is what this command exists to catch.
-	if toolTarget.ID != "" {
+	if toolTarget.ID != "" && !noToolProbe {
 		tool := smokeTools(ctx, client, server.URL, store.ClientKey(), toolTarget)
 		results = append(results, tool)
 		if !asJSON {

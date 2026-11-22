@@ -85,7 +85,8 @@ running one is never disturbed:
 ```
 
 The command carries the same one-per-run tool probe as the panel sweep, so a CI
-smoke catches a parser regression too.
+smoke catches a parser regression too; `--no-tools` leaves it out when a run must
+not spend the extra request.
 
 ## Scheduled sweeps
 
