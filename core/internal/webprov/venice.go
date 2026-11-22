@@ -147,6 +147,9 @@ type Message struct {
 
 // Request is a provider-neutral chat request.
 type Request struct {
+	// Parent names the previous response for stateful clients; the gateway
+	// resolves it before the call.
+	Parent      string
 	RequestID   string
 	Model       string
 	Messages    []Message

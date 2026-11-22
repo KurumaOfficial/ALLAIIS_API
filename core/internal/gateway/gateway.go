@@ -35,6 +35,7 @@ type Gateway struct {
 	router    *router.Router
 	client    *http.Client
 	web       *webprov.Client
+	responses *responseStore
 	keyDigest [32]byte
 	minimum   config.Privacy
 }
@@ -53,6 +54,7 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 		keyDigest: sha256.Sum256([]byte(clientKey)),
 		minimum:   minimum,
 		web:       web,
+		responses: newResponseStore(),
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   10 * time.Minute,

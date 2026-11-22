@@ -23,7 +23,8 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 		Reasoning    struct {
 			Effort string `json:"effort"`
 		} `json:"reasoning"`
-		Tools []struct {
+		Previous string `json:"previous_response_id"`
+		Tools    []struct {
 			Type       string          `json:"type"`
 			Name       string          `json:"name"`
 			Parameters json.RawMessage `json:"parameters"`
@@ -63,6 +64,9 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 	}
 	if len(reason.turns) == 0 {
 		reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: ""})
+	}
+	if input.Previous != "" {
+		request.Parent = input.Previous
 	}
 	request.Messages = reason.messages(reason.system)
 	return request, reason, tools, nil

@@ -66,6 +66,12 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
+	if request.Parent != "" {
+		if previous, ok := g.responses.load(request.Parent); ok {
+			reason.turns = append(append([]webprov.Message{}, previous...), reason.turns...)
+		}
+		request.Messages = reason.messages(reason.system)
+	}
 	envelope := ""
 	if len(tools) > 0 {
 		envelope = toolEnvelope(reason.system, tools)
@@ -226,6 +232,14 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		shape.end(finish)
 	} else {
 		shape.reply(reason.text.String(), calls, usage)
+	}
+	if protocol == config.Responses {
+		reply := reason.text.String()
+		if len(calls) > 0 {
+			reply = renderCallList(reply, calls)
+		}
+		turns := append(append([]webprov.Message{}, reason.turns...), webprov.Message{Role: "assistant", Content: reply})
+		g.responses.save(id, turns)
 	}
 	slog.Info("web completion", "provider", target.Route.Provider, "model", target.Route.ID,
 		"protocol", protocol, "stream", stream, "chars", reason.chars(), "calls", len(calls),
