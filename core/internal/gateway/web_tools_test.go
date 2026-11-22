@@ -290,3 +290,33 @@ func TestWebDeliversAnEmptyCallWhenRepairRunsOut(t *testing.T) {
 		t.Fatalf("empty call dropped: %d %s", result.Code, text)
 	}
 }
+
+func TestWebRepairsACallMissingARequiredField(t *testing.T) {
+	var attempts atomic.Int32
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, _ map[string]any) {
+		if attempts.Add(1) == 1 {
+			// The field exists here but the required one does not.
+			writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file","arguments":{"offset":1}}]}<<<END_TOOL_CALL>>>`)
+			return
+		}
+		writeFrames(w, toolBlock("fixed.txt"))
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", toolPayload)
+	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
+		t.Fatalf("missing field not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
+	}
+}
+
+func TestKnownToolWithFilledFieldsIsNotRepaired(t *testing.T) {
+	var attempts atomic.Int32
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, _ map[string]any) {
+		attempts.Add(1)
+		writeFrames(w, toolBlock("a.txt"))
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", toolPayload)
+	if result.Code != http.StatusOK || attempts.Load() != 1 {
+		t.Fatalf("unnecessary repair: %d attempts=%d", result.Code, attempts.Load())
+	}
+}

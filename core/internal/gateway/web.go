@@ -175,7 +175,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				text = safe
 				if len(parsed) > 0 {
 					reason.callsChars(parsed)
-					if !sent && len(calls) == 0 && strings.TrimSpace(text) == "" && argumentless(parsed) {
+					if !sent && len(calls) == 0 && strings.TrimSpace(text) == "" && guard.incompleteCalls(parsed) {
 						heldCalls = append(heldCalls, parsed...)
 						return nil
 					}

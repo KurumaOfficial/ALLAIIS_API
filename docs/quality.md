@@ -50,11 +50,11 @@ results, and its checkbox forces a refetch.
 | Request body | 8 MiB cap (`max_request_mb`, 1–128), 90 s response-header timeout, 10 min whole call |
 
 A retry happens only while the client has seen nothing, so streaming clients
-never get duplicated text. A tool call that arrives with no arguments at all is
-held back while the client has seen nothing and answered with one repair turn
-instead; if the repair also forgets them, the call is delivered as `{}` and
-logged as `tool call without arguments` with the tool name, so the log explains
-the failed step.
+never get duplicated text. A tool call that misses a field its schema marks required (an empty one
+included) is held back while the client has seen nothing and answered with one
+repair turn instead; if the repair also misses it, the call is delivered as it
+came and logged as `tool call missing arguments` with the tool name and the
+fields, so the log explains the failed step.
 
 ## Errors
 

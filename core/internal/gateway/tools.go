@@ -299,10 +299,10 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 		}
 	}
 	for i := range calls {
-		if args := strings.TrimSpace(calls[i].Function.Arguments); args == "" || args == "{}" {
-			// An empty call usually means the model forgot the arguments; a
-			// client then has to reject it, so it is worth seeing.
-			slog.Info("tool call without arguments", "name", calls[i].Function.Name)
+		if missing := g.missingRequired(calls[i]); len(missing) > 0 {
+			// A call short of a required field will be rejected by the client,
+			// so it is worth seeing which field was forgotten.
+			slog.Info("tool call missing arguments", "name", calls[i].Function.Name, "missing", strings.Join(missing, ","))
 		}
 		// "shell command" names the tool and repeats what the argument carries.
 		name := calls[i].Function.Name
@@ -327,11 +327,38 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 	return calls
 }
 
-// argumentless reports whether every call came without arguments, which a client
-// with required fields will reject.
-func argumentless(calls []toolCall) bool {
+// missingRequired lists the declared required fields a call did not fill, which
+// a client will reject. An unknown name or unreadable arguments yield nothing.
+func (g *toolGuard) missingRequired(call toolCall) []string {
+	for _, tool := range g.tools {
+		if tool.Function.Name != call.Function.Name {
+			continue
+		}
+		var shape struct {
+			Required []string `json:"required"`
+		}
+		if json.Unmarshal(tool.Function.Parameters, &shape) != nil || len(shape.Required) == 0 {
+			return nil
+		}
+		var args map[string]json.RawMessage
+		if json.Unmarshal([]byte(call.Function.Arguments), &args) != nil {
+			return nil
+		}
+		missing := make([]string, 0, len(shape.Required))
+		for _, key := range shape.Required {
+			if _, filled := args[key]; !filled {
+				missing = append(missing, key)
+			}
+		}
+		return missing
+	}
+	return nil
+}
+
+// incompleteCalls reports whether every call missed a required field.
+func (g *toolGuard) incompleteCalls(calls []toolCall) bool {
 	for _, call := range calls {
-		if args := strings.TrimSpace(call.Function.Arguments); args != "" && args != "{}" {
+		if len(g.missingRequired(call)) == 0 {
 			return false
 		}
 	}
