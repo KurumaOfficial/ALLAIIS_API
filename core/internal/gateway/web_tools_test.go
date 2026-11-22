@@ -375,7 +375,7 @@ func TestMissingArgumentsLogsOnlyWhenDelivered(t *testing.T) {
 	if attempts.Load() != 2 {
 		t.Fatalf("no repair happened: %d", attempts.Load())
 	}
-	if !strings.Contains(log.String(), "missing arguments") || !strings.Contains(log.String(), "missing=path") {
+	if !strings.Contains(log.String(), "missing arguments") || !strings.Contains(log.String(), "misses path") {
 		t.Fatalf("delivered call not logged: %s", log.String())
 	}
 }
@@ -394,5 +394,22 @@ func TestWebRepairsAFoldedNameMissingArguments(t *testing.T) {
 	result := complete(handler, store.ClientKey(), "", toolPayload)
 	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
 		t.Fatalf("folded empty call not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
+	}
+}
+
+func TestWebRepairsArgumentsThatAreNotAnObject(t *testing.T) {
+	var attempts atomic.Int32
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, _ map[string]any) {
+		if attempts.Add(1) == 1 {
+			// An array instead of an object: the client says "Expected object".
+			writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file","arguments":["path"]}]}<<<END_TOOL_CALL>>>`)
+			return
+		}
+		writeFrames(w, toolBlock("fixed.txt"))
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", toolPayload)
+	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
+		t.Fatalf("array arguments not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
 	}
 }

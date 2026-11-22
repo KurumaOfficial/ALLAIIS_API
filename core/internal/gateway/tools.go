@@ -326,46 +326,61 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 // delivered, so a repaired call does not log.
 func (g *toolGuard) logMissing(calls []toolCall) {
 	for _, call := range calls {
-		if missing := g.missingRequired(call); len(missing) > 0 {
-			slog.Info("tool call missing arguments", "name", call.Function.Name, "missing", strings.Join(missing, ","))
+		if problem := g.argumentProblem(call); problem != "" {
+			slog.Info("tool call missing arguments", "name", call.Function.Name, "problem", problem)
 		}
 	}
 }
 
-// missingRequired lists the declared required fields a call did not fill, which
-// a client will reject. An unknown name or unreadable arguments yield nothing.
-func (g *toolGuard) missingRequired(call toolCall) []string {
+// argumentProblem describes why a client would reject the call's arguments, or
+// returns "" when they are acceptable. An unknown tool name is left to the
+// client.
+func (g *toolGuard) argumentProblem(call toolCall) string {
 	// Compare folded, because an unknown separator is repaired only later.
 	key := nameKey(call.Function.Name)
+	var parameters json.RawMessage
 	for _, tool := range g.tools {
-		if nameKey(tool.Function.Name) != key {
-			continue
+		if nameKey(tool.Function.Name) == key {
+			parameters = tool.Function.Parameters
+			break
 		}
-		var shape struct {
-			Required []string `json:"required"`
-		}
-		if json.Unmarshal(tool.Function.Parameters, &shape) != nil || len(shape.Required) == 0 {
-			return nil
-		}
-		var args map[string]json.RawMessage
-		if json.Unmarshal([]byte(call.Function.Arguments), &args) != nil {
-			return nil
-		}
-		missing := make([]string, 0, len(shape.Required))
-		for _, key := range shape.Required {
-			if _, filled := args[key]; !filled {
-				missing = append(missing, key)
-			}
-		}
-		return missing
 	}
-	return nil
+	if parameters == nil {
+		return ""
+	}
+	raw := strings.TrimSpace(call.Function.Arguments)
+	if raw != "" && raw != "{}" && raw != "null" {
+		var shape map[string]json.RawMessage
+		if json.Unmarshal([]byte(raw), &shape) != nil {
+			return "arguments are not a JSON object"
+		}
+	}
+	var shape struct {
+		Required []string `json:"required"`
+	}
+	if json.Unmarshal(parameters, &shape) != nil || len(shape.Required) == 0 {
+		return ""
+	}
+	var args map[string]json.RawMessage
+	if json.Unmarshal([]byte(raw), &args) != nil {
+		return "arguments are not a JSON object"
+	}
+	missing := make([]string, 0, len(shape.Required))
+	for _, field := range shape.Required {
+		if _, filled := args[field]; !filled {
+			missing = append(missing, field)
+		}
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	return "misses " + strings.Join(missing, ",")
 }
 
-// incompleteCalls reports whether every call missed a required field.
+// incompleteCalls reports whether every call has an argument problem.
 func (g *toolGuard) incompleteCalls(calls []toolCall) bool {
 	for _, call := range calls {
-		if len(g.missingRequired(call)) == 0 {
+		if g.argumentProblem(call) == "" {
 			return false
 		}
 	}

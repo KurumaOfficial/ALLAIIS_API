@@ -258,7 +258,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				// it and only has to fill the gap.
 				problems := make([]string, 0, len(heldCalls))
 				for _, call := range heldCalls {
-					problems = append(problems, call.Function.Name+" misses "+strings.Join(guard.missingRequired(call), ", "))
+					problems = append(problems, call.Function.Name+" "+guard.argumentProblem(call))
 				}
 				request.Messages = repairMessages(reason.messages(envelope), renderCallList("", heldCalls), strings.Join(problems, "; "))
 			}
