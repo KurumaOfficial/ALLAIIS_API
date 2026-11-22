@@ -7,6 +7,7 @@ let state = null
 let view = 'overview'
 let logCursor = 0
 let keyVisible = false
+const quotas = {}
 
 async function api (path, options = {}) {
   const headers = { 'X-ALLAIIS-Admin': token }
@@ -93,7 +94,27 @@ function render () {
       }
       line.append(resume)
     }
+    if (quotas[provider.id]) {
+      const box = document.createElement('div')
+      box.className = 'muted tiny'
+      box.textContent = quotas[provider.id]
+      line.append(box)
+    }
     if (provider.web) {
+      const quota = document.createElement('button')
+      quota.className = 'ghost'
+      quota.textContent = 'Quota'
+      quota.onclick = async () => {
+        try {
+          const result = await api('/api/web/quota', { method: 'POST', body: JSON.stringify({ provider: provider.id }) })
+          quotas[provider.id] = result.labels.map(row => row.label + ': ' +
+            (row.error ? row.error : (row.chat_remaining ?? '?') + ' chat left' +
+              (row.reset_at ? ', resets ' + new Date(row.reset_at).toLocaleString() : '') +
+              (row.principal === 'anonymous' ? ' (anonymous)' : ''))).join(' · ')
+          render()
+        } catch (error) { toast(error.message, true) }
+      }
+      line.append(quota)
       const recapture = document.createElement('button')
       recapture.className = 'ghost'
       recapture.textContent = 'Recapture'

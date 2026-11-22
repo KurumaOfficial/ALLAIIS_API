@@ -14,7 +14,7 @@ port, `--listen 127.0.0.1:9000` overrides the gateway address for this run and
 
 | Tab | Purpose |
 |---|---|
-| Overview | Gateway health, served alias count, request counters, recent requests, provider readiness with Recapture and Resume, gateway key reveal/copy |
+| Overview | Gateway health, served alias count, request counters, recent requests, provider readiness with Quota, Recapture and Resume, gateway key reveal/copy |
 | Aliases | Register, mute and delete model aliases, including protocol and privacy |
 | Keys | Add API keys, remove credentials, capture a Venice web session, rotate the gateway key |
 | Discovery | Browse an upstream catalog with a stored credential and create an alias from a model |
@@ -24,6 +24,13 @@ port, `--listen 127.0.0.1:9000` overrides the gateway address for this run and
 
 There is no build step: the page is plain HTML, CSS and JavaScript embedded in
 the binary.
+
+## Quota
+
+**Quota** probes the remaining chat allowance of every stored session for a web
+provider and shows the reset time, without spending a message. It also reveals
+whether a session actually resolves to a signed-in account or fell back to
+anonymous, which is the first thing to check when a plan quota looks wrong.
 
 ## Cooldowns
 

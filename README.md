@@ -253,6 +253,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Model routing, privacy and cooldowns | ✓ | `TestRoutingAndProviderCooldown` | — | — |
 | Cooldown scoped to a credential label | ✓ | `TestCooldownIsScopedToThePinnedLabel`, `TestCooldownOnUnpinnedPoolCoolsEveryLabel` | guest kept working while Pro cooled | — |
 | Lift a cooldown from the panel | ✓ | `TestClearCooldownEndpoint` | — | — |
+| Quota probe in the panel | ✓ | `TestErrorClassification` | `web quota` on three labels, per-label reset times | — |
 | Native Responses and Messages | ✓ | `TestNativeProtocols` | — | — |
 | SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel` | — | — |
 | Venice web transport (guest) | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | Chat JSON + SSE | — |

@@ -25,6 +25,7 @@ import (
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
 
 //go:embed static
@@ -88,6 +89,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/web/chrome", s.guard(s.openChrome))
 	mux.HandleFunc("POST /api/web/login", s.guard(s.webLogin))
 	mux.HandleFunc("POST /api/web/recapture", s.guard(s.recapture))
+	mux.HandleFunc("POST /api/web/quota", s.guard(s.webQuota))
 	mux.HandleFunc("GET /api/export", s.guard(s.exportConfig))
 	mux.HandleFunc("POST /api/doctor", s.guard(s.doctor))
 	return mux
@@ -508,6 +510,55 @@ func (s *Server) webLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"output": strings.TrimSpace(out)})
+}
+
+// webQuota probes the remaining chat quota of every stored session.
+func (s *Server) webQuota(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Provider string `json:"provider"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	cfg, err := s.loadConfig()
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	provider, ok := cfg.Provider(input.Provider)
+	if !ok || !provider.Web() {
+		fail(w, http.StatusBadRequest, "unknown web provider")
+		return
+	}
+	entries, err := s.options.Store.Entries(r.Context(), input.Provider, provider.BaseURL)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	client := webprov.New(45 * time.Second)
+	rows := make([]map[string]any, 0, len(entries))
+	for _, entry := range entries {
+		row := map[string]any{"label": entry.Label}
+		credential, err := webprov.ParseCredential(entry.Key)
+		if err != nil {
+			row["error"] = "unreadable session"
+			rows = append(rows, row)
+			continue
+		}
+		limits, err := client.Probe(r.Context(), credential)
+		if err != nil {
+			row["error"] = err.Error()
+			rows = append(rows, row)
+			continue
+		}
+		row["principal"] = client.Principal(r.Context(), credential)
+		if chat, ok := limits["chat"].(map[string]any); ok {
+			row["chat_remaining"] = chat["remaining"]
+			row["reset_at"] = chat["resetAt"]
+		}
+		rows = append(rows, row)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"labels": rows})
 }
 
 // recapture opens the capture browser and refreshes a session in one step.
