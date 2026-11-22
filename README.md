@@ -301,8 +301,10 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Gateway key rotation | ✓ | `TestPanelDeleteAndRotate` | — | — |
 | Request metrics and live log | ✓ | `TestPanelProbe` | panel overview counters | — |
 | Alias probe loop (`smoke`, panel) | ✓ | `TestSmokePassesEveryAlias`, `TestSmokeReportsFailures` | 20 consecutive tool-capable runs, all aliases | — |
+| Tool probe in every sweep | ✓ | `TestSmokeProbesEveryAvailableAlias`, `TestToolCallTextReadsEachProtocol`, `TestToolProbeFailsOverToAnotherAlias`, `TestProbeCallStaysOutOfTheRecord` | `list_files` call returned on the live alias | — |
 | Scheduled sweep and webhook alert | ✓ | `TestHealthReportsRegressionsOnly`, `TestWebhookDelivers`, `TestScheduledSmokeRecordsHistory` | — | — |
-| Diagnostics (`doctor`, panel) | ✓ | `TestDiagnosticsFlagsMissingCredential` | CLI run on the live vault | — |
+| Diagnostics (`doctor`, panel) | ✓ | `TestDiagnosticsFlagsMissingCredential`, `TestDiagnoseReportsToolNames`, `TestDiagnosePrefersTheLiveGateway`, `TestFetchLiveStatsReadsTheEndpoint` | CLI run on the live vault and live gateway counters | — |
+| Unknown tool-name record and retention | ✓ | `TestToolNameStateSurvivesARestart`, `TestLiveUnknownNamesSkipsExpired`, `TestDropExpiredToolNamesKeepsTheFresh`, `TestToolNamesEndpoint`, `TestToolsShowMarksExpiredNames` | record survives a restart, expiry marker and drop | — |
 | Web image and file input | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | colour from a PNG, owner from a .txt | — |
 
 ### Offline compatibility
