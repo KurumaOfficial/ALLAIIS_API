@@ -120,10 +120,22 @@ func (r *Router) Resolve(ctx context.Context, model string, protocol config.Prot
 	}
 	p := r.pools[route.Provider]
 	entry, found := p.credential(route.CredentialLabel, session)
+	ready := false
+	if route.CredentialLabel == "" {
+		// A pool should not keep landing on a cooled label while another is ready.
+		if fresh, ok := r.freshEntry(ctx, p, route.Provider, session); ok {
+			entry, found, ready = fresh, true, true
+		}
+	}
 	if !found {
 		return Target{}, time.Time{}, ErrCredentials
 	}
 	target := Target{Route: route, Provider: p.provider, Entry: entry}
+	if ready {
+		// The chosen label is not cooling, and so the pool wide mark does not
+		// apply to it either.
+		return target, time.Time{}, nil
+	}
 	until, err := r.cooldown(ctx, route.Provider, p.provider, route.CredentialLabel)
 	if err != nil {
 		return Target{}, time.Time{}, err
@@ -132,6 +144,32 @@ func (r *Router) Resolve(ctx context.Context, model string, protocol config.Prot
 		return target, until, ErrCooldown
 	}
 	return target, time.Time{}, nil
+}
+
+// freshEntry picks a pool entry that is not cooling, starting from the session
+// position so load stays spread. Cooldowns survive a restart in the store, so
+// both views are consulted.
+func (r *Router) freshEntry(ctx context.Context, p pool, providerID string, session [32]byte) (vault.Entry, bool) {
+	if len(p.entries) < 2 {
+		return vault.Entry{}, false
+	}
+	start := int(binary.BigEndian.Uint64(session[:]) % uint64(len(p.entries)))
+	now := time.Now()
+	for offset := 0; offset < len(p.entries); offset++ {
+		entry := p.entries[(start+offset)%len(p.entries)]
+		key := cooldownKey(p.provider, entry.Label)
+		r.mu.Lock()
+		until, known := r.blocked[key]
+		r.mu.Unlock()
+		if known && now.Before(until) {
+			continue
+		}
+		if stored, err := r.store.Cooldown(ctx, providerID, key); err == nil && now.Before(stored) {
+			continue
+		}
+		return entry, true
+	}
+	return vault.Entry{}, false
 }
 
 func (r *Router) SetCooldown(ctx context.Context, target Target, until time.Time) error {

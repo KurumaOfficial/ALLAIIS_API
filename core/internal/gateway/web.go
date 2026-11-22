@@ -124,6 +124,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	w.Header().Set(tierHeader, "tier_c3")
 	w.Header().Set("X-ALLAIIS-Provider", target.Route.Provider)
+	w.Header().Set("X-ALLAIIS-Credential", target.Entry.Label)
 	w.Header().Set("X-ALLAIIS-Model", target.Route.ID)
 	w.Header().Set("X-ALLAIIS-Emulated-Features", emulated)
 
@@ -538,10 +539,17 @@ func writeStreamError(w http.ResponseWriter, protocol config.Protocol, err error
 	}
 }
 
+// balanceCooldown is how long a session without messages is left alone. The reset
+// is usually hours away, so the label is parked and an unpinned pool moves on.
+const balanceCooldown = 30 * time.Minute
+
 func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, target router.Target, err error) {
 	switch {
-	case errors.Is(err, webprov.ErrRateLimited):
+	case errors.Is(err, webprov.ErrRateLimited), errors.Is(err, webprov.ErrInsufficientBalance()):
 		until := time.Now().Add(maxRateCooldown)
+		if errors.Is(err, webprov.ErrInsufficientBalance()) {
+			until = time.Now().Add(balanceCooldown)
+		}
 		if reset, ok := webprov.RateLimitReset(err); ok && reset.Before(until) {
 			until = reset
 		}
@@ -549,6 +557,12 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 		defer cancel()
 		if setErr := g.table().routes.SetCooldown(persist, target, until); setErr != nil {
 			slog.Warn("could not persist provider cooldown", "provider", target.Route.Provider)
+		}
+		if errors.Is(err, webprov.ErrInsufficientBalance()) {
+			// The error code stays the same, but the pool is told to move on.
+			writeError(w, protocol, http.StatusPaymentRequired, "insufficient_balance",
+				"This session has no messages left; the label is parked for 30 minutes. Check `allaiis web quota` or use another label.")
+			return
 		}
 		rateLimited(w, protocol, until)
 	case errors.Is(err, webprov.ErrSignInRequired):
@@ -560,9 +574,6 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 	case errors.Is(err, webprov.ErrCloudflare):
 		writeError(w, protocol, http.StatusBadGateway, "cloudflare_challenge",
 			"Cloudflare rejected the stored clearance. Recapture this account with `allaiis web login` or the panel's Recapture button.")
-	case errors.Is(err, webprov.ErrInsufficientBalance()):
-		writeError(w, protocol, http.StatusPaymentRequired, "insufficient_balance",
-			"This session has no messages left. Check the reset time with `allaiis web quota` or use another label.")
 	case errors.Is(err, webprov.ErrStreamStalled()):
 		writeError(w, protocol, http.StatusGatewayTimeout, "upstream_timeout",
 			"The provider stopped sending for too long. Retry, or raise the alias inactivity window.")

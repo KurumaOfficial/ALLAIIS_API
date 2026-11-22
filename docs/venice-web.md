@@ -352,6 +352,9 @@ Usage is estimated from characters, thinking included, not tokenized, and flagge
 declares both on every tool request. Messages aliases are exported under a
 separate `allaiis-anthropic` provider.
 
+The reply names the credential label in `X-ALLAIIS-Credential`, so a pool can
+be followed in a log.
+
 A client may send `X-ALLAIIS-Probe: <anything>` to mark a synthetic call: its
 unknown tool names are still delivered but kept out of the unknown counters and
 the name record, so probes and synthetic checks do not read as model mistakes.

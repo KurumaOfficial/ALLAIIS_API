@@ -43,7 +43,7 @@ results, and its checkbox forces a refetch.
 | Malformed tool block | one repair turn, only when nothing was streamed |
 | Empty reply (200, or only `processing`) | one retry, only when nothing was streamed |
 | `429` | no retry; the label cools for the stated reset |
-| `402 insufficientBalance` | no retry, no cooldown; surface `insufficient_balance` |
+| `402 insufficientBalance` | no retry; the label is parked for 30 minutes so an unpinned pool moves on, and the code stays `insufficient_balance` |
 | Quota probe at or under `quota_floor` (default 5, `-1` off) | the row is marked low and a `quota below the floor` warning is logged |
 | Prompt over the model context | rejected before sending when the alias carries `max_context` |
 | Too many attachments | rejected before upload when the alias carries `max_images` |

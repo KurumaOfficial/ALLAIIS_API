@@ -109,3 +109,39 @@ func TestDisabledAliasIsNotResolved(t *testing.T) {
 		t.Fatalf("disabled alias resolved: %v", err)
 	}
 }
+
+func TestPoolSkipsACooledLabel(t *testing.T) {
+	routes, _, _ := routerFixture(t)
+	// Cool the label the pinned alias uses; the pool must move to the other one.
+	target, _, err := routes.Resolve(t.Context(), "pinned", config.Chat, config.Consumer, [32]byte{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := routes.SetCooldown(t.Context(), target, time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	chosen, _, err := routes.Resolve(t.Context(), "pool", config.Chat, config.Consumer, [32]byte{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chosen.Entry.Label == "one" {
+		t.Fatal("pool stayed on the cooled label")
+	}
+}
+
+func TestPoolFallsBackWhenEverythingCools(t *testing.T) {
+	routes, _, cfg := routerFixture(t)
+	for _, label := range []string{"one", "two"} {
+		provider, ok := cfg.Provider("fixture")
+		if !ok {
+			t.Fatal("fixture provider missing")
+		}
+		target := Target{Route: config.Route{Provider: "fixture", CredentialLabel: label}, Provider: provider}
+		if err := routes.SetCooldown(t.Context(), target, time.Now().Add(time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := routes.Resolve(t.Context(), "pool", config.Chat, config.Consumer, [32]byte{}); err != nil {
+		t.Fatalf("no entry chosen when every label cools: %v", err)
+	}
+}
