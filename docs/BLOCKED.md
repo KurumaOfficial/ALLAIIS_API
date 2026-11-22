@@ -9,6 +9,14 @@ attachments and a second provider.
 
 - A second web provider on the same capture flow.
 
+## B1b. Current environment notes
+
+Both captured Venice sessions spent their daily chat allowance on 2026-11-22 and
+reset at 2026-11-23 13:33. Premium models answer `402 insufficient_balance`
+until then; the free uncensored and role-play models still answer. `web quota` and
+the panel's Quota button show the remaining count and reset without spending a
+message.
+
 ## B2. Handoff
 
 1. **Pro session (done 2026-11-22).** `allaiis web login` after a login in the
