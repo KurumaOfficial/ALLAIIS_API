@@ -105,6 +105,7 @@ func (m *metrics) summary() map[string]any {
 		"tool_suffix":   toolCounters.suffix.Load(),
 		"tool_unknown":  toolCounters.unknown.Load(),
 		"tool_ttl_days": toolNameTTL.Load(),
+		"tool_expired":  expiredToolNames(),
 	}
 }
 

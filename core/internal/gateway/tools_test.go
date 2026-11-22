@@ -1016,3 +1016,36 @@ func TestDropExpiredToolNamesWithRetentionOff(t *testing.T) {
 		t.Fatalf("dropped %d with retention off", dropped)
 	}
 }
+
+func TestExpiredToolNamesCountsWithoutDropping(t *testing.T) {
+	setToolNameTTL(t, 1)
+	seedUnknownName("ex_old", time.Now().Add(-48*time.Hour))
+	seedUnknownName("ex_fresh", time.Now())
+
+	summary := newMetrics().summary()
+	count, ok := summary["tool_expired"].(int)
+	if !ok {
+		t.Fatalf("count missing: %v", summary["tool_expired"])
+	}
+	if count < 1 {
+		t.Fatalf("expired not counted: %d", count)
+	}
+	// Counting must not drop: the old name is still listed.
+	found := false
+	for _, name := range ToolUnknownNames(0) {
+		if name == "ex_old" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("count dropped the name")
+	}
+}
+
+func TestExpiredToolNamesWithRetentionOff(t *testing.T) {
+	setToolNameTTL(t, 0)
+	seedUnknownName("ex_forever", time.Now().Add(-50*24*time.Hour))
+	if got := expiredToolNames(); got != 0 {
+		t.Fatalf("counted %d with retention off", got)
+	}
+}

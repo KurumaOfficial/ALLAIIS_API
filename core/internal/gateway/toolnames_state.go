@@ -58,6 +58,25 @@ func (g *Gateway) WithStateDir(ctx context.Context, dir string) *Gateway {
 	return g
 }
 
+// expiredToolNames counts the names past retention without dropping them, for the
+// panel button that drops them.
+func expiredToolNames() int {
+	days := toolNameTTL.Load()
+	if days <= 0 {
+		return 0
+	}
+	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	unknownNames.mu.Lock()
+	defer unknownNames.mu.Unlock()
+	count := 0
+	for _, seen := range unknownNames.seen {
+		if seen.Before(cutoff) {
+			count++
+		}
+	}
+	return count
+}
+
 // dropExpiredNames forgets names older than the retention. The caller holds the
 // lock.
 func dropExpiredNames(now time.Time) int {

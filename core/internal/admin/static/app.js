@@ -66,6 +66,9 @@ function render () {
   $('ov-tools-reset').hidden = !reshaped && !(state.usage.tool_unknown || 0)
   const ttl = state.usage.tool_ttl_days || 0
   $('ov-tools-ttl').textContent = ttl > 0 ? 'names kept ' + ttl + 'd' : 'names kept forever'
+  const expiredCount = state.usage.tool_expired || 0
+  $('ov-tools-drop').hidden = expiredCount === 0
+  $('ov-tools-drop').textContent = expiredCount ? 'Drop ' + expiredCount + ' expired' : 'Drop expired'
   $('base-url').textContent = 'http://' + state.listen + '/v1'
   $('client-key').textContent = keyVisible ? state.client_key : '•'.repeat(32)
   $('fact-data').textContent = state.data_dir
