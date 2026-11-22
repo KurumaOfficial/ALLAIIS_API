@@ -359,3 +359,11 @@ func TestGuardRejectsOversizedUnclosedBlock(t *testing.T) {
 		t.Fatal("oversized block accepted")
 	}
 }
+
+func TestReasoningKeyIgnoresSurroundingSpace(t *testing.T) {
+	store := newReasoningStore()
+	store.save("alias", "\n\n"+toolOpen+`{"calls":[]}`+toolClose, "because")
+	if got := store.load("alias", "\n"+toolOpen+`{"calls":[]}`+toolClose); got != "because" {
+		t.Fatalf("reasoning %q", got)
+	}
+}

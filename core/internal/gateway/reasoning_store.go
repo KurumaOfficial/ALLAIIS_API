@@ -5,6 +5,7 @@ package gateway
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,8 +32,10 @@ func newReasoningStore() *reasoningStore {
 	return &reasoningStore{entries: map[string]reasoningEntry{}}
 }
 
+// reasoningKey ignores surrounding whitespace, which a client trims differently
+// from the stream and would otherwise miss the stored entry.
 func reasoningKey(alias, assistantText string) string {
-	sum := sha256.Sum256([]byte(alias + "\x00" + assistantText))
+	sum := sha256.Sum256([]byte(alias + "\x00" + strings.TrimSpace(assistantText)))
 	return hex.EncodeToString(sum[:16])
 }
 

@@ -146,7 +146,7 @@ an alias created from the panel stores them:
 | `min_p` | `min_p` is forwarded only to models that support it |
 | `anon_user_id` | the anonymous user id is sent by default and suppressed only when the model says so; a signed-in id is always sent |
 | `apiRateLimitSize` | shown as a badge, informational only |
-| `reasoning_round_trip` | keeps the thinking of the last reply (2 h, 512 entries, in memory) and replays it on the assistant turn of a follow-up, for models that require it |
+| `reasoning_round_trip` | keeps the thinking of the last reply (2 h, 512 entries, in memory) and replays it on the assistant turn of a follow-up, for models that require it; the key ignores surrounding whitespace so client trimming does not break the match |
 
 The CLI sets the same fields with `--reasoning true|false`, `--max-context`,
 `--max-response`, `--max-images`, `--max-videos`, `--max-tools`, `--web-search`, `--large-context`,

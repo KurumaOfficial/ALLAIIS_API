@@ -266,6 +266,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
 | `min_p` and anonymous-id control | ✓ | `TestMinPFollowsTheCapability`, `TestPayloadMinPAndAnonUserID` | — | — |
 | Video attachment cap | ✓ | `TestAttachmentCountsSplitByMIME`, `TestVideoLimitRejectsBeforeUpload` | — | — |
+| Whitespace-tolerant reasoning key | ✓ | `TestReasoningKeyIgnoresSurroundingSpace` | live OpenCode run: replay hit on every turn that had thinking | — |
 | Encrypted reasoning round-trip | ✓ | `TestReasoningIsReplayedWithFollowUps`, `TestNonStreamRepliesCarryReasoning` | live: `reasoning_content` then the replayed thinking on a free thinking model | — |
 | Sampling, penalties and replacement hints | ✓ | `TestSamplingAndPenaltiesFollowCapabilities`, `TestUnknownModelMentionsTheReplacement` | — | — |
 | Large context, strict order and stall watchdog | ✓ | `TestLargeContextReachesThePayload`, `TestStrictOrderMergesConsecutiveTurns`, `TestStalledStreamMapsToUpstreamTimeout` | payload dump and an HTTP 504 | — |

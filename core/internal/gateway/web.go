@@ -444,6 +444,10 @@ func (g *Gateway) attachReasoning(alias string, turns []webprov.Message) {
 	for index := range turns {
 		if turns[index].Role == "assistant" && turns[index].Reasoning == "" {
 			turns[index].Reasoning = g.reasoning.load(alias, turns[index].Content)
+			if webDebug {
+				slog.Info("reasoning replay", "alias", alias,
+					"hit", turns[index].Reasoning != "", "chars", len([]rune(turns[index].Content)))
+			}
 		}
 	}
 }
