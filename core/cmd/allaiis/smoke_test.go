@@ -3,12 +3,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,7 +26,13 @@ func smokeFixture(t *testing.T, fail bool) (dir, configPath, vaultPath string) {
 			io.WriteString(w, `{"error":{"message":"boom"}}`)
 			return
 		}
+		body, _ := io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
+		// The tool probe sends a tool list; answer it with a tool call.
+		if bytes.Contains(body, []byte(`"tools"`)) {
+			io.WriteString(w, `{"choices":[{"message":{"tool_calls":[{"function":{"name":"list_files","arguments":"{\"path\":\".\"}"}}]}}]}`)
+			return
+		}
 		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"ready"}}]}`)
 	}))
 	t.Cleanup(upstream.Close)
@@ -104,4 +112,40 @@ func capture(t *testing.T, fn func()) string {
 	writer.Close()
 	os.Stdout = original
 	return <-done
+}
+
+func TestSmokeCarriesAToolProbe(t *testing.T) {
+	dir, configPath, vaultPath := smokeFixture(t, false)
+	out := capture(t, func() {
+		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, true); err != nil {
+			t.Fatalf("smoke failed: %v", err)
+		}
+	})
+	if !strings.Contains(out, "(tools)") || !strings.Contains(out, `"passed": 2`) {
+		t.Fatalf("tool probe missing: %s", out)
+	}
+}
+
+func TestSmokeToolProbeReportsAProseAnswer(t *testing.T) {
+	_, _, _ = smokeFixture(t, false)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"content":"sure thing"}}]}`)
+	}))
+	t.Cleanup(upstream.Close)
+
+	result := smokeTools(t.Context(), &http.Client{Timeout: 5 * time.Second}, upstream.URL, "sk", config.Route{ID: "one"})
+	if result.OK || !strings.Contains(result.Detail, "without a tool call") {
+		t.Fatalf("prose accepted: %+v", result)
+	}
+}
+
+func TestSmokeToolCallReadsTheName(t *testing.T) {
+	name, args := smokeToolCall([]byte(`{"choices":[{"message":{"tool_calls":[{"function":{"name":"list_files","arguments":"{}"}}]}}]}`))
+	if name != "list_files" || args != "{}" {
+		t.Fatalf("got %q %q", name, args)
+	}
+	if name, _ := smokeToolCall([]byte(`{"choices":[{"message":{"content":"x"}}]}`)); name != "" {
+		t.Fatalf("prose produced %q", name)
+	}
 }

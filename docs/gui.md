@@ -79,6 +79,9 @@ running one is never disturbed:
 .\allaiis.exe smoke --json                     # CI, exit 1 on any failure
 ```
 
+The command carries the same one-per-run tool probe as the panel sweep, so a CI
+smoke catches a parser regression too.
+
 ## Scheduled sweeps
 
 `allaiis gui --smoke-every 15m` probes every alias on a timer (minimum one

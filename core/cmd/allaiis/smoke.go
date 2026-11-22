@@ -71,6 +71,7 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 	}
 	var results []smokeResult
 	passed, failed := 0, 0
+	var toolTarget config.Route
 	for _, target := range targets {
 		provider, _ := cfg.Provider(target.Provider)
 		key := provider.BaseURL
@@ -95,6 +96,9 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 			results = append(results, result)
 			if result.OK {
 				passed++
+				if toolTarget.ID == "" {
+					toolTarget = target
+				}
 			} else {
 				failed++
 			}
@@ -106,6 +110,25 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 				fmt.Fprintf(os.Stdout, "%-34s %-10s %3d %6dms %-4s %s\n",
 					result.Alias, result.Protocol, result.Attempt, result.Millis, mark, result.Detail)
 			}
+		}
+	}
+	// One tool probe per run: an alias that answers words can still lose the
+	// parser, and that is what this command exists to catch.
+	if toolTarget.ID != "" {
+		tool := smokeTools(ctx, client, server.URL, store.ClientKey(), toolTarget)
+		results = append(results, tool)
+		if !asJSON {
+			mark := "ok"
+			if !tool.OK {
+				mark = "FAIL"
+			}
+			fmt.Fprintf(os.Stdout, "%-34s %-10s %3d %6dms %-4s %s\n",
+				tool.Alias, tool.Protocol, tool.Attempt, tool.Millis, mark, tool.Detail)
+		}
+		if tool.OK {
+			passed++
+		} else {
+			failed++
 		}
 	}
 	if asJSON {
@@ -298,4 +321,100 @@ func smokeFailure(raw []byte) string {
 		return "empty error body"
 	}
 	return text
+}
+
+// smokeTools asks an alias to call a tool and reports whether a call with the
+// exact name came back. A prose answer gets one firmer retry.
+func smokeTools(ctx context.Context, client *http.Client, base, key string, route config.Route) smokeResult {
+	prompts := []string{
+		"Call the tool list_files once with path . and nothing else. Do not answer in prose.",
+		"Use the list_files tool. Arguments: {\"path\": \".\"}. Reply with the tool call only, no prose.",
+	}
+	var result smokeResult
+	for attempt, prompt := range prompts {
+		result = smokeToolAttempt(ctx, client, base, key, route, prompt, attempt+1)
+		if result.OK || result.Status != http.StatusOK {
+			break
+		}
+	}
+	return result
+}
+
+func smokeToolAttempt(ctx context.Context, client *http.Client, base, key string, route config.Route, prompt string, attempt int) smokeResult {
+	result := smokeResult{Alias: route.ID + " (tools)", Protocol: string(route.Protocol), Attempt: attempt}
+	if result.Protocol == "" {
+		result.Protocol = "chat"
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"model": route.ID, "max_tokens": 128, "stream": false,
+		"messages": []any{map[string]any{"role": "user", "content": prompt}},
+		"tools": []any{map[string]any{"type": "function", "function": map[string]any{
+			"name":        "list_files",
+			"description": "List the files in a directory",
+			"parameters": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"path": map[string]any{"type": "string"}},
+				"required":   []string{"path"},
+			},
+		}}},
+	})
+	requestCtx, cancel := context.WithTimeout(ctx, 150*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, base+"/v1/chat/completions", bytes.NewReader(payload))
+	if err != nil {
+		result.Detail = err.Error()
+		return result
+	}
+	request.Header.Set("Authorization", "Bearer "+key)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-ALLAIIS-Probe", "smoke")
+	start := time.Now()
+	response, err := client.Do(request)
+	result.Millis = time.Since(start).Milliseconds()
+	if err != nil {
+		result.Detail = err.Error()
+		return result
+	}
+	defer response.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	result.Status = response.StatusCode
+	if response.StatusCode != http.StatusOK {
+		result.Detail = strings.TrimSpace(smokeFailure(raw))
+		return result
+	}
+	name, arguments := smokeToolCall(raw)
+	switch {
+	case name == "":
+		result.Detail = "answered without a tool call"
+	case name != "list_files":
+		result.Detail = "called " + name + " instead of list_files"
+	default:
+		result.OK = true
+		result.Detail = strings.TrimSpace(name + " " + arguments)
+	}
+	return result
+}
+
+// smokeToolCall reads the tool call out of a chat reply.
+func smokeToolCall(raw []byte) (string, string) {
+	var reply struct {
+		Choices []struct {
+			Message struct {
+				ToolCalls []struct {
+					Function struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					} `json:"function"`
+				} `json:"tool_calls"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if json.Unmarshal(raw, &reply) != nil || len(reply.Choices) == 0 {
+		return "", ""
+	}
+	calls := reply.Choices[0].Message.ToolCalls
+	if len(calls) == 0 {
+		return "", ""
+	}
+	return calls[0].Function.Name, calls[0].Function.Arguments
 }
