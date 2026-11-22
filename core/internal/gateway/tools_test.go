@@ -199,3 +199,71 @@ func TestToolGuardDropsDuplicatedDialect(t *testing.T) {
 		t.Fatalf("different call dropped: %+v %v", third, err)
 	}
 }
+
+func TestToolGuardParsesDeepSeekDSML(t *testing.T) {
+	guard := guardFor("execute", "read")
+	fragment := "Working.\n<|DSML|\u001bcalls>\n<|DSML|\u001binvoke name=\"execute\">\n" +
+		"<|DSML|\u001bparameter name=\"code\" string=\"true\">const n = 1;\nreturn n;</|DSML|\u001bparameter>\n" +
+		"</|DSML|\u001binvoke>\n<|DSML|\u001binvoke name=\"read\"><|DSML|\u001bparameter name=\"limit\">2000</|DSML|\u001bparameter>" +
+		"</|DSML|\u001binvoke>\n</|DSML|\u001bcalls>\nDone."
+	fragment = strings.ReplaceAll(fragment, "\u001b", "")
+	var text strings.Builder
+	var calls []toolCall
+	for _, chunk := range splitEvery(fragment, 5) {
+		safe, parsed, err := guard.Write(chunk)
+		if err != nil {
+			t.Fatalf("unexpected error at %q: %v", chunk, err)
+		}
+		text.WriteString(safe)
+		calls = append(calls, parsed...)
+	}
+	tail, more, err := guard.Flush()
+	text.WriteString(tail)
+	calls = append(calls, more...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(text.String(), "DSML") {
+		t.Fatalf("markers leaked: %q", text.String())
+	}
+	if len(calls) != 2 || calls[0].Function.Name != "execute" ||
+		calls[0].Function.Arguments != `{"code":"const n = 1;\nreturn n;"}` ||
+		calls[1].Function.Arguments != `{"limit":2000}` {
+		t.Fatalf("calls %+v", calls)
+	}
+	if !strings.Contains(text.String(), "Working.") || !strings.Contains(text.String(), "Done.") {
+		t.Fatalf("text %q", text.String())
+	}
+}
+
+func TestToolGuardAcceptsBareDSMLInvokeAndFullWidthBar(t *testing.T) {
+	guard := guardFor("read")
+	fragment := "<|DSML|invoke name=\"read\"><|DSML|parameter name=\"path\">go.mod</|DSML|parameter></|DSML|invoke>"
+	if _, calls, err := guard.Write(fragment); err != nil || len(calls) != 1 ||
+		calls[0].Function.Arguments != `{"path":"go.mod"}` {
+		t.Fatalf("bare invoke: %+v %v", calls, err)
+	}
+	guard = guardFor("read")
+	wide := "<｜DSML｜invoke name=\"read\"><｜DSML｜parameter name=\"path\">go.mod</｜DSML｜parameter></｜DSML｜invoke>"
+	if _, calls, err := guard.Write(wide); err != nil || len(calls) != 1 {
+		t.Fatalf("full width: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardFlushRepairsTruncatedBlock(t *testing.T) {
+	guard := guardFor("execute")
+	if _, _, err := guard.Write(toolOpen); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := guard.Write(`{"calls":[{"name":"execute","arguments":{"code":"line one` + "\n" + `line two"}}]}` +
+		"<<<END_TOOL_CALL>>"); err != nil {
+		t.Fatal(err)
+	}
+	tail, calls, err := guard.Flush()
+	if err != nil || len(calls) != 1 || tail != "" {
+		t.Fatalf("flush %q %+v %v", tail, calls, err)
+	}
+	if calls[0].Function.Arguments != `{"code":"line one\nline two"}` {
+		t.Fatalf("arguments %s", calls[0].Function.Arguments)
+	}
+}

@@ -50,3 +50,25 @@ func TestCatalogCarriesCapabilities(t *testing.T) {
 		t.Fatalf("capabilities lost: %+v", model)
 	}
 }
+
+func TestCatalogAcceptsDateRetiringField(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/app/user/client_attestation/mint" {
+			fmt.Fprint(w, `{"tokens":[{"token":"attest"}]}`)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"text":{"models":[
+			{"id":"dated","active":true,"retiringSoonDate":"2026-12-01"},
+			{"id":"alive","active":true,"retiringSoonDate":0}
+		]}}`)
+	}))
+	t.Cleanup(server.Close)
+	models, err := testClient(server).Catalog(context.Background(), Credential{DistinctID: "d"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 2 || models[0].Retiring || !models[1].Retiring {
+		t.Fatalf("date field: %+v", models)
+	}
+}

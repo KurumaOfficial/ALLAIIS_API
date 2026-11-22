@@ -32,7 +32,7 @@ type webShape interface {
 	reasoning(string)
 	text(string)
 	calls([]toolCall)
-	end(reason string)
+	end(reason string, usage map[string]any)
 	reply(content, reasoning string, calls []toolCall, usage map[string]any)
 }
 
@@ -167,6 +167,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				}
 				text = safe
 				if len(parsed) > 0 {
+					reason.callsChars(parsed)
 					calls = append(calls, parsed...)
 					if stream {
 						startStream()
@@ -262,6 +263,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				}
 			}
 			calls = append(calls, parsed...)
+			if len(parsed) > 0 {
+				reason.callsChars(parsed)
+			}
 			if len(parsed) > 0 && stream {
 				startStream()
 				shape.calls(parsed)
@@ -295,7 +299,11 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	if stream {
 		startStream()
-		shape.end(finish)
+		report := usage
+		if protocol == config.Chat && !reason.includeUsage {
+			report = nil
+		}
+		shape.end(finish, report)
 	} else {
 		shape.reply(reason.text.String(), reason.reasoningText.String(), calls, usage)
 	}
@@ -513,6 +521,7 @@ type webReason struct {
 	system         string
 	turns          []webprov.Message
 	reasoning      bool
+	includeUsage   bool
 	charsN         int
 	reasoningChars int
 }
@@ -520,6 +529,13 @@ type webReason struct {
 func (r *webReason) append(text string) {
 	r.text.WriteString(text)
 	r.charsN += len([]rune(text))
+}
+
+// callsChars counts tool JSON towards the output estimate.
+func (r *webReason) callsChars(calls []toolCall) {
+	for _, call := range calls {
+		r.charsN += len([]rune(call.Function.Name)) + len([]rune(call.Function.Arguments))
+	}
 }
 
 func (r *webReason) chars() int { return r.charsN }
@@ -564,12 +580,15 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		Reasoning   struct {
 			Effort string `json:"effort"`
 		} `json:"reasoning"`
-		ReasoningEffort  string     `json:"reasoning_effort"`
-		FrequencyPenalty *float64   `json:"frequency_penalty"`
-		MinP             *float64   `json:"min_p"`
-		PresencePenalty  *float64   `json:"presence_penalty"`
-		Tools            []toolSpec `json:"tools"`
-		ToolChoice       any        `json:"tool_choice"`
+		ReasoningEffort  string   `json:"reasoning_effort"`
+		FrequencyPenalty *float64 `json:"frequency_penalty"`
+		MinP             *float64 `json:"min_p"`
+		PresencePenalty  *float64 `json:"presence_penalty"`
+		StreamOptions    struct {
+			IncludeUsage bool `json:"include_usage"`
+		} `json:"stream_options"`
+		Tools      []toolSpec `json:"tools"`
+		ToolChoice any        `json:"tool_choice"`
 	}
 	if err := json.Unmarshal(payload, &input); err != nil {
 		return webprov.Request{}, nil, nil, errors.New("expected a JSON object")
@@ -585,7 +604,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	}
 	request.Reasoning = request.ReasoningEffort != "" ||
 		strings.Contains(strings.ToLower(model), "reasoning")
-	reason := &webReason{reasoning: request.Reasoning}
+	reason := &webReason{reasoning: request.Reasoning, includeUsage: input.StreamOptions.IncludeUsage}
 	for _, message := range input.Messages {
 		text, images := messageParts(message.Content)
 		switch message.Role {

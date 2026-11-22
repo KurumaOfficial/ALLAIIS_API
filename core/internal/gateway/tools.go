@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
@@ -126,6 +127,35 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 		current := g.buf.String()
 		start := strings.Index(current, toolOpen)
 		if start < 0 {
+			if at := dsmlLeadingClose(current); at >= 0 {
+				loc := dsmlEnd.FindStringSubmatchIndex(current[at:])
+				if loc == nil {
+					g.buf.Reset()
+					g.buf.WriteString(current[at:])
+					return current[:at], nil, nil
+				}
+				g.buf.Reset()
+				g.buf.WriteString(current[at+loc[1]:])
+				continue
+			}
+			if dsmlStart := dsmlIndex(current); dsmlStart >= 0 {
+				head, calls, used, complete, err := consumeDSML(current[dsmlStart:])
+				if err != nil {
+					g.buf.Reset()
+					g.buf.WriteString(current[dsmlStart:])
+					return current[:dsmlStart], nil, err
+				}
+				if !complete || !g.knownCalls(calls) {
+					g.buf.Reset()
+					g.buf.WriteString(current[dsmlStart:])
+					return current[:dsmlStart], nil, nil
+				}
+				calls = g.unique(calls)
+				rest := current[dsmlStart+used:]
+				g.buf.Reset()
+				g.buf.WriteString(rest)
+				return current[:dsmlStart] + head, calls, nil
+			}
 			if xmlStart := invokeIndex(current); xmlStart >= 0 {
 				head, calls, used, complete, err := consumeInvokes(current[xmlStart:])
 				if err != nil {
@@ -181,8 +211,30 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 func (g *toolGuard) Flush() (string, []toolCall, error) {
 	current := g.buf.String()
 	g.buf.Reset()
+	for {
+		at := dsmlLeadingClose(current)
+		if at < 0 {
+			break
+		}
+		loc := dsmlEnd.FindStringSubmatchIndex(current[at:])
+		if loc == nil {
+			current = current[:at]
+			break
+		}
+		current = current[:at] + current[at+loc[1]:]
+	}
 	start := strings.Index(current, toolOpen)
 	if start < 0 {
+		if dsmlStart := dsmlIndex(current); dsmlStart >= 0 {
+			head, calls, _, _, err := consumeDSML(current[dsmlStart:])
+			if err == nil && len(calls) > 0 && !g.knownCalls(calls) {
+				err = errNoToolBlock
+			}
+			if err == nil {
+				calls = g.unique(calls)
+			}
+			return current[:dsmlStart] + head, calls, err
+		}
 		if xmlStart := invokeIndex(current); xmlStart >= 0 {
 			head, calls, _, _, err := consumeInvokes(current[xmlStart:])
 			if err == nil && len(calls) > 0 && !g.knownCalls(calls) {
@@ -195,7 +247,7 @@ func (g *toolGuard) Flush() (string, []toolCall, error) {
 		}
 		return current, nil, nil
 	}
-	rest := strings.TrimSuffix(current[start+len(toolOpen):], toolClose)
+	rest := trimPartialClose(current[start+len(toolOpen):], toolClose)
 	calls, err := g.parse(rest)
 	if err == nil {
 		calls = g.unique(calls)
@@ -205,11 +257,159 @@ func (g *toolGuard) Flush() (string, []toolCall, error) {
 
 var invokeMarkers = []string{"<invoke", "<function_calls"}
 
+// DeepSeek emits its native DSML tool syntax as text. The bar can be ASCII or
+// full width and the closing tag may be written two ways.
+var (
+	dsmlPrefix = regexp.MustCompile(`<[|｜]DSML[|｜]\s*(?:calls|function_calls|invoke)\b`)
+	dsmlCalls  = regexp.MustCompile(`<[|｜]DSML[|｜]\s*(?:calls|function_calls)\b[^>]*>`)
+	dsmlInvoke = regexp.MustCompile(`<[|｜]DSML[|｜]\s*invoke\s+([^>]+)>`)
+	dsmlParam  = regexp.MustCompile(`<[|｜]DSML[|｜]\s*parameter\s+([^>]+)>`)
+	dsmlEnd    = regexp.MustCompile(`(?:</[|｜]DSML[|｜]\s*|<[|｜]/DSML[|｜]\s*)(calls|function_calls|invoke|parameter)\s*>`)
+)
+
+// dsmlIndex reports the first DSML block start, envelope or bare invoke.
+func dsmlIndex(current string) int {
+	if loc := dsmlPrefix.FindStringIndex(current); loc != nil {
+		return loc[0]
+	}
+	return -1
+}
+
+// dsmlTailKeep reports how many bytes of an unterminated DSML token to keep.
+func dsmlTailKeep(current string) int {
+	for _, marker := range []string{"<|/DSML|", "<｜/DSML｜", "</|DSML|", "</｜DSML｜", "<|DSML|", "<｜DSML｜"} {
+		index := strings.LastIndex(current, marker)
+		if index >= 0 && strings.IndexByte(current[index:], '>') < 0 {
+			return len(current) - index
+		}
+	}
+	return 0
+}
+
+// consumeDSML parses one calls envelope, or a run of bare invokes, into calls.
+func consumeDSML(fragment string) (head string, calls []toolCall, used int, complete bool, err error) {
+	offset := 0
+	envelope := false
+	if loc := dsmlCalls.FindStringIndex(fragment); loc != nil && loc[0] == 0 {
+		offset, envelope = loc[1], true
+	}
+	var prose strings.Builder
+	for {
+		match := dsmlInvoke.FindStringSubmatchIndex(fragment[offset:])
+		if match == nil {
+			break
+		}
+		start := offset + match[0]
+		prose.WriteString(fragment[offset:start])
+		name := parameterName(fragment[offset+match[2] : offset+match[3]])
+		body := fragment[offset+match[1]:]
+		from, to := dsmlCloseAt(body, "invoke")
+		if from < 0 {
+			return prose.String(), calls, start, false, nil
+		}
+		values, consumed, paramErr := dsmlValues(body[:from])
+		if paramErr != nil {
+			return prose.String(), nil, start, true, paramErr
+		}
+		call, callErr := buildCallFromValues(name, values)
+		if callErr != nil {
+			return prose.String(), nil, start, true, callErr
+		}
+		calls = append(calls, call)
+		offset += match[1] + to
+		_ = consumed
+	}
+	if envelope {
+		if from, to := dsmlCloseAt(fragment[offset:], "calls"); from >= 0 && strings.TrimSpace(fragment[offset:offset+from]) == "" {
+			offset += to
+		} else if len(calls) == 0 {
+			return prose.String(), calls, offset, false, nil
+		}
+	}
+	return prose.String(), calls, offset, true, nil
+}
+
+// dsmlLeadingClose reports a closing DSML tag at the start, past whitespace.
+func dsmlLeadingClose(current string) int {
+	trimmed := strings.TrimLeft(current, " \t\r\n")
+	if trimmed == "" {
+		return -1
+	}
+	for _, marker := range []string{"</|DSML|", "</｜DSML｜", "<|/DSML|", "<｜/DSML｜"} {
+		if strings.HasPrefix(trimmed, marker) {
+			return len(current) - len(trimmed)
+		}
+	}
+	return -1
+}
+
+// dsmlCloseAt finds the next closing tag with the wanted name.
+func dsmlCloseAt(body, want string) (start, end int) {
+	for offset := 0; offset < len(body); {
+		loc := dsmlEnd.FindStringSubmatchIndex(body[offset:])
+		if loc == nil {
+			return -1, -1
+		}
+		if body[offset+loc[2]:offset+loc[3]] == want {
+			return offset + loc[0], offset + loc[1]
+		}
+		offset += loc[1]
+	}
+	return -1, -1
+}
+
+// dsmlValues reads parameter elements; string="true" keeps the body verbatim.
+func dsmlValues(body string) (map[string]any, int, error) {
+	values := map[string]any{}
+	for {
+		match := dsmlParam.FindStringSubmatchIndex(body)
+		if match == nil {
+			return values, len(body), nil
+		}
+		tag := body[match[2]:match[3]]
+		name := body[match[0]:match[1]]
+		body = body[match[1]:]
+		key := parameterName(tag)
+		from, to := dsmlCloseAt(body, "parameter")
+		if key == "" || from < 0 {
+			return nil, 0, errNoToolBlock
+		}
+		value := body[:from]
+		if strings.Contains(name, `string="true"`) {
+			values[key] = value
+		} else {
+			var decoded any
+			if json.Unmarshal([]byte(strings.TrimSpace(value)), &decoded) != nil {
+				decoded = value
+			}
+			values[key] = decoded
+		}
+		body = body[to:]
+	}
+}
+
+// buildCallFromValues marshals typed arguments into a tool call.
+func buildCallFromValues(name string, values map[string]any) (toolCall, error) {
+	if name == "" {
+		return toolCall{}, errNoToolBlock
+	}
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return toolCall{}, errNoToolBlock
+	}
+	call := toolCall{ID: "call_" + randomID(), Type: "function"}
+	call.Function.Name = name
+	call.Function.Arguments = string(encoded)
+	return call, nil
+}
+
 // markerKeep returns the length of a trailing partial marker that must stay
 // buffered.
 func markerKeep(current string) int {
 	keep := 0
-	for _, marker := range append([]string{toolOpen}, invokeMarkers...) {
+	markers := append([]string{toolOpen}, invokeMarkers...)
+	markers = append(markers, "<|DSML|", "<|/DSML|", "</|DSML|")
+	for _, marker := range markers {
 		for n := min(len(marker)-1, len(current)); n > keep; n-- {
 			if strings.HasSuffix(current, marker[:n]) {
 				keep = n
@@ -217,6 +417,7 @@ func markerKeep(current string) int {
 			}
 		}
 	}
+	keep = max(keep, dsmlTailKeep(current))
 	return keep
 }
 
@@ -275,6 +476,61 @@ func consumeInvokes(fragment string) (head string, calls []toolCall, used int, c
 		offset += len("</function_calls>")
 	}
 	return prose.String(), calls, offset, true, nil
+}
+
+// trimPartialClose removes a closing marker that was cut off mid-stream.
+func trimPartialClose(block, marker string) string {
+	block = strings.TrimSuffix(block, marker)
+	for n := len(marker) - 1; n > 0; n-- {
+		if strings.HasSuffix(block, marker[:n]) {
+			return block[:len(block)-n]
+		}
+	}
+	return block
+}
+
+// escapeControl escapes raw line breaks inside JSON strings, which models emit
+// instead of \n in long tool arguments.
+func escapeControl(raw string) string {
+	var out strings.Builder
+	out.Grow(len(raw))
+	inString, escaped := false, false
+	for _, r := range raw {
+		if escaped {
+			out.WriteRune(r)
+			escaped = false
+			continue
+		}
+		switch r {
+		case '\\':
+			out.WriteRune(r)
+			escaped = true
+		case '"':
+			inString = !inString
+			out.WriteRune(r)
+		case '\n':
+			if inString {
+				out.WriteString(`\n`)
+			} else {
+				out.WriteRune(r)
+			}
+		case '\r':
+			if inString {
+				out.WriteString(`\r`)
+			} else {
+				out.WriteRune(r)
+			}
+		case '\t':
+			if inString {
+				out.WriteString(`\t`)
+			} else {
+				out.WriteRune(r)
+			}
+		default:
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
 }
 
 // invokeName reads the name attribute from an invoke open tag.
@@ -462,6 +718,9 @@ func (g *toolGuard) parse(block string) ([]toolCall, error) {
 			Name      string          `json:"name"`
 			Arguments json.RawMessage `json:"arguments"`
 		} `json:"calls"`
+	}
+	if err := json.Unmarshal([]byte(block), &envelope); err != nil || len(envelope.Calls) == 0 {
+		block = escapeControl(block)
 	}
 	if err := json.Unmarshal([]byte(block), &envelope); err != nil || len(envelope.Calls) == 0 {
 		return nil, errNoToolBlock

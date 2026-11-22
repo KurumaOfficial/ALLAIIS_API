@@ -12,6 +12,24 @@ import (
 	"sort"
 )
 
+// retiringDate accepts a unix timestamp or an ISO date string; some catalog
+// entries carry a date instead of a timestamp.
+type retiringDate struct{ set bool }
+
+func (d *retiringDate) UnmarshalJSON(raw []byte) error {
+	var number int64
+	if err := json.Unmarshal(raw, &number); err == nil {
+		d.set = number > 0
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		d.set = text != "" && text != "0"
+		return nil
+	}
+	return fmt.Errorf("retiringSoonDate: %s", raw)
+}
+
 // CatalogModel is one entry of the web app's model catalog.
 type CatalogModel struct {
 	ID           string `json:"id"`
@@ -73,33 +91,33 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 	var catalog struct {
 		Text struct {
 			Models []struct {
-				ID           string `json:"id"`
-				Friendly     string `json:"friendly_name"`
-				Active       bool   `json:"active"`
-				UsesCredits  bool   `json:"usesCredits"`
-				ProOnly      bool   `json:"proOnly"`
-				MaxContext   int    `json:"maxContextLength"`
-				MaxResponse  int    `json:"maxResponseTokens"`
-				MaxImages    int    `json:"maxImages"`
-				MaxTools     int    `json:"maxToolCount"`
-				WebSearch    bool   `json:"supportsXSearch"`
-				LargeContext bool   `json:"largeContextChatEligible"`
-				StrictOrder  bool   `json:"strictMessageOrderRequired"`
-				InactivityMS int    `json:"streamInactivityTimeoutMs"`
-				Sampling     bool   `json:"supportsSamplingParams"`
-				Frequency    bool   `json:"supportsFrequencyPenalty"`
-				Presence     bool   `json:"supportsPresencePenalty"`
-				Replacement  string `json:"apiDeprecationReplacementModelId"`
-				RetiringDate int64  `json:"retiringSoonDate"`
-				RoundTrip    bool   `json:"supportsEncryptedReasoningRoundTrip"`
-				Forward      bool   `json:"forwardEncryptedReasoning"`
-				Video        bool   `json:"supportsVideoInput"`
-				MaxVideos    int    `json:"maxVideos"`
-				MinP         bool   `json:"supportsMinP"`
-				AnonUserID   *bool  `json:"includeAnonUserId"`
-				RateLimit    string `json:"apiRateLimitSize"`
-				Reasoning    bool   `json:"supportsReasoning"`
-				Tools        bool   `json:"supportsFunctionCalling"`
+				ID           string       `json:"id"`
+				Friendly     string       `json:"friendly_name"`
+				Active       bool         `json:"active"`
+				UsesCredits  bool         `json:"usesCredits"`
+				ProOnly      bool         `json:"proOnly"`
+				MaxContext   int          `json:"maxContextLength"`
+				MaxResponse  int          `json:"maxResponseTokens"`
+				MaxImages    int          `json:"maxImages"`
+				MaxTools     int          `json:"maxToolCount"`
+				WebSearch    bool         `json:"supportsXSearch"`
+				LargeContext bool         `json:"largeContextChatEligible"`
+				StrictOrder  bool         `json:"strictMessageOrderRequired"`
+				InactivityMS int          `json:"streamInactivityTimeoutMs"`
+				Sampling     bool         `json:"supportsSamplingParams"`
+				Frequency    bool         `json:"supportsFrequencyPenalty"`
+				Presence     bool         `json:"supportsPresencePenalty"`
+				Replacement  string       `json:"apiDeprecationReplacementModelId"`
+				RetiringDate retiringDate `json:"retiringSoonDate"`
+				RoundTrip    bool         `json:"supportsEncryptedReasoningRoundTrip"`
+				Forward      bool         `json:"forwardEncryptedReasoning"`
+				Video        bool         `json:"supportsVideoInput"`
+				MaxVideos    int          `json:"maxVideos"`
+				MinP         bool         `json:"supportsMinP"`
+				AnonUserID   *bool        `json:"includeAnonUserId"`
+				RateLimit    string       `json:"apiRateLimitSize"`
+				Reasoning    bool         `json:"supportsReasoning"`
+				Tools        bool         `json:"supportsFunctionCalling"`
 				Settings     struct {
 					Temperature *float64 `json:"temperature"`
 					TopP        *float64 `json:"topP"`
@@ -129,7 +147,7 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 			MaxImages: model.MaxImages, MaxTools: model.MaxTools, WebSearch: model.WebSearch,
 			LargeContext: model.LargeContext, StrictOrder: model.StrictOrder, InactivityMS: model.InactivityMS,
 			Sampling: model.Sampling, Frequency: model.Frequency, Presence: model.Presence,
-			Replacement: model.Replacement, Retiring: model.RetiringDate > 0,
+			Replacement: model.Replacement, Retiring: model.RetiringDate.set,
 			RoundTrip: model.RoundTrip || model.Forward,
 			Video:     model.Video, MaxVideos: model.MaxVideos,
 			MinP: model.MinP, AnonUserID: model.AnonUserID, RateLimit: model.RateLimit,

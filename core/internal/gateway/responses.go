@@ -201,16 +201,31 @@ func (s *responsesShape) calls(calls []toolCall) {
 	}
 }
 
-func (s *responsesShape) end(string) {
+func (s *responsesShape) end(_ string, usage map[string]any) {
 	s.hello()
 	done, _ := json.Marshal(map[string]any{
 		"type": "response.completed",
 		"response": map[string]any{
 			"id": s.id, "object": "response", "created_at": s.created,
 			"status": "completed", "model": s.model, "output": []any{},
+			"usage": responsesUsage(usage),
 		},
 	})
 	fmt.Fprintf(s.w, "event: response.completed\ndata: %s\n\n", done)
+}
+
+// responsesUsage maps the internal counters onto the Responses fields.
+func responsesUsage(usage map[string]any) map[string]any {
+	if usage == nil {
+		return nil
+	}
+	input, _ := usage["prompt_tokens"].(int)
+	output, _ := usage["completion_tokens"].(int)
+	return map[string]any{
+		"input_tokens": input, "output_tokens": output, "total_tokens": input + output,
+		"input_tokens_details":  map[string]int{"cached_tokens": 0},
+		"output_tokens_details": map[string]int{"reasoning_tokens": 0},
+	}
 }
 
 func (s *responsesShape) reply(content, reasoning string, calls []toolCall, usage map[string]any) {

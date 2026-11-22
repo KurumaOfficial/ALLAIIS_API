@@ -261,7 +261,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Native Responses and Messages | ✓ | `TestNativeProtocols` | — | — |
 | SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel` | — | — |
 | Venice web transport (guest) | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | Chat JSON + SSE | — |
-| Venice web quota probe and catalog | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
+| Venice web quota probe and catalog | ✓ | `TestErrorClassification`, `TestCatalogAcceptsDateRetiringField` | `web login`, `models discover` against the live catalog | — |
 | Venice web Pro session | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
 | `min_p` and anonymous-id control | ✓ | `TestMinPFollowsTheCapability`, `TestPayloadMinPAndAnonUserID` | — | — |
@@ -276,6 +276,8 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Cache invalidation on credential change | ✓ | `TestForgetDropsTokenAndAttestationCaches`, `TestReplacingAKeyClearsItsCooldown` | — | — |
 | Catalog cache with bypass | ✓ | `TestCatalogCacheServesAndBypasses` | panel cached and bypassed results | — |
 | Empty-reply retry and lead-in handling | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
+| DeepSeek DSML tool dialect and rising call indexes | ✓ | `TestToolGuardParsesDeepSeekDSML`, `TestStreamedToolCallIndexesKeepRising`, `TestWebToolCallStreamDSML`, `TestToolGuardFlushRepairsTruncatedBlock` | OpenCode agent loop on `deepseek-v4-1-flash-uncensored`: 9 tool calls, 5 steps, 16 s | — |
+| Stream usage behind `stream_options.include_usage` | ✓ | `TestChatStreamUsageOnlyWhenRequested` | OpenCode reads non-zero tokens | — |
 | Tier C tool emulation (sentinel and XML dialects) | ✓ | `TestToolGuardSplitsMarkers`, `TestToolGuardParsesInvokeXML`, `TestToolGuardDropsDuplicatedDialect`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call on all three protocols | — |
 | Web routes on `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | Opus text and `tool_use` | — |
 | Web routes on `/v1/responses` | ✓ | `TestResponsesFollowUpByPreviousId` (survives a new handler) | adopted SSE shape, encrypted follow-ups | — |

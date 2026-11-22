@@ -178,7 +178,7 @@ func (s *anthropicShape) calls(calls []toolCall) {
 	}
 }
 
-func (s *anthropicShape) end(reason string) {
+func (s *anthropicShape) end(reason string, usage map[string]any) {
 	s.hello()
 	s.close()
 	stop := "end_turn"
@@ -187,10 +187,17 @@ func (s *anthropicShape) end(reason string) {
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"type": "message_delta", "delta": map[string]any{"stop_reason": stop, "stop_sequence": nil},
-		"usage": map[string]int{"output_tokens": 0},
+		"usage": anthropicUsage(usage),
 	})
 	fmt.Fprintf(s.w, "event: message_delta\ndata: %s\n\n", payload)
 	fmt.Fprint(s.w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+}
+
+// anthropicUsage maps the internal counters onto the Messages fields.
+func anthropicUsage(usage map[string]any) map[string]any {
+	output, _ := usage["completion_tokens"].(int)
+	input, _ := usage["prompt_tokens"].(int)
+	return map[string]any{"input_tokens": input, "output_tokens": output}
 }
 
 // anthropicToolCalls extracts tool_use blocks from an assistant turn.

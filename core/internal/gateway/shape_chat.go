@@ -11,10 +11,11 @@ import (
 
 // chatShape renders OpenAI Chat Completions events and JSON.
 type chatShape struct {
-	w       http.ResponseWriter
-	id      string
-	model   string
-	created int64
+	w         http.ResponseWriter
+	id        string
+	model     string
+	created   int64
+	callIndex int
 }
 
 func (s *chatShape) reasoning(text string) {
@@ -26,14 +27,21 @@ func (s *chatShape) text(text string) {
 }
 
 func (s *chatShape) calls(calls []toolCall) {
-	writeToolChunks(s.w, s.id, s.model, s.created, calls, false)
+	s.callIndex = writeToolChunks(s.w, s.id, s.model, s.created, calls, s.callIndex, false)
 }
 
-func (s *chatShape) end(reason string) {
+func (s *chatShape) end(reason string, usage map[string]any) {
 	if reason == "tool_calls" {
-		writeToolChunks(s.w, s.id, s.model, s.created, nil, true)
+		writeToolChunks(s.w, s.id, s.model, s.created, nil, s.callIndex, true)
 	}
 	finished(s.w, s.id, s.model, s.created, reason)
+	if usage != nil {
+		data, _ := json.Marshal(map[string]any{
+			"id": s.id, "object": "chat.completion.chunk", "created": s.created,
+			"model": s.model, "choices": []any{}, "usage": usage,
+		})
+		fmt.Fprintf(s.w, "data: %s\n\n", data)
+	}
 	fmt.Fprint(s.w, "data: [DONE]\n\n")
 }
 
@@ -65,22 +73,24 @@ func writeChunk(w http.ResponseWriter, id, model string, created int64, delta ma
 
 func nowUnix() int64 { return time.Now().Unix() }
 
-// writeToolChunks emits tool deltas, or only the final empty delta when calls is nil.
-func writeToolChunks(w http.ResponseWriter, id, model string, created int64, calls []toolCall, final bool) {
+// writeToolChunks emits tool deltas and returns the next global index. Calls
+// that arrive in separate batches keep rising so clients do not merge them.
+func writeToolChunks(w http.ResponseWriter, id, model string, created int64, calls []toolCall, start int, final bool) int {
 	if !final && len(calls) == 0 {
-		return
+		return start
 	}
 	delta := make([]any, 0, len(calls))
 	for index, call := range calls {
 		delta = append(delta, map[string]any{
-			"index": index, "id": call.ID, "type": "function",
+			"index": start + index, "id": call.ID, "type": "function",
 			"function": map[string]string{"name": call.Function.Name, "arguments": call.Function.Arguments},
 		})
 	}
 	if len(delta) == 0 {
-		return
+		return start
 	}
 	writeChunk(w, id, model, created, map[string]any{"tool_calls": delta})
+	return start + len(calls)
 }
 
 func finished(w http.ResponseWriter, id, model string, created int64, reason string) {

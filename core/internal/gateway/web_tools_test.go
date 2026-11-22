@@ -137,3 +137,51 @@ func writeFrames(w http.ResponseWriter, text string) {
 		fmt.Fprintf(w, "%s\n", frame)
 	}
 }
+
+func TestWebToolCallStreamDSML(t *testing.T) {
+	server := venueWithToolBodies(t, "Reading <|DSML|calls><|DSML|invoke name=\"read_file\">"+
+		"<|DSML|parameter name=\"path\" string=\"true\">c.txt</|DSML|parameter></|DSML|invoke></|DSML|calls>")
+	handler, store := webGateway(t, server.URL)
+	body := strings.Replace(toolPayload, `"messages"`, `"stream":true,"messages"`, 1)
+	result := complete(handler, store.ClientKey(), "", body)
+	text := result.Body.String()
+	if result.Code != http.StatusOK || !strings.Contains(text, `"finish_reason":"tool_calls"`) ||
+		!strings.Contains(text, `c.txt`) || strings.Contains(text, "DSML") {
+		t.Fatalf("unexpected stream: %d %s", result.Code, text)
+	}
+}
+
+func TestChatStreamUsageOnlyWhenRequested(t *testing.T) {
+	run := func(include bool) string {
+		server := venueWithToolBodies(t, "hello")
+		handler, store := webGateway(t, server.URL)
+		body := `{"model":"` + webModel + `","stream":true,`
+		if include {
+			body += `"stream_options":{"include_usage":true},`
+		}
+		body += `"messages":[{"role":"user","content":"hi"}]}`
+		return complete(handler, store.ClientKey(), "", body).Body.String()
+	}
+	if text := run(true); !strings.Contains(text, `"usage":{`) || !strings.Contains(text, `"estimated":true`) {
+		t.Fatalf("usage missing: %s", text)
+	}
+	if text := run(false); strings.Contains(text, `"usage":`) {
+		t.Fatalf("unsolicited usage: %s", text)
+	}
+}
+
+func TestStreamedToolCallIndexesKeepRising(t *testing.T) {
+	reply := "A<|DSML|calls><|DSML|invoke name=\"read_file\">" +
+		"<|DSML|parameter name=\"path\" string=\"true\">first-file.txt</|DSML|parameter></|DSML|invoke>" +
+		"<|DSML|invoke name=\"read_file\"><|DSML|parameter name=\"path\" string=\"true\">second.txt</|DSML|parameter>" +
+		"</|DSML|invoke></|DSML|calls>"
+	server := venueWithToolBodies(t, reply)
+	handler, store := webGateway(t, server.URL)
+	body := strings.Replace(toolPayload, `"messages"`, `"stream":true,"messages"`, 1)
+	result := complete(handler, store.ClientKey(), "", body)
+	text := result.Body.String()
+	if result.Code != http.StatusOK || !strings.Contains(text, `"index":0`) ||
+		!strings.Contains(text, `"index":1`) || !strings.Contains(text, "second.txt") {
+		t.Fatalf("indexes merged: %d %s", result.Code, text)
+	}
+}

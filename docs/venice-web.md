@@ -202,16 +202,71 @@ works without any client-side shim.
 
 ## Client setup (OpenCode)
 
-```sh
-./allaiis export opencode > opencode.json
-export ALLAIIS_API_KEY="$(./allaiis key)"
-# pick an alias from `allaiis up` output, e.g. allaiis/opus-venice-web
+`allaiis export opencode` prints a ready provider block. Merge its `allaiis`
+entry into `providers`, then point `settings.baseURL` at the loopback listener
+and supply the key through the environment:
+
+```jsonc
+{
+  "providers": {
+    "allaiis": {
+      "name": "ALLAIIS Venice",
+      "env": ["ALLAIIS_API_KEY"],
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:8420/v1",
+        "apiKey": "{env:ALLAIIS_API_KEY}"
+      },
+      "models": {
+        "venice-deepseek": {
+          "name": "DeepSeek V4.1 Flash Uncensored (Venice web)",
+          "limit": { "context": 524288, "input": 480000, "output": 131072 },
+          "capabilities": {
+            "tools": true,
+            "input": ["text", "image"],
+            "output": ["text"],
+            "temperature": true
+          },
+          "compatibility": {
+            "reasoningField": "reasoning_content",
+            "maxTokensField": "max_tokens"
+          }
+        }
+      }
+    }
+  }
+}
 ```
 
-OpenCode then talks to the loopback base URL with the local key, and the alias
-decides whether the request goes to a key API or to the web transport. Messages
-aliases are exported under a separate `allaiis-anthropic` provider. Web
-aliases also carry tool calls, so an agent loop works; usage stays estimated.
+```sh
+export ALLAIIS_API_KEY="$(./allaiis key)"
+opencode run --standalone --model allaiis/venice-deepseek "…"
+```
+
+The alias decides whether the request goes to a key API or to the web
+transport. Keep the real model limits and capabilities in the OpenCode entry:
+without them OpenCode assumes a 200k window and may truncate a long turn.
+
+What the gateway guarantees to an OpenAI-compatible client:
+
+- a `tool_calls` delta carries a **global** `index`, so calls that arrive in
+  separate SSE batches are not merged by the client;
+- `stream_options.include_usage` produces one final chunk with estimated
+  `usage`, and non-stream replies always carry usage;
+- the native DeepSeek DSML syntax, the sentinel envelope and Claude-style
+  `<invoke>` XML all become normal `tool_calls`;
+- a tool block cut off at the end of a stream is repaired instead of being
+  silently dropped.
+
+Measured on a free model, 2026-11-22: five of five streams returned 200 and
+`[DONE]`, three of them in parallel; time to first content ran 2.5–7.4 s
+sequentially and 2.5–14.4 s under three-way load; content then arrived at
+2.0–2.4 k characters per second. The lead-in dominates perceived speed.
+
+Usage is estimated from characters, not tokenized, and flagged
+`"estimated": true`; `X-ALLAIIS-Emulated-Features: tools,usage_estimate`
+declares both on every tool request. Messages aliases are exported under a
+separate `allaiis-anthropic` provider.
 
 ### Failure codes
 
@@ -230,5 +285,6 @@ aliases also carry tool calls, so an agent loop works; usage stays estimated.
 - `core/internal/webprov/cdp.go` — one-time cookie/User-Agent capture over DevTools
 - `core/internal/webprov/catalog.go` — text-model discovery
 - `core/internal/gateway/web.go` — OpenAI translation, streaming guard, estimated usage
-- `core/internal/gateway/tools.go` — tool envelope, sentinel guard buffer, repair message
+- `core/internal/gateway/tools.go` — tool envelope, sentinel/XML/DSML guard buffer, repair message, truncated-block repair
+- `core/internal/gateway/shape_chat.go` — global tool indexes and the optional final usage chunk
 - Offline coverage: `core/internal/webprov/venice_test.go`, `core/internal/gateway/web_test.go`, `core/internal/gateway/web_tools_test.go`, `core/internal/gateway/tools_test.go`
