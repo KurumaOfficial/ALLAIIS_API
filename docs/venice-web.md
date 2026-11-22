@@ -145,7 +145,8 @@ export ALLAIIS_API_KEY="$(./allaiis key)"
 ```
 
 OpenCode then talks to the loopback base URL with the local key, and the alias
-decides whether the request goes to a key API or to the web transport. Web
+decides whether the request goes to a key API or to the web transport. Messages
+aliases are exported under a separate `allaiis-anthropic` provider. Web
 aliases also carry tool calls, so an agent loop works; usage stays estimated.
 
 | Code | Meaning |

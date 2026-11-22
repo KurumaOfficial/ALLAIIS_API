@@ -294,26 +294,45 @@ func saveEntries(ctx context.Context, store *vault.Store, entries []vault.Entry)
 }
 
 func exportOpenCode(w io.Writer, listen string, models []router.Model) error {
-	options := make(map[string]any, len(models))
+	chat := make(map[string]any, len(models))
+	messages := make(map[string]any, len(models))
 	for _, model := range models {
-		if model.Protocol == config.Chat {
-			options[model.ID] = map[string]string{"name": model.ID}
+		switch model.Protocol {
+		case config.Chat:
+			chat[model.ID] = map[string]string{"name": model.ID}
+		case config.Messages:
+			messages[model.ID] = map[string]string{"name": model.ID}
 		}
 	}
-	if len(options) == 0 {
-		return errors.New("configure a Chat Completions model and import a provider key before exporting")
+	if len(chat) == 0 && len(messages) == 0 {
+		return errors.New("configure a chat or messages model and import a provider key before exporting")
 	}
-	return writeJSON(w, map[string]any{
-		"$schema": "https://opencode.ai/config.json",
-		"providers": map[string]any{"allaiis": map[string]any{
+	providers := make(map[string]any, 2)
+	if len(chat) > 0 {
+		providers["allaiis"] = map[string]any{
 			"name": "ALLAIIS", "package": "@opencode/ai/providers/openai-compatible",
 			"env": []string{"ALLAIIS_API_KEY"},
 			"settings": map[string]string{
 				"baseURL": "http://" + listen + "/v1",
 				"apiKey":  "{env:ALLAIIS_API_KEY}",
 			},
-			"models": options,
-		}},
+			"models": chat,
+		}
+	}
+	if len(messages) > 0 {
+		providers["allaiis-anthropic"] = map[string]any{
+			"name": "ALLAIIS (Anthropic)", "package": "@opencode/ai/providers/anthropic",
+			"env": []string{"ALLAIIS_API_KEY"},
+			"settings": map[string]string{
+				"baseURL": "http://" + listen,
+				"apiKey":  "{env:ALLAIIS_API_KEY}",
+			},
+			"models": messages,
+		}
+	}
+	return writeJSON(w, map[string]any{
+		"$schema":   "https://opencode.ai/config.json",
+		"providers": providers,
 	})
 }
 

@@ -220,7 +220,7 @@ Import a key before using a route. For a local server that ignores authorization
 ./allaiis export opencode
 ```
 
-Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for OpenCode, and select `allaiis/<model-alias>`. The export includes Chat Completions aliases. [OpenCode provider configuration](https://opencode.ai/docs/providers/)
+Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for OpenCode, and select `allaiis/<model-alias>`. The export covers Chat Completions aliases under `allaiis`, and Anthropic Messages aliases under `allaiis-anthropic`. [OpenCode provider configuration](https://opencode.ai/docs/providers/)
 
 - **Vault.** Use a passphrase of at least 16 bytes. For unattended operation, set `ALLAIIS_VAULT_PASSPHRASE` in the process environment. Credentials in SQLite are encrypted with AES-256-GCM using an Argon2id-derived key.
 - **Data directory.** Set `ALLAIIS_DATA_DIR` to override the default. The defaults are `%APPDATA%\allaiis` on Windows, `~/Library/Application Support/allaiis` on macOS, and `${XDG_CONFIG_HOME:-~/.config}/allaiis` on Linux.
