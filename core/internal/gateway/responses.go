@@ -213,8 +213,14 @@ func (s *responsesShape) end(string) {
 	fmt.Fprintf(s.w, "event: response.completed\ndata: %s\n\n", done)
 }
 
-func (s *responsesShape) reply(content string, calls []toolCall, usage map[string]any) {
-	output := make([]any, 0, 1+len(calls))
+func (s *responsesShape) reply(content, reasoning string, calls []toolCall, usage map[string]any) {
+	output := make([]any, 0, 2+len(calls))
+	if reasoning != "" {
+		output = append(output, map[string]any{
+			"type": "reasoning", "id": s.id, "status": "completed",
+			"summary": []any{map[string]any{"type": "summary_text", "text": reasoning}},
+		})
+	}
 	if content != "" {
 		output = append(output, map[string]any{
 			"type": "message", "id": s.id, "role": "assistant", "status": "completed",

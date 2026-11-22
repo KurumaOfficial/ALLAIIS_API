@@ -33,7 +33,7 @@ type webShape interface {
 	text(string)
 	calls([]toolCall)
 	end(reason string)
-	reply(content string, calls []toolCall, usage map[string]any)
+	reply(content, reasoning string, calls []toolCall, usage map[string]any)
 }
 
 // webCompletion serves a route whose provider has no documented API.
@@ -148,9 +148,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		}
 		switch event.Kind {
 		case "reasoning":
-			if target.Route.ReasoningRoundTrip {
-				reason.reasoningText.WriteString(event.Content)
-			}
+			reason.reasoningText.WriteString(event.Content)
 			if !reason.reasoning {
 				return nil
 			}
@@ -299,7 +297,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		startStream()
 		shape.end(finish)
 	} else {
-		shape.reply(reason.text.String(), calls, usage)
+		shape.reply(reason.text.String(), reason.reasoningText.String(), calls, usage)
 	}
 	if protocol == config.Responses {
 		reply := reason.text.String()

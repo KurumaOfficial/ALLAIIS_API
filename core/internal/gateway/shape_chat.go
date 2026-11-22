@@ -37,8 +37,11 @@ func (s *chatShape) end(reason string) {
 	fmt.Fprint(s.w, "data: [DONE]\n\n")
 }
 
-func (s *chatShape) reply(content string, calls []toolCall, usage map[string]any) {
+func (s *chatShape) reply(content, reasoning string, calls []toolCall, usage map[string]any) {
 	message := map[string]any{"role": "assistant", "content": content}
+	if reasoning != "" {
+		message["reasoning_content"] = reasoning
+	}
 	finish := "stop"
 	if len(calls) > 0 {
 		message["content"] = nil

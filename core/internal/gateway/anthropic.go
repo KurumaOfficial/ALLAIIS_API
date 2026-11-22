@@ -224,8 +224,11 @@ func anthropicToolCalls(raw json.RawMessage) []toolCall {
 	return calls
 }
 
-func (s *anthropicShape) reply(content string, calls []toolCall, usage map[string]any) {
-	blocks := make([]any, 0, 1+len(calls))
+func (s *anthropicShape) reply(content, reasoning string, calls []toolCall, usage map[string]any) {
+	blocks := make([]any, 0, 2+len(calls))
+	if reasoning != "" {
+		blocks = append(blocks, map[string]any{"type": "thinking", "thinking": reasoning, "signature": ""})
+	}
 	if content != "" {
 		blocks = append(blocks, map[string]any{"type": "text", "text": content})
 	}

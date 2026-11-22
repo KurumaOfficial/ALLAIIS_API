@@ -715,3 +715,51 @@ func TestVideoLimitRejectsBeforeUpload(t *testing.T) {
 		t.Fatalf("got %d %s", result.Code, result.Body)
 	}
 }
+
+func TestNonStreamRepliesCarryReasoning(t *testing.T) {
+	makeHandler := func(protocol config.Protocol) (http.Handler, string) {
+		server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+			fmt.Fprint(w, "{\"kind\":\"reasoning\",\"content\":\"because\"}\n")
+			fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"answer\"}\n")
+		})
+		store, cfg := setup(t, server.URL)
+		cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+		thinking := true
+		cfg.Models = []config.Route{{
+			ID: "thinker", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer,
+			Reasoning: &thinking, Protocol: protocol,
+		}}
+		if _, err := store.Import(t.Context(), []vault.Entry{{
+			Provider: "web", Endpoint: server.URL, Label: "one",
+			Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		routes, err := router.New(t.Context(), cfg, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+		return gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web), store.ClientKey()
+	}
+
+	handler, key := makeHandler(config.Chat)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"thinker","messages":[{"role":"user","content":"hi"}]}`))
+	request.Header.Set("Authorization", "Bearer "+key)
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if !strings.Contains(result.Body.String(), `"reasoning_content":"because"`) {
+		t.Fatalf("chat reply lost reasoning: %s", result.Body)
+	}
+
+	handler, key = makeHandler(config.Messages)
+	request = httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"thinker","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`))
+	request.Header.Set("x-api-key", key)
+	result = httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if !strings.Contains(result.Body.String(), `"type":"thinking"`) {
+		t.Fatalf("messages reply lost the thinking block: %s", result.Body)
+	}
+}

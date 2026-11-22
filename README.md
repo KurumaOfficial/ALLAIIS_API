@@ -265,7 +265,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Venice web Pro session | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
 | Video attachment cap | ✓ | `TestAttachmentCountsSplitByMIME`, `TestVideoLimitRejectsBeforeUpload` | — | — |
-| Encrypted reasoning round-trip | ✓ | `TestReasoningIsReplayedWithFollowUps`, `TestReasoningIsDroppedWithoutTheCapability` | frame-level only; premium is out of balance | — |
+| Encrypted reasoning round-trip | ✓ | `TestReasoningIsReplayedWithFollowUps`, `TestNonStreamRepliesCarryReasoning` | live: `reasoning_content` then the replayed thinking on a free thinking model | — |
 | Sampling, penalties and replacement hints | ✓ | `TestSamplingAndPenaltiesFollowCapabilities`, `TestUnknownModelMentionsTheReplacement` | — | — |
 | Large context, strict order and stall watchdog | ✓ | `TestLargeContextReachesThePayload`, `TestStrictOrderMergesConsecutiveTurns`, `TestStalledStreamMapsToUpstreamTimeout` | payload dump and an HTTP 504 | — |
 | Reasoning effort, web flag and tool cap | ✓ | `TestReasoningEffortAndWebSearchReachThePayload`, `TestMessagesThinkingBudgetBecomesEffort`, `TestToolLimitRejects` | payload dump on a free model | — |

@@ -170,7 +170,8 @@ Messages routes translate `system`, `content[]` blocks (text, image, tool_use,
 tool_result) into web turns and answer with real Anthropic events
 (`message_start`, `content_block_delta`, `message_delta`, `message_stop`) or a
 `message` object. Tool calls come back as `tool_use` blocks with
-`stop_reason: tool_use`.
+`stop_reason: tool_use`. Thinking is surfaced as a `thinking` block, as
+`reasoning_content` on Chat, and as a `reasoning` output item on Responses.
 
 `/v1/responses` is wired too: `instructions`, typed `input` items
 (`message`, `function_call`, `function_call_output`) and flat function tools are
