@@ -93,7 +93,17 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   are served over the same plain transport; per-field client-side encryption is
   not implemented.
 
-## Failure codes
+## Client setup (OpenCode)
+
+```sh
+./allaiis export opencode > opencode.json
+export ALLAIIS_API_KEY="$(./allaiis key)"
+# pick an alias from `allaiis up` output, e.g. allaiis/opus-venice-web
+```
+
+OpenCode then talks to the loopback base URL with the local key, and the alias
+decides whether the request goes to a key API or to the web transport. Web
+aliases also carry tool calls, so an agent loop works; usage stays estimated.
 
 | Code | Meaning |
 | --- | --- |

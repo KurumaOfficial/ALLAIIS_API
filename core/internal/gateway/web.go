@@ -216,6 +216,9 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 	case errors.Is(err, webprov.ErrContextTooLong()):
 		writeError(w, protocol, http.StatusBadRequest, "context_length_exceeded",
 			"The prompt exceeds the model context window.")
+	case errors.Is(err, webprov.ErrUnknownModel()):
+		writeError(w, protocol, http.StatusNotFound, "model_not_found",
+			"The web app does not offer this model for the captured session.")
 	default:
 		writeError(w, protocol, http.StatusBadGateway, "upstream_error", "The web provider failed: "+err.Error())
 	}

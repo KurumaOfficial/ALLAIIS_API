@@ -400,15 +400,24 @@ func (c *Client) statusError(response *http.Response) error {
 		return fmt.Errorf("%w: %s", ErrCloudflare, firstLine(text))
 	case strings.Contains(text, "userPromptTooLong"):
 		return errContextTooLong
+	case (response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusNotFound) &&
+		strings.Contains(strings.ToLower(text), "model"):
+		return fmt.Errorf("%w: %s", errUnknownModel, firstLine(text))
 	default:
 		return fmt.Errorf("venice returned HTTP %d: %s", response.StatusCode, firstLine(text))
 	}
 }
 
-var errContextTooLong = errors.New("prompt exceeds the model context")
+var (
+	errContextTooLong = errors.New("prompt exceeds the model context")
+	errUnknownModel   = errors.New("the web app does not offer this model")
+)
 
 // ErrContextTooLong reports that the model context window was exceeded.
 func ErrContextTooLong() error { return errContextTooLong }
+
+// ErrUnknownModel reports that the model ID is not offered to this session.
+func ErrUnknownModel() error { return errUnknownModel }
 
 func firstLine(text string) string {
 	text = strings.TrimSpace(text)
