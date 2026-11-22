@@ -51,9 +51,10 @@ results, and its checkbox forces a refetch.
 
 A retry happens only while the client has seen nothing, so streaming clients
 never get duplicated text. A tool call that arrives with no arguments at all is
-still delivered as `{}` and logged as `tool call without arguments` with the tool
-name, since the client will have to reject it and the log explains the failed
-step.
+held back while the client has seen nothing and answered with one repair turn
+instead; if the repair also forgets them, the call is delivered as `{}` and
+logged as `tool call without arguments` with the tool name, so the log explains
+the failed step.
 
 ## Errors
 

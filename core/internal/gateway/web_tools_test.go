@@ -261,3 +261,32 @@ func TestReasoningCountsTowardTheCap(t *testing.T) {
 		t.Fatalf("reasoning not counted: %s", result.Body)
 	}
 }
+
+func TestWebRepairsACallWithoutArguments(t *testing.T) {
+	var attempts atomic.Int32
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, _ map[string]any) {
+		if attempts.Add(1) == 1 {
+			// A call that forgot its arguments, the client would reject it.
+			writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file"}]}<<<END_TOOL_CALL>>>`)
+			return
+		}
+		writeFrames(w, toolBlock("fixed.txt"))
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", toolPayload)
+	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
+		t.Fatalf("empty call not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
+	}
+}
+
+func TestWebDeliversAnEmptyCallWhenRepairRunsOut(t *testing.T) {
+	server := venueWithToolBodies(t, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file"}]}<<<END_TOOL_CALL>>>`)
+	handler, store := webGateway(t, server.URL)
+	body := strings.Replace(toolPayload, `"messages"`, `"stream":true,"messages"`, 1)
+	result := complete(handler, store.ClientKey(), "", body)
+	text := result.Body.String()
+	if result.Code != http.StatusOK || !strings.Contains(text, `"finish_reason":"tool_calls"`) ||
+		!strings.Contains(text, `"read_file"`) {
+		t.Fatalf("empty call dropped: %d %s", result.Code, text)
+	}
+}

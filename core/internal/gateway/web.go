@@ -132,6 +132,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	sent := false
 	finish := "stop"
 	var calls []toolCall
+	// An argument-less call is held back while nothing has reached the client,
+	// so a repair turn can replace it instead of a client rejection.
+	var heldCalls []toolCall
 
 	guard := &toolGuard{probe: r.Header.Get(probeHeader) != ""}
 	guard.add(tools)
@@ -172,6 +175,10 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				text = safe
 				if len(parsed) > 0 {
 					reason.callsChars(parsed)
+					if !sent && len(calls) == 0 && strings.TrimSpace(text) == "" && argumentless(parsed) {
+						heldCalls = append(heldCalls, parsed...)
+						return nil
+					}
 					calls = append(calls, parsed...)
 					if strings.TrimSpace(text) == "" {
 						text = ""
@@ -239,15 +246,28 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			firstSeen, held = false, ""
 			continue
 		}
-		// A 200 with no content at all is worth one more try, like a bad block.
-		empty := reason.text.Len() == 0 && len(calls) == 0 && (held == "" || held == "processing")
-		if err == nil && empty && attempts < 2 && !sent {
+		// A 200 with no content at all is worth one more try, like a bad block;
+		// so is a call that forgot its arguments while the client still saw
+		// nothing.
+		empty := reason.text.Len() == 0 && len(calls) == 0 && len(heldCalls) == 0 && (held == "" || held == "processing")
+		incomplete := len(heldCalls) > 0 && !sent && reason.text.Len() == 0
+		if err == nil && (empty || incomplete) && attempts < 2 && !sent {
 			reason.reasoningText.Reset()
 			guard.reset()
+			heldCalls = nil
 			firstSeen, held = false, ""
 			continue
 		}
 		break
+	}
+	if len(heldCalls) > 0 {
+		// No repair was possible or left; deliver what came.
+		calls = append(calls, heldCalls...)
+		if stream {
+			startStream()
+			shape.calls(heldCalls)
+		}
+		heldCalls = nil
 	}
 	if held != "" {
 		// A lone "processing" status is not an answer.

@@ -327,6 +327,17 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 	return calls
 }
 
+// argumentless reports whether every call came without arguments, which a client
+// with required fields will reject.
+func argumentless(calls []toolCall) bool {
+	for _, call := range calls {
+		if args := strings.TrimSpace(call.Function.Arguments); args != "" && args != "{}" {
+			return false
+		}
+	}
+	return len(calls) > 0
+}
+
 // nameKey folds case and drops the separators models sprinkle into tool names.
 func nameKey(name string) string {
 	var folded strings.Builder
