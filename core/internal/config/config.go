@@ -175,10 +175,25 @@ type Config struct {
 	// ToolNameTTLDays is how long an unknown tool name is remembered for the
 	// doctor; zero keeps it forever.
 	ToolNameTTLDays int `json:"tool_name_ttl_days,omitempty"`
+	// MaxRequestMB bounds a request body. Inline data-URL attachments grow by a
+	// third, so the default leaves room for a few photos.
+	MaxRequestMB int `json:"max_request_mb,omitempty"`
 }
 
 // DefaultToolNameTTLDays is the retention applied when a config names none.
 const DefaultToolNameTTLDays = 30
+
+// DefaultMaxRequestMB is the request body cap applied when a config names none.
+const DefaultMaxRequestMB = 8
+
+// MaxRequestBytes is the body cap in bytes.
+func (c Config) MaxRequestBytes() int64 {
+	mb := c.MaxRequestMB
+	if mb <= 0 {
+		mb = DefaultMaxRequestMB
+	}
+	return int64(mb) << 20
+}
 
 func Default() Config {
 	return Config{Listen: DefaultListen, MinPrivacy: Consumer, Models: []Route{}, ToolNameTTLDays: DefaultToolNameTTLDays}
@@ -253,6 +268,9 @@ func (c *Config) validate() error {
 	}
 	if c.ToolNameTTLDays < 0 || c.ToolNameTTLDays > 3650 {
 		return errors.New("tool_name_ttl_days must be from 0 to 3650")
+	}
+	if c.MaxRequestMB < 0 || c.MaxRequestMB > 128 {
+		return errors.New("max_request_mb must be from 1 to 128")
 	}
 	baseURLs := make(map[string]string, len(defaults)+len(c.Providers))
 	for id, p := range defaults {

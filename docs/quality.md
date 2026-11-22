@@ -47,7 +47,7 @@ results, and its checkbox forces a refetch.
 | Prompt over the model context | rejected before sending when the alias carries `max_context` |
 | Too many attachments | rejected before upload when the alias carries `max_images` |
 | Silent stream | aborted after the alias inactivity window (default 2 min), answered `upstream_timeout` |
-| Request body | 8 MiB cap, 90 s response-header timeout, 10 min whole call |
+| Request body | 8 MiB cap (`max_request_mb`, 1–128), 90 s response-header timeout, 10 min whole call |
 
 A retry happens only while the client has seen nothing, so streaming clients
 never get duplicated text. A tool call that arrives with no arguments at all is

@@ -40,3 +40,29 @@ func TestToolNameTTLRange(t *testing.T) {
 		}
 	}
 }
+
+func TestMaxRequestDefaultsAndParses(t *testing.T) {
+	cfg, err := Load(writeConfig(t, `{"listen":"127.0.0.1:8420","models":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxRequestBytes() != DefaultMaxRequestMB<<20 {
+		t.Fatalf("default not applied: %d", cfg.MaxRequestBytes())
+	}
+
+	cfg, err = Load(writeConfig(t, `{"listen":"127.0.0.1:8420","models":[],"max_request_mb":24}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxRequestBytes() != 24<<20 {
+		t.Fatalf("configured size lost: %d", cfg.MaxRequestBytes())
+	}
+}
+
+func TestMaxRequestRange(t *testing.T) {
+	for _, mb := range []string{"-1", "129"} {
+		if _, err := Load(writeConfig(t, `{"listen":"127.0.0.1:8420","models":[],"max_request_mb":`+mb+`}`)); err == nil {
+			t.Fatalf("%s accepted", mb)
+		}
+	}
+}

@@ -476,3 +476,27 @@ func TestHugeRetryAfterIsCapped(t *testing.T) {
 		t.Fatalf("cooldown was not capped: %q", rate.Header().Get("Retry-After"))
 	}
 }
+
+func TestRequestCapComesFromTheConfig(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	cfg.MaxRequestMB = 1
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithConfig(cfg)
+
+	big := strings.Repeat("a", 1<<20+1024)
+	body := `{"model":"demo","messages":[{"role":"user","content":"` + big + `"}]}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+
+	if result.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized body accepted: %d", result.Code)
+	}
+	if !strings.Contains(result.Body.String(), "1 MiB") {
+		t.Fatalf("cap not stated: %s", result.Body)
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
@@ -194,6 +195,15 @@ func (g *Gateway) ResetCredential(ctx context.Context, provider config.Provider,
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) { g.mux.ServeHTTP(w, r) }
 
 func (g *Gateway) table() *table { return g.live.Load() }
+
+// WithConfig puts the loaded configuration into the starting table, so settings
+// read from it apply before any reload. Routes stay as they were built.
+func (g *Gateway) WithConfig(cfg config.Config) *Gateway {
+	if live := g.live.Load(); live != nil {
+		g.live.Store(&table{routes: live.routes, config: cfg})
+	}
+	return g
+}
 
 func (g *Gateway) metricsPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
@@ -386,11 +396,13 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 			return
 		}
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequest))
+	limit := g.table().config.MaxRequestBytes()
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	var tooLarge *http.MaxBytesError
 	switch {
 	case errors.As(err, &tooLarge):
-		writeError(w, protocol, http.StatusRequestEntityTooLarge, "request_too_large", "The maximum request size is 8 MiB.")
+		writeError(w, protocol, http.StatusRequestEntityTooLarge, "request_too_large",
+			fmt.Sprintf("The maximum request size is %d MiB.", limit>>20))
 		return
 	case err != nil:
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", "Could not read the request body.")
