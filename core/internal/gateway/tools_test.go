@@ -107,3 +107,89 @@ func TestFetchImage(t *testing.T) {
 		t.Fatal("non-image content type accepted")
 	}
 }
+
+func TestToolGuardParsesInvokeXML(t *testing.T) {
+	guard := guardFor("read_file", "list_dir")
+	fragment := "Reading now.\n<function_calls>\n<invoke name=\"read_file\">\n" +
+		"<parameter name=\"path\">go.mod</parameter>\n</invoke>\n" +
+		"<invoke name=\"list_dir\"><parameter name=\"depth\">2</parameter></invoke>\n</function_calls>\nDone."
+	var text strings.Builder
+	var calls []toolCall
+	for _, chunk := range splitEvery(fragment, 7) {
+		safe, parsed, err := guard.Write(chunk)
+		if err != nil {
+			t.Fatalf("unexpected error at %q: %v", chunk, err)
+		}
+		text.WriteString(safe)
+		calls = append(calls, parsed...)
+	}
+	tail, more, err := guard.Flush()
+	text.WriteString(tail)
+	calls = append(calls, more...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := text.String(); !strings.Contains(got, "Reading now.") || strings.Contains(got, "<invoke") {
+		t.Fatalf("visible text %q", got)
+	}
+	if len(calls) != 2 || calls[0].Function.Name != "read_file" ||
+		calls[0].Function.Arguments != `{"path":"go.mod"}` || calls[1].Function.Arguments != `{"depth":2}` {
+		t.Fatalf("calls %+v", calls)
+	}
+	if !strings.Contains(text.String(), "Done.") {
+		t.Fatalf("trailing text lost: %q", text.String())
+	}
+}
+
+func TestToolGuardInvokeJSONBodyAndUnknownTool(t *testing.T) {
+	guard := guardFor("read_file")
+	safe, calls, err := guard.Write(`<invoke name="read_file">{"path":"a.txt"}</invoke>`)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"path":"a.txt"}` {
+		t.Fatalf("json body: %q %+v %v", safe, calls, err)
+	}
+	guard = guardFor("read_file")
+	if _, _, err := guard.Write(`<invoke name="other"><parameter name="x">1</parameter></invoke>`); err == nil {
+		t.Fatal("unknown tool accepted")
+	}
+	guard = guardFor("read_file")
+	if _, _, err := guard.Write(`<invoke name="read_file"><parameter name="items"><item>a</item><item>b</item></parameter></invoke>`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestToolGuardSelfClosingInvoke(t *testing.T) {
+	guard := guardFor("ping")
+	_, calls, err := guard.Write("<invoke name=\"ping\"/>")
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != "{}" {
+		t.Fatalf("self closing: %+v %v", calls, err)
+	}
+}
+
+func splitEvery(value string, size int) []string {
+	var chunks []string
+	for len(value) > size {
+		chunks = append(chunks, value[:size])
+		value = value[size:]
+	}
+	return append(chunks, value)
+}
+
+func TestToolGuardDropsDuplicatedDialect(t *testing.T) {
+	guard := guardFor("read_file")
+	block := `{"calls":[{"name":"read_file","arguments":{"path":"a.txt"}}]}`
+	_, first, err := guard.Write("<<<ALLAIIS_TOOL_CALL>>>" + block + "<<<END_TOOL_CALL>>>")
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first pass: %+v %v", first, err)
+	}
+	_, second, err := guard.Write(`<invoke name="read_file"><parameter name="path">a.txt</parameter></invoke>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second) != 0 {
+		t.Fatalf("duplicate survived: %+v", second)
+	}
+	_, third, err := guard.Write(`<invoke name="read_file"><parameter name="path">b.txt</parameter></invoke>`)
+	if err != nil || len(third) != 1 {
+		t.Fatalf("different call dropped: %+v %v", third, err)
+	}
+}

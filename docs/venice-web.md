@@ -87,9 +87,13 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   attestation, or a stream that dies before its first event triggers one retry
   with a fresh attestation. A stream that already delivered text is not retried.
 - **Tool calls** are emulated: the gateway injects a call envelope, hides the
-  sentinel block from the client, validates JSON, retries once on a malformed
-  block, and returns native `tool_calls` with `finish_reason: tool_calls`.
-  Declared via `X-ALLAIIS-Emulated-Features: tools`.
+  call block from the client, validates JSON, retries once on a malformed block,
+  and returns native `tool_calls` with `finish_reason: tool_calls`. Two call
+  dialects are accepted — the sentinel JSON block the envelope asks for, and the
+  Claude-style `<invoke name="…"><parameter name="…">…</parameter></invoke>`
+  form that Claude models often prefer. Both are normalized, and a model that
+  emits the same call twice in both forms yields one call. Declared via
+  `X-ALLAIIS-Emulated-Features: tools`.
 - **Pin aliases to a label.** A pool with several captured sessions picks one by
   request hash. Pass `--label` to `models add` so a route always uses the
   intended account.

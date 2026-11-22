@@ -17,7 +17,7 @@ key gives clients access to the routes the operator has configured.
 - **Venice web transport (Tier C)**: page-free replay of the web app's own
   inference API with a browser TLS fingerprint, single-use attestation pool,
   Clerk session tokens, NDJSON streaming, quota probe, model discovery, image
-  and file input through a multipart agent turn, emulated tool calls with a sentinel guard buffer and one repair retry, and
+  and file input through a multipart agent turn, emulated tool calls with a guard buffer over two call dialects, one dedupe pass and one repair retry, and
   Anthropic Messages and OpenAI Responses on both JSON and SSE. See
   [docs/venice-web.md](docs/venice-web.md).
 - Upstream model discovery with per-provider results, public catalogs, and
