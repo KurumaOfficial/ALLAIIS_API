@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -642,6 +643,16 @@ func (s *Server) webQuota(w http.ResponseWriter, r *http.Request) {
 		if chat, ok := limits["chat"].(map[string]any); ok {
 			row["chat_remaining"] = chat["remaining"]
 			row["reset_at"] = chat["resetAt"]
+			// A warning belongs in the log too: the panel is not always open.
+			floor := cfg.QuotaFloor
+			if floor == 0 {
+				floor = config.DefaultQuotaFloor
+			}
+			if remaining, ok := chat["remaining"].(float64); ok && floor > 0 && remaining <= float64(floor) {
+				row["low"] = true
+				slog.Warn("quota below the floor", "provider", input.Provider, "label", entry.Label,
+					"remaining", int(remaining), "floor", floor)
+			}
 		}
 		rows = append(rows, row)
 	}

@@ -178,6 +178,9 @@ type Config struct {
 	// MaxRequestMB bounds a request body. Inline data-URL attachments grow by a
 	// third, so the default leaves room for a few photos.
 	MaxRequestMB int `json:"max_request_mb,omitempty"`
+	// QuotaFloor warns when a quota probe finds this few messages left; zero
+	// applies the default and -1 turns the warning off.
+	QuotaFloor int `json:"quota_floor,omitempty"`
 }
 
 // DefaultToolNameTTLDays is the retention applied when a config names none.
@@ -185,6 +188,9 @@ const DefaultToolNameTTLDays = 30
 
 // DefaultMaxRequestMB is the request body cap applied when a config names none.
 const DefaultMaxRequestMB = 8
+
+// DefaultQuotaFloor is the remaining-message count that triggers a warning.
+const DefaultQuotaFloor = 5
 
 // MaxRequestBytes is the body cap in bytes.
 func (c Config) MaxRequestBytes() int64 {
@@ -271,6 +277,9 @@ func (c *Config) validate() error {
 	}
 	if c.MaxRequestMB < 0 || c.MaxRequestMB > 128 {
 		return errors.New("max_request_mb must be from 1 to 128")
+	}
+	if c.QuotaFloor < -1 || c.QuotaFloor > 1000 {
+		return errors.New("quota_floor must be from -1 to 1000")
 	}
 	baseURLs := make(map[string]string, len(defaults)+len(c.Providers))
 	for id, p := range defaults {

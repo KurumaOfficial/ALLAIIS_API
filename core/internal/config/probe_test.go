@@ -66,3 +66,14 @@ func TestMaxRequestRange(t *testing.T) {
 		}
 	}
 }
+
+func TestQuotaFloorRange(t *testing.T) {
+	if _, err := Load(writeConfig(t, `{"listen":"127.0.0.1:8420","models":[],"quota_floor":-1}`)); err != nil {
+		t.Fatalf("-1 rejected: %v", err)
+	}
+	for _, floor := range []string{"-2", "1001"} {
+		if _, err := Load(writeConfig(t, `{"listen":"127.0.0.1:8420","models":[],"quota_floor":`+floor+`}`)); err == nil {
+			t.Fatalf("%s accepted", floor)
+		}
+	}
+}

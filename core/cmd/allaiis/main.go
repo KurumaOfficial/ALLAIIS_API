@@ -289,11 +289,16 @@ func attachLogFile(path string, maxMB, keep int) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
+	logWriter = writer
 	stderr := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})
 	file := slog.NewTextHandler(writer, &slog.HandlerOptions{Level: slog.LevelInfo})
 	slog.SetDefault(slog.New(slog.NewMultiHandler(stderr, file)))
 	return func() { writer.Close() }, nil
 }
+
+// logWriter is the open log file, if one was asked for; runGUI composes its own
+// handler set and has to include it.
+var logWriter *admin.RotatingFile
 
 func readPassphrase() ([]byte, error) {
 	if value := os.Getenv("ALLAIIS_VAULT_PASSPHRASE"); value != "" {

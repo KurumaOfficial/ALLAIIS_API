@@ -57,7 +57,11 @@ func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, 
 		return err
 	}
 	stderr := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})
-	slog.SetDefault(slog.New(admin.Tee(panel.Logs(), stderr)))
+	handlers := []slog.Handler{admin.Tee(panel.Logs(), stderr)}
+	if logWriter != nil {
+		handlers = append(handlers, slog.NewTextHandler(logWriter, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	}
+	slog.SetDefault(slog.New(slog.NewMultiHandler(handlers...)))
 	advertise(os.Stdout, cfg, routes.Models(cfg.MinPrivacy))
 
 	run, cancel := context.WithCancel(ctx)

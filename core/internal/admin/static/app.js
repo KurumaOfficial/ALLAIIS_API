@@ -138,7 +138,7 @@ function render () {
         try {
           const result = await api('/api/web/quota', { method: 'POST', body: JSON.stringify({ provider: provider.id }) })
           quotas[provider.id] = result.labels.map(row => row.label + ': ' +
-            (row.error ? row.error : (row.chat_remaining ?? '?') + ' chat left' +
+            (row.error ? row.error : (row.low ? 'LOW, ' : '') + (row.chat_remaining ?? '?') + ' chat left' +
               (row.reset_at ? ', resets ' + new Date(row.reset_at).toLocaleString() : '') +
               (row.principal === 'anonymous' ? ' (anonymous)' : ''))).join(' · ')
           render()
