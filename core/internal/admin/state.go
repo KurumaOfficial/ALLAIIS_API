@@ -298,7 +298,11 @@ func (s *Server) smoke(w http.ResponseWriter, r *http.Request) {
 		if route.CredentialLabel != "" {
 			key += "\x00" + route.CredentialLabel
 		}
-		if until, err := s.options.Store.Cooldown(r.Context(), route.Provider, key); err == nil && time.Now().Before(until) {
+		until, err := s.options.Store.Cooldown(r.Context(), route.Provider, key)
+		if bare, bareErr := s.options.Store.Cooldown(r.Context(), route.Provider, provider.BaseURL); bareErr == nil && bare.After(until) {
+			until = bare
+		}
+		if err == nil && time.Now().Before(until) {
 			result.Error = "provider cooling until " + until.Format("15:04:05")
 		} else {
 			result = s.probeOne(r.Context(), cfg, route, "Reply with the single word: ready")

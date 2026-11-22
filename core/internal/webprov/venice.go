@@ -433,6 +433,8 @@ func (c *Client) statusError(response *http.Response) error {
 		return fmt.Errorf("%w: %s", ErrUnauthorized, firstLine(text))
 	case response.StatusCode == http.StatusForbidden:
 		return fmt.Errorf("%w: %s", ErrCloudflare, firstLine(text))
+	case response.StatusCode == http.StatusPaymentRequired && strings.Contains(text, "insufficientBalance"):
+		return errInsufficientBalance
 	case strings.Contains(text, "userPromptTooLong"):
 		return errContextTooLong
 	case (response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusNotFound) &&
@@ -444,12 +446,16 @@ func (c *Client) statusError(response *http.Response) error {
 }
 
 var (
-	errContextTooLong = errors.New("prompt exceeds the model context")
-	errUnknownModel   = errors.New("the web app does not offer this model")
+	errContextTooLong      = errors.New("prompt exceeds the model context")
+	errUnknownModel        = errors.New("the web app does not offer this model")
+	errInsufficientBalance = errors.New("the session has no messages left")
 )
 
 // ErrContextTooLong reports that the model context window was exceeded.
 func ErrContextTooLong() error { return errContextTooLong }
+
+// ErrInsufficientBalance reports that the plan allowance is spent.
+func ErrInsufficientBalance() error { return errInsufficientBalance }
 
 // ErrUnknownModel reports that the model ID is not offered to this session.
 func ErrUnknownModel() error { return errUnknownModel }

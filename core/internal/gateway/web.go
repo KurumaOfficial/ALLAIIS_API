@@ -317,6 +317,9 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 	case errors.Is(err, webprov.ErrCloudflare):
 		writeError(w, protocol, http.StatusBadGateway, "cloudflare_challenge",
 			"Cloudflare rejected the stored clearance. Recapture this account with `allaiis web login` or the panel's Recapture button.")
+	case errors.Is(err, webprov.ErrInsufficientBalance()):
+		writeError(w, protocol, http.StatusPaymentRequired, "insufficient_balance",
+			"This session has no messages left. Check the reset time with `allaiis web quota` or use another label.")
 	case errors.Is(err, webprov.ErrContextTooLong()):
 		writeError(w, protocol, http.StatusBadRequest, "context_length_exceeded",
 			"The prompt exceeds the model context window.")

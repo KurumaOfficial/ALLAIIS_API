@@ -78,6 +78,9 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 			key += "\x00" + target.CredentialLabel
 		}
 		cooling, _ := store.Cooldown(ctx, target.Provider, key)
+		if bare, err := store.Cooldown(ctx, target.Provider, provider.BaseURL); err == nil && bare.After(cooling) {
+			cooling = bare
+		}
 		for attempt := 1; attempt <= attempts; attempt++ {
 			result := smokeResult{Alias: target.ID, Protocol: string(target.Protocol), Attempt: attempt}
 			if result.Protocol == "" {

@@ -87,7 +87,9 @@ function render () {
       resume.title = 'Lift the cooldown now'
       resume.onclick = async () => {
         try {
-          await api('/api/cooldown/clear', { method: 'POST', body: JSON.stringify({ provider: provider.id, label: coolingLabels[0] || '' }) })
+          for (const label of ['', ...coolingLabels]) {
+            await api('/api/cooldown/clear', { method: 'POST', body: JSON.stringify({ provider: provider.id, label }) })
+          }
           toast('Cooldown cleared')
           refresh()
         } catch (error) { toast(error.message, true) }

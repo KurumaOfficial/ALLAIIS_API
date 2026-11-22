@@ -75,7 +75,9 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   `<data dir>/chrome-profile`.
 - **Clearance expires.** `cf_clearance` lives for hours. On `403` the route
   returns `cloudflare_challenge`; run `web login` again.
-- **Guest quota is tiny** (about 10 chats/day, one quota window per day).
+- **Guest quota is tiny** (about 10 chats/day, one quota window per day). A spent
+  plan answers `402 insufficientBalance`; `allaiis web quota` and the panel's
+  Quota button show the reset time without spending a message.
   Attestation tokens are per-request, so the client mints in batches of five.
 - **Usage is estimated.** The web stream carries no token counters, so the reply
   marks `"estimated": true` and sets `X-ALLAIIS-Emulated-Features: usage_estimate`.
@@ -178,7 +180,8 @@ aliases also carry tool calls, so an agent loop works; usage stays estimated.
 | `web_session_expired` | Clerk session dead and the guest fallback failed |
 | `sign_in_required` | the model needs a signed-in session (guest cookie) |
 | `context_length_exceeded` | upstream `userPromptTooLong` |
-| `rate_limit_exceeded` | guest or plan quota spent; pool cools down for 10 minutes |
+| `rate_limit_exceeded` | the pool hit a `429`; that credential cools until the reset header says |
+| `insufficient_balance` | the plan allowance is spent (`402 insufficientBalance`); no cooldown is set, check `web quota` for the reset |
 
 ## Implementation
 
