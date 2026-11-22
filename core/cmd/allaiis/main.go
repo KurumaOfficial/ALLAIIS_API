@@ -42,6 +42,7 @@ const usage = `Usage: allaiis <command>
   web quota         Show remaining quota for stored web sessions
   status            Show configured models, key labels, and provider cooldowns
   doctor            Check config, vault, listener, aliases and capture browser
+  smoke             Probe aliases through an in-process gateway
   key               Print the local gateway bearer key
   export opencode   Print a custom provider config for OpenCode
   up                Start the loopback gateway
@@ -90,7 +91,9 @@ func run(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	var sources []string
 	var providerID, label, keyEnv, authPath, listen, ui string
-	var noOpen bool
+	var noOpen, asJSON bool
+	var attempts int
+	var timeout time.Duration
 	switch command {
 	case "import":
 		flags.Func("from", "key source, env or opencode (repeatable)", func(source string) error {
@@ -116,6 +119,12 @@ func run(ctx context.Context, args []string) error {
 		flags.StringVar(&ui, "ui", "127.0.0.1:0", "control panel address")
 		flags.BoolVar(&noOpen, "no-open", false, "do not open a browser")
 		fallthrough
+	case "smoke":
+		flags.StringVar(&label, "alias", "", "probe only this alias")
+		flags.IntVar(&attempts, "attempts", 1, "repeat every probe this many times")
+		flags.DurationVar(&timeout, "timeout", 4*time.Minute, "per-request timeout")
+		flags.BoolVar(&asJSON, "json", false, "print JSON instead of a table")
+		fallthrough
 	case "init", "key", "status", "doctor", "export opencode", "up":
 	default:
 		return fmt.Errorf("unknown command %q. Run allaiis help", command)
@@ -135,6 +144,9 @@ func run(ctx context.Context, args []string) error {
 	}
 	if command == "gui" {
 		return runGUI(ctx, dir, configPath, vaultPath, listen, ui, !noOpen)
+	}
+	if command == "smoke" {
+		return runSmoke(ctx, dir, configPath, vaultPath, label, attempts, timeout, asJSON)
 	}
 	passphrase, err := readPassphrase()
 	if err != nil {

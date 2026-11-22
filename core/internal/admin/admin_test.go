@@ -244,3 +244,39 @@ func TestDiagnosticsFlagsMissingCredential(t *testing.T) {
 		t.Fatalf("missing credential not flagged: %s", result.Body)
 	}
 }
+
+func TestSmokeProbesEveryAvailableAlias(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")
+	f.call(t, http.MethodPost, "/api/models",
+		`{"provider":"fake","upstream_model":"gpt-x","name":"x-alias","label":"work"}`, "")
+	result := f.call(t, http.MethodPost, "/api/smoke", `{}`, "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("smoke: %d %s", result.Code, result.Body)
+	}
+	var reply struct {
+		Passed  int `json:"passed"`
+		Failed  int `json:"failed"`
+		Results []struct {
+			Alias  string `json:"alias"`
+			Status int    `json:"status"`
+			Text   string `json:"text"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	if reply.Passed != 1 || reply.Failed != 0 || reply.Results[0].Text != "pong" {
+		t.Fatalf("unexpected smoke reply: %+v", reply)
+	}
+}
+
+func TestSmokeSkipsAliasesWithoutCredentials(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/models",
+		`{"provider":"fake","upstream_model":"gpt-x","name":"lonely"}`, "")
+	result := f.call(t, http.MethodPost, "/api/smoke", `{}`, "")
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"passed":0`) {
+		t.Fatalf("unexpected: %d %s", result.Code, result.Body)
+	}
+}

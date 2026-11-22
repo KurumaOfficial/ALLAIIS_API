@@ -81,9 +81,11 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/reload", s.guard(s.reloadConfig))
 	mux.HandleFunc("GET /api/discover", s.guard(s.discover))
 	mux.HandleFunc("POST /api/probe", s.guard(s.probe))
+	mux.HandleFunc("POST /api/smoke", s.guard(s.smoke))
 	mux.HandleFunc("GET /api/logs", s.guard(s.logsPage))
 	mux.HandleFunc("POST /api/web/chrome", s.guard(s.openChrome))
 	mux.HandleFunc("POST /api/web/login", s.guard(s.webLogin))
+	mux.HandleFunc("POST /api/web/recapture", s.guard(s.recapture))
 	mux.HandleFunc("GET /api/export", s.guard(s.exportConfig))
 	mux.HandleFunc("POST /api/doctor", s.guard(s.doctor))
 	return mux
@@ -455,6 +457,49 @@ func (s *Server) webLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"output": strings.TrimSpace(out)})
+}
+
+// recapture opens the capture browser and refreshes a session in one step.
+func (s *Server) recapture(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Provider string `json:"provider"`
+		Label    string `json:"label"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if !config.ValidCredentialLabel(input.Label) {
+		fail(w, http.StatusBadRequest, "give a valid credential label")
+		return
+	}
+	var steps []string
+	if !chromeReachable() {
+		out, err := s.execAllaiis(r, 90*time.Second, "web", "chrome")
+		steps = append(steps, out)
+		if err != nil {
+			fail(w, http.StatusBadGateway, strings.TrimSpace(strings.Join(steps, "\n")+"\n"+err.Error()))
+			return
+		}
+		deadline := time.Now().Add(30 * time.Second)
+		for !chromeReachable() && time.Now().Before(deadline) {
+			time.Sleep(300 * time.Millisecond)
+		}
+		if !chromeReachable() {
+			fail(w, http.StatusBadGateway, "the capture browser did not open its DevTools port")
+			return
+		}
+	}
+	out, err := s.execAllaiis(r, 5*time.Minute, "web", "login", "--provider", input.Provider, "--label", input.Label)
+	steps = append(steps, out)
+	if err != nil {
+		fail(w, http.StatusBadGateway, strings.TrimSpace(strings.Join(steps, "\n")))
+		return
+	}
+	if err := s.reloadFile(r.Context()); err != nil {
+		fail(w, http.StatusBadRequest, "session captured but reloading failed: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"output": strings.TrimSpace(strings.Join(steps, "\n"))})
 }
 
 func (s *Server) execAllaiis(r *http.Request, timeout time.Duration, args ...string) (string, error) {

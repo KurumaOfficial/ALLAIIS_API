@@ -75,6 +75,13 @@ function render () {
     line.innerHTML = '<span class="badge ' + (bad ? 'bad' : 'ok') + '">' + (bad ? 'cooling' : 'ready') + '</span>' +
       '<strong>' + esc(provider.id) + '</strong><span class="muted tiny">' + (provider.web ? 'web transport' : 'API') +
       ' · ' + provider.labels.length + ' credential(s)' + (bad ? ' · until ' + stamp(provider.cooldown_until) : '') + '</span>'
+    if (provider.web) {
+      const recapture = document.createElement('button')
+      recapture.className = 'ghost'
+      recapture.textContent = 'Recapture'
+      recapture.onclick = () => recaptureSession(provider)
+      line.append(recapture)
+    }
     health.append(line)
   }
 
@@ -282,6 +289,28 @@ function bind () {
     } catch (error) { show('probe-out', error.message) }
   }
 
+  $('smoke-run').onclick = async () => {
+    const box = $('smoke-out')
+    box.innerHTML = '<p class="muted">Probing every alias one by one…</p>'
+    try {
+      const result = await api('/api/smoke', { method: 'POST', body: '{}' })
+      box.replaceChildren()
+      for (const item of result.results) {
+        const line = document.createElement('div')
+        line.className = 'row'
+        line.innerHTML = '<span class="badge ' + (item.status === 200 && item.text ? 'ok' : 'bad') + '">' +
+          (item.status || '—') + '</span><strong>' + esc(item.alias) + '</strong><span class="badge ' + esc(item.protocol) + '">' +
+          (item.protocol || 'chat') + '</span><span class="muted tiny">' + item.millis + ' ms · ' +
+          esc((item.text || item.error || '').slice(0, 120)) + '</span>'
+        box.append(line)
+      }
+      const summary = document.createElement('p')
+      summary.className = 'tiny'
+      summary.textContent = result.passed + ' passed, ' + result.failed + ' failed'
+      box.append(summary)
+    } catch (error) { box.innerHTML = ''; toast(error.message, true) }
+  }
+
   $('set-privacy-save').onclick = async () => {
     try { await api('/api/settings', { method: 'POST', body: JSON.stringify({ min_privacy: $('set-privacy').value }) }); toast('Privacy floor saved'); refresh() } catch (error) { toast(error.message, true) }
   }
@@ -319,6 +348,18 @@ function bind () {
   $('copy-curl').onclick = async () => { await navigator.clipboard.writeText($('snip-curl').textContent); toast('Copied') }
   $('copy-claude').onclick = async () => { await navigator.clipboard.writeText($('snip-claude').textContent); toast('Copied') }
   $('logs-clear').onclick = () => { $('logs').replaceChildren() }
+}
+
+async function recaptureSession (provider) {
+  const label = prompt('Credential label to refresh for ' + provider.id, provider.labels[0] || 'pro')
+  if (!label) return
+  toast('Opening the capture browser and waiting for the sign-in…')
+  try {
+    const result = await api('/api/web/recapture', { method: 'POST', body: JSON.stringify({ provider: provider.id, label }) })
+    toast('Session refreshed')
+    show('capture-out', result.output || 'Session refreshed')
+    refresh()
+  } catch (error) { toast(error.message, true) }
 }
 
 bind()

@@ -25,7 +25,9 @@ ALLAIIS — локальный шлюз на Go для AI-клиентов, вк
 лог. Панель слушает `127.0.0.1` на случайном порту и требует одноразовый токен;
 наружу ничего не уходит. Изменения применяются к работающему гейтвею за секунды
 через горячую перезагрузку — без рестарта. Ту же диагностику без браузера даёт
-`allaiis doctor`. См. [docs/gui.ru.md](docs/gui.ru.md).
+`allaiis doctor`, а `allaiis smoke` прогоняет каждый алиас через временный
+внутренний гейтвей — CI ловит сломанный маршрут, не трогая рабочий. См.
+[docs/gui.ru.md](docs/gui.ru.md).
 
 ## Быстрый старт
 
@@ -255,6 +257,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Локальная панель (`allaiis gui`) | ✓ | `TestPanelAddKeyAndAlias`, `TestPanelRejectsMissingToken` | добавление алиаса, проба и удаление через панель | — |
 | Горячая перезагрузка и наблюдатель | ✓ | `TestReloadSwapsAndKeepsPreviousOnError`, `TestWatchReloadsChangedConfig` | изменения без рестарта | — |
 | Ротация ключа гейтвея | ✓ | `TestPanelDeleteAndRotate` | — | — |
+| Прогон алиасов (`smoke`, панель) | ✓ | `TestSmokePassesEveryAlias`, `TestSmokeReportsFailures` | 20 подряд запусков с инструментами, все алиасы | — |
 | Диагностика (`doctor`, панель) | ✓ | `TestDiagnosticsFlagsMissingCredential` | запуск CLI на живом хранилище | — |
 | Метрики запросов и живой лог | ✓ | `TestPanelProbe` | счётчики в панели | — |
 | Ввод изображений и файлов | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | цвет по PNG, поле из .txt | — |

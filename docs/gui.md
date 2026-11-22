@@ -18,7 +18,7 @@ port, `--listen 127.0.0.1:9000` overrides the gateway address for this run and
 | Aliases | Register and delete model aliases, including protocol and privacy |
 | Keys | Add API keys, remove credentials, capture a Venice web session, rotate the gateway key |
 | Discovery | Browse an upstream catalog with a stored credential and create an alias from a model |
-| Playground | Send a real probe through the running gateway and see status, latency and the upstream model |
+| Playground | Send a real probe, or probe every alias at once with status, latency and the upstream model |
 | Logs | Follow the structured log live |
 | Settings | Diagnostics, privacy floor, client snippets, reload, config export, data paths |
 
@@ -43,6 +43,19 @@ then pushed into the running gateway with an atomic table swap. The watcher also
 picks up edits made by the CLI or a text editor within a few seconds. A request
 in flight keeps the old snapshot; a failed reload keeps the previous routes and
 logs a warning. Pressing **Reload config from disk** forces the check.
+
+## Probes and smoke
+
+A single probe answers one alias. **Probe every alias** walks all aliases that
+have a credential, one at a time, and shows a pass/fail row per alias — the
+fastest way to see which route degraded after a provider change. The headless
+equivalent is `allaiis smoke`, which builds a throwaway in-process gateway so a
+running one is never disturbed:
+
+```powershell
+.\allaiis.exe smoke --alias cc --attempts 20   # repeat one alias
+.\allaiis.exe smoke --json                     # CI, exit 1 on any failure
+```
 
 ## Diagnostics
 
@@ -79,4 +92,5 @@ working at once.
 - **Browser does not open** — copy the `Control panel: http://…` line from the
   terminal.
 - **Capture fails** — the message says whether Chrome, the sign-in or the
-  Cloudflare clearance is missing. Reopen the capture browser and retry.
+  Cloudflare clearance is missing. Press **Recapture** on the provider in the
+  Overview to reopen the browser and refresh that label in one step.

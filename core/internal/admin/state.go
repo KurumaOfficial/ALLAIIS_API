@@ -209,6 +209,17 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"models": models})
 }
 
+type probeResult struct {
+	Alias    string `json:"alias,omitempty"`
+	Protocol string `json:"protocol,omitempty"`
+	Status   int    `json:"status"`
+	Millis   int64  `json:"millis"`
+	Text     string `json:"text,omitempty"`
+	Error    string `json:"error,omitempty"`
+	Upstream string `json:"upstream_model,omitempty"`
+	Emulated string `json:"emulated,omitempty"`
+}
+
 func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Model  string `json:"model"`
@@ -222,19 +233,84 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	var route config.Route
-	found := false
-	for _, candidate := range cfg.Models {
-		if candidate.ID == input.Model {
-			route, found = candidate, true
-			break
-		}
-	}
-	if !found {
+	route, ok := findRoute(cfg, input.Model)
+	if !ok {
 		fail(w, http.StatusNotFound, "unknown alias")
 		return
 	}
-	prompt := strings.TrimSpace(input.Prompt)
+	result := s.probeOne(r.Context(), cfg, route, input.Prompt)
+	writeJSON(w, http.StatusOK, result)
+}
+
+// smoke runs every alias that has a credential, sequentially.
+func (s *Server) smoke(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Alias string `json:"alias"`
+	}
+	decode(w, r, &input)
+	cfg, err := s.loadConfig()
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	labels := map[string][]string{}
+	for _, route := range cfg.Models {
+		if _, known := labels[route.Provider]; known {
+			continue
+		}
+		provider, ok := cfg.Provider(route.Provider)
+		if !ok {
+			continue
+		}
+		entries, err := s.options.Store.Entries(r.Context(), route.Provider, provider.BaseURL)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			labels[route.Provider] = append(labels[route.Provider], entry.Label)
+		}
+	}
+	models := append([]config.Route{}, cfg.Models...)
+	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
+
+	results := make([]probeResult, 0, len(models))
+	passed, failed := 0, 0
+	for _, route := range models {
+		if input.Alias != "" && route.ID != input.Alias {
+			continue
+		}
+		names := labels[route.Provider]
+		if (route.CredentialLabel == "" && len(names) == 0) || (route.CredentialLabel != "" && !contains(names, route.CredentialLabel)) {
+			continue
+		}
+		result := s.probeOne(r.Context(), cfg, route, "Reply with the single word: ready")
+		result.Alias = route.ID
+		result.Protocol = string(route.Protocol)
+		if result.Protocol == "" {
+			result.Protocol = "chat"
+		}
+		if result.Status == http.StatusOK && result.Text != "" {
+			passed++
+		} else {
+			failed++
+		}
+		results = append(results, result)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"results": results, "passed": passed, "failed": failed})
+}
+
+func findRoute(cfg config.Config, alias string) (config.Route, bool) {
+	for _, candidate := range cfg.Models {
+		if candidate.ID == alias {
+			return candidate, true
+		}
+	}
+	return config.Route{}, false
+}
+
+func (s *Server) probeOne(ctx context.Context, cfg config.Config, route config.Route, prompt string) probeResult {
+	var result probeResult
+	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
 		prompt = "Reply with the single word: ready"
 	}
@@ -260,12 +336,12 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	payload, _ := json.Marshal(body)
-	ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 150*time.Second)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+cfg.Listen+path, bytes.NewReader(payload))
 	if err != nil {
-		fail(w, http.StatusInternalServerError, err.Error())
-		return
+		result.Error = err.Error()
+		return result
 	}
 	for key, value := range headers {
 		request.Header.Set(key, value)
@@ -273,25 +349,22 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 	request.Header.Set("Content-Type", "application/json")
 	start := time.Now()
 	response, err := (&http.Client{Timeout: 150 * time.Second}).Do(request)
+	result.Millis = time.Since(start).Milliseconds()
 	if err != nil {
-		fail(w, http.StatusBadGateway, err.Error())
-		return
+		result.Error = err.Error()
+		return result
 	}
 	defer response.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-	elapsed := time.Since(start).Milliseconds()
-	var text, errorText string
+	result.Status = response.StatusCode
+	result.Upstream = response.Header.Get("X-ALLAIIS-Upstream-Model")
+	result.Emulated = response.Header.Get("X-ALLAIIS-Emulated-Features")
 	if response.StatusCode == http.StatusOK {
-		text = answerText(raw, route.Protocol)
+		result.Text = answerText(raw, route.Protocol)
 	} else {
-		errorText = failureText(raw)
+		result.Error = failureText(raw)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status": response.StatusCode, "millis": elapsed,
-		"text": text, "error": errorText,
-		"upstream_model": response.Header.Get("X-ALLAIIS-Upstream-Model"),
-		"emulated":       response.Header.Get("X-ALLAIIS-Emulated-Features"),
-	})
+	return result
 }
 
 func answerText(raw []byte, protocol config.Protocol) string {

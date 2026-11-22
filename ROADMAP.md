@@ -34,7 +34,8 @@ key gives clients access to the routes the operator has configured.
 - Add tier labels to the catalog page and a `--transport` column so web and
   official routes for one model are visibly distinct.
 - Larger attachment handling: chunked bodies and multiple files per turn.
-- Panel: per-alias quick probe results history and a usage chart over time.
+- Panel: keep probe history per alias and chart usage over time.
+- Run `smoke` on a schedule and notify on a failing alias.
 - Add richer catalog metadata for modalities, context windows, and endpoint
   compatibility where providers publish those fields.
 - Add cross-platform CI and reproducible Windows, Linux, and macOS releases,
