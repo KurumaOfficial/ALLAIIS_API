@@ -81,7 +81,9 @@ a restart. The panel's **Reset** button on the Tool reshaping card (or
 `POST /api/tools/reset`, or `allaiis tools reset`) zeroes both and deletes the
 file, which is how a fixed tool list stops carrying old blame. `allaiis tools
 show` prints the record, and a running gateway notices an outside edit or
-deletion within a couple of seconds.
+deletion within a couple of seconds. A name also expires after
+`tool_name_ttl_days` (default 30, `0` keeps names forever), so an alias fixed
+months ago does not keep the warning alive; the totals are cumulative and stay.
 Cardinality follows the configured aliases. Scrape it from a loopback collector.
 
 ## Graceful shutdown

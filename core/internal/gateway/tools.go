@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
@@ -148,6 +149,7 @@ const maxUnknownNames = 16
 var unknownNames struct {
 	mu    sync.Mutex
 	count map[string]int
+	seen  map[string]time.Time
 }
 
 // noteUnknownName counts one unknown name under the cap.
@@ -157,6 +159,10 @@ func noteUnknownName(name string) {
 	if unknownNames.count == nil {
 		unknownNames.count = map[string]int{}
 	}
+	if unknownNames.seen == nil {
+		unknownNames.seen = map[string]time.Time{}
+	}
+	unknownNames.seen[name] = time.Now()
 	if _, seen := unknownNames.count[name]; seen || len(unknownNames.count) < maxUnknownNames {
 		unknownNames.count[name]++
 		return

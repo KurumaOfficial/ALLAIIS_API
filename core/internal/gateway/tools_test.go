@@ -867,3 +867,94 @@ func TestWatcherFollowsAnOutsideReset(t *testing.T) {
 	}
 	t.Fatalf("deletion not followed: %v", ToolUnknownNames(3))
 }
+
+func setToolNameTTL(t *testing.T, days int) {
+	t.Helper()
+	previous := toolNameTTL.Load()
+	toolNameTTL.Store(int64(days))
+	t.Cleanup(func() { toolNameTTL.Store(previous) })
+}
+
+func seedUnknownName(name string, seen time.Time) {
+	unknownNames.mu.Lock()
+	defer unknownNames.mu.Unlock()
+	if unknownNames.count == nil {
+		unknownNames.count = map[string]int{}
+	}
+	if unknownNames.seen == nil {
+		unknownNames.seen = map[string]time.Time{}
+	}
+	unknownNames.count[name] = 1
+	unknownNames.seen[name] = seen
+}
+
+func TestToolNamesExpireOnSave(t *testing.T) {
+	setToolNameTTL(t, 1)
+	dir := t.TempDir()
+	(&Gateway{}).WithStateDir(context.Background(), dir)
+	seedUnknownName("ttl_old", time.Now().Add(-48*time.Hour))
+	seedUnknownName("ttl_fresh", time.Now())
+
+	toolNameFile.mu.Lock()
+	toolNameFile.lastSave = time.Time{}
+	toolNameFile.mu.Unlock()
+	saveToolNameState()
+
+	raw, err := os.ReadFile(filepath.Join(dir, "tool-names.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "ttl_old") {
+		t.Fatalf("expired name saved: %s", raw)
+	}
+	if !strings.Contains(string(raw), "ttl_fresh") {
+		t.Fatalf("fresh name lost: %s", raw)
+	}
+}
+
+func TestToolNamesExpireOnLoad(t *testing.T) {
+	setToolNameTTL(t, 1)
+	dir := t.TempDir()
+	stamp := time.Now().Add(-48 * time.Hour).UnixMilli()
+	body := `{"unknown":1,"names":{"ttl_loaded":1},"seen":{"ttl_loaded":` + strconv.FormatInt(stamp, 10) + `}}`
+	if err := os.WriteFile(filepath.Join(dir, "tool-names.json"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	(&Gateway{}).WithStateDir(context.Background(), dir)
+
+	if names := ToolUnknownNames(0); len(names) != 0 {
+		t.Fatalf("expired name loaded: %v", names)
+	}
+}
+
+func TestToolNamesExpiryCanBeDisabled(t *testing.T) {
+	setToolNameTTL(t, 0)
+	dir := t.TempDir()
+	(&Gateway{}).WithStateDir(context.Background(), dir)
+	seedUnknownName("ttl_forever", time.Now().Add(-4000*24*time.Hour))
+
+	toolNameFile.mu.Lock()
+	toolNameFile.lastSave = time.Time{}
+	toolNameFile.mu.Unlock()
+	saveToolNameState()
+
+	if names := ToolUnknownNames(0); len(names) == 0 {
+		t.Fatal("name dropped with retention off")
+	}
+}
+
+func TestToolNamesFromAnOldFileStayFresh(t *testing.T) {
+	setToolNameTTL(t, 1)
+	dir := t.TempDir()
+	// No "seen" map at all: the file predates timestamps.
+	if err := os.WriteFile(filepath.Join(dir, "tool-names.json"), []byte(`{"unknown":1,"names":{"ttl_nosee":1}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	(&Gateway{}).WithStateDir(context.Background(), dir)
+
+	if names := ToolUnknownNames(0); len(names) != 1 || names[0] != "ttl_nosee" {
+		t.Fatalf("old file dropped: %v", names)
+	}
+}

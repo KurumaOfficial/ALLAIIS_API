@@ -172,10 +172,16 @@ type Config struct {
 	MinPrivacy Privacy             `json:"min_privacy,omitempty"`
 	Providers  map[string]Provider `json:"providers,omitempty"`
 	Models     []Route             `json:"models"`
+	// ToolNameTTLDays is how long an unknown tool name is remembered for the
+	// doctor; zero keeps it forever.
+	ToolNameTTLDays int `json:"tool_name_ttl_days,omitempty"`
 }
 
+// DefaultToolNameTTLDays is the retention applied when a config names none.
+const DefaultToolNameTTLDays = 30
+
 func Default() Config {
-	return Config{Listen: DefaultListen, MinPrivacy: Consumer, Models: []Route{}}
+	return Config{Listen: DefaultListen, MinPrivacy: Consumer, Models: []Route{}, ToolNameTTLDays: DefaultToolNameTTLDays}
 }
 
 func (c Config) Provider(id string) (Provider, bool) {
@@ -244,6 +250,9 @@ func (c *Config) validate() error {
 	}
 	if !c.MinPrivacy.Valid() {
 		return errors.New("invalid min_privacy")
+	}
+	if c.ToolNameTTLDays < 0 || c.ToolNameTTLDays > 3650 {
+		return errors.New("tool_name_ttl_days must be from 0 to 3650")
 	}
 	baseURLs := make(map[string]string, len(defaults)+len(c.Providers))
 	for id, p := range defaults {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,10 +16,21 @@ import (
 // repaired, how many stayed unknown and which ones. It exists so the doctor
 // warning survives a restart instead of forgetting what the last run learned.
 type toolNameState struct {
-	Folded   int64          `json:"folded"`
-	Suffixed int64          `json:"suffixed"`
-	Unknown  int64          `json:"unknown"`
-	Names    map[string]int `json:"names"`
+	Folded   int64            `json:"folded"`
+	Suffixed int64            `json:"suffixed"`
+	Unknown  int64            `json:"unknown"`
+	Names    map[string]int   `json:"names"`
+	Seen     map[string]int64 `json:"seen,omitempty"`
+}
+
+// toolNameTTL is the retention in days; zero keeps names forever. A name the
+// model stopped inventing should not be blamed a year later.
+var toolNameTTL atomic.Int64
+
+// WithToolNameTTL sets the retention in days for unknown names.
+func (g *Gateway) WithToolNameTTL(days int) *Gateway {
+	toolNameTTL.Store(int64(days))
+	return g
 }
 
 var toolNameFile struct {
@@ -44,6 +56,22 @@ func (g *Gateway) WithStateDir(ctx context.Context, dir string) *Gateway {
 	loadToolNameState(path)
 	go watchToolNameFile(ctx)
 	return g
+}
+
+// dropExpiredNames forgets names older than the retention. The caller holds the
+// lock.
+func dropExpiredNames(now time.Time) {
+	days := toolNameTTL.Load()
+	if days <= 0 || len(unknownNames.seen) == 0 {
+		return
+	}
+	cutoff := now.Add(-time.Duration(days) * 24 * time.Hour)
+	for name, seen := range unknownNames.seen {
+		if seen.Before(cutoff) {
+			delete(unknownNames.seen, name)
+			delete(unknownNames.count, name)
+		}
+	}
 }
 
 // toolNameWatchEvery is how often the file is checked for an outside change.
@@ -102,6 +130,7 @@ func clearToolNameState() {
 	toolCounters.unknown.Store(0)
 	unknownNames.mu.Lock()
 	unknownNames.count = map[string]int{}
+	unknownNames.seen = map[string]time.Time{}
 	unknownNames.mu.Unlock()
 }
 
@@ -119,13 +148,23 @@ func loadToolNameState(path string) {
 	toolCounters.suffix.Store(saved.Suffixed)
 	toolCounters.unknown.Store(saved.Unknown)
 
+	now := time.Now()
 	unknownNames.mu.Lock()
 	unknownNames.count = map[string]int{}
+	unknownNames.seen = map[string]time.Time{}
 	for name, count := range saved.Names {
-		if count > 0 {
-			unknownNames.count[name] = count
+		if count <= 0 {
+			continue
+		}
+		unknownNames.count[name] = count
+		// A file from before the timestamps existed is treated as fresh.
+		if stamp, ok := saved.Seen[name]; ok {
+			unknownNames.seen[name] = time.UnixMilli(stamp)
+		} else {
+			unknownNames.seen[name] = now
 		}
 	}
+	dropExpiredNames(now)
 	trimUnknownNames(maxUnknownNames)
 	unknownNames.mu.Unlock()
 }
@@ -183,10 +222,14 @@ func saveToolNameState() {
 		return
 	}
 
+	now := time.Now()
 	unknownNames.mu.Lock()
+	dropExpiredNames(now)
 	names := make(map[string]int, len(unknownNames.count))
+	seen := make(map[string]int64, len(unknownNames.count))
 	for name, count := range unknownNames.count {
 		names[name] = count
+		seen[name] = unknownNames.seen[name].UnixMilli()
 	}
 	unknownNames.mu.Unlock()
 
@@ -195,6 +238,7 @@ func saveToolNameState() {
 		Suffixed: toolCounters.suffix.Load(),
 		Unknown:  toolCounters.unknown.Load(),
 		Names:    names,
+		Seen:     seen,
 	}
 	raw, err := json.Marshal(state)
 	if err != nil {
