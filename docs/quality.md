@@ -108,7 +108,9 @@ make the view lie; a running
 gateway notices an outside edit or deletion within a couple of seconds. A name also expires after
 `tool_name_ttl_days` (default 30, `0` keeps names forever; the environment
 variable `ALLAIIS_TOOL_NAME_TTL` overrides it with a Go duration such as `90s`,
-which is how a demo sees it without waiting a day): it stops being listed
+which is how a demo sees it without waiting a day). The doctor states the same
+retention in its warning, so a name that vanished reads as expired rather than
+lost: a name past it stops being listed
 and stop counting as evidence, and the drop button or a restart removes it, so an
 alias fixed months ago does not keep the warning alive. Saving does not prune, so
 the drop has something to act on; the totals are cumulative and stay.

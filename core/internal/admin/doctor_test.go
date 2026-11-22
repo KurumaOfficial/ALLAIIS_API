@@ -44,11 +44,22 @@ func TestDiagnoseReportsToolNames(t *testing.T) {
 	found := false
 	for _, check := range checks {
 		if check.Name == "tool names" {
-			found = check.Status == "warn"
+			// The retention decides how long the warning lives, so it is stated.
+			found = check.Status == "warn" && strings.Contains(check.Detail, "retention ")
 		}
 	}
 	if !found {
-		t.Fatalf("tool names not flagged: %+v", checks)
+		t.Fatalf("tool names not flagged with retention: %+v", checks)
+	}
+}
+
+func TestLiveRetentionOverridesTheConfig(t *testing.T) {
+	t.Setenv("ALLAIIS_TOOL_NAME_TTL", "90s")
+	if got := liveTTL(30 * 24 * time.Hour); got != 90*time.Second {
+		t.Fatalf("override ignored: %v", got)
+	}
+	if got := retentionNote(0); !strings.Contains(got, "off") {
+		t.Fatalf("off not stated: %q", got)
 	}
 }
 

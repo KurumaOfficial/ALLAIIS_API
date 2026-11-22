@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -163,11 +164,14 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 
 	repaired, unknown, names := nameStats()
 	expired := 0
+	ttl := liveTTL(time.Duration(cfg.ToolNameTTLDays) * 24 * time.Hour)
 	if live, ok := fetchStats(ctx, cfg.Listen); ok {
 		// A running gateway knows better than this process does.
-		repaired, unknown, names, expired = live.repaired, live.unknown, live.names, live.expired
+		repaired, unknown, names, expired, ttl = live.repaired, live.unknown, live.names, live.expired, live.ttl
 	}
 	if status, detail, ok := toolNameVerdict(repaired, unknown, firstNames(names, 3)); ok {
+		// The retention decides how long a warning lives, so it travels with it.
+		detail += "; " + retentionNote(ttl)
 		if expired > 0 {
 			detail += fmt.Sprintf("; %d older name(s) expired and ignored", expired)
 		}
@@ -215,6 +219,33 @@ func (s *Server) toolReset(w http.ResponseWriter, r *http.Request) {
 	}
 	s.options.Gateway.ResetToolNameState()
 	writeJSON(w, http.StatusOK, map[string]any{"reset": true})
+}
+
+// retentionNote says how long a name stays evidence.
+func retentionNote(ttl time.Duration) string {
+	if ttl <= 0 {
+		return "retention off, names are kept"
+	}
+	days := int(ttl / (24 * time.Hour))
+	switch {
+	case days > 0:
+		return fmt.Sprintf("retention %dd", days)
+	case ttl >= time.Hour:
+		return fmt.Sprintf("retention %dh", int(ttl/time.Hour))
+	case ttl >= time.Minute:
+		return fmt.Sprintf("retention %dm", int(ttl/time.Minute))
+	}
+	return fmt.Sprintf("retention %ds", int(ttl/time.Second))
+}
+
+// liveTTL prefers the environment override over the configured retention.
+func liveTTL(configured time.Duration) time.Duration {
+	if raw := os.Getenv("ALLAIIS_TOOL_NAME_TTL"); raw != "" {
+		if ttl, err := time.ParseDuration(raw); err == nil {
+			return ttl
+		}
+	}
+	return configured
 }
 
 // firstNames keeps the leading names up to limit.
