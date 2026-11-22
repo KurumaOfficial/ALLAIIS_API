@@ -306,6 +306,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Diagnostics (`doctor`, panel) | ✓ | `TestDiagnosticsFlagsMissingCredential`, `TestDiagnoseReportsToolNames`, `TestDiagnosePrefersTheLiveGateway`, `TestFetchLiveStatsReadsTheEndpoint` | CLI run on the live vault and live gateway counters | — |
 | Unknown tool-name record and retention | ✓ | `TestToolNameStateSurvivesARestart`, `TestLiveUnknownNamesSkipsExpired`, `TestDropExpiredToolNamesKeepsTheFresh`, `TestToolNamesEndpoint`, `TestToolsShowMarksExpiredNames` | record survives a restart, expiry marker and drop | — |
 | Web image and file input | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | colour from a PNG, owner from a .txt | — |
+| Configurable request size cap | ✓ | `TestRequestCapComesFromTheConfig`, `TestMaxRequestDefaultsAndParses`, `TestMaxRequestRange` | 9 MiB body answered `request_too_large` with the limit | — |
 
 ### Offline compatibility
 

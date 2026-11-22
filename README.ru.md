@@ -296,6 +296,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Запись незнакомых имён и срок хранения | ✓ | `TestToolNameStateSurvivesARestart`, `TestLiveUnknownNamesSkipsExpired`, `TestDropExpiredToolNamesKeepsTheFresh`, `TestToolNamesEndpoint`, `TestToolsShowMarksExpiredNames` | запись переживает рестарт, пометка просрочки и удаление | — |
 | Метрики запросов и живой лог | ✓ | `TestPanelProbe` | счётчики в панели | — |
 | Ввод изображений и файлов | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | цвет по PNG, поле из .txt | — |
+| Настраиваемый лимит тела запроса | ✓ | `TestRequestCapComesFromTheConfig`, `TestMaxRequestDefaultsAndParses`, `TestMaxRequestRange` | тело на 9 МиБ получило `request_too_large` с пределом | — |
 
 ### Офлайн-совместимость
 

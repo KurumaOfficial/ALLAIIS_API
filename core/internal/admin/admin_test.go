@@ -79,7 +79,7 @@ func setup(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithReload(path, store)
+	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithConfig(cfg).WithReload(path, store)
 	gate.Config.Handler = live
 	panel, err := New(Options{
 		Gateway: live, Store: store, ConfigPath: path, DataDir: dir,
@@ -398,7 +398,7 @@ func catalogFixture(t *testing.T, hits *int32) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithReload(path, store)
+	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithConfig(cfg).WithReload(path, store)
 	panel, err := New(Options{Gateway: live, Store: store, ConfigPath: path, DataDir: dir, Passphrase: pass})
 	if err != nil {
 		t.Fatal(err)
