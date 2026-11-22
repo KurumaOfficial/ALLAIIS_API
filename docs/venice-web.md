@@ -52,7 +52,20 @@ To capture from another browser, paste a cookie header instead:
 ```
 
 The status of the pool is visible with `./allaiis web quota`; it reports the
-remaining chat/image/scrape counters and the reset time.
+remaining chat/image/scrape counters, the reset time, and whether the session is
+signed in or a guest. `allaiis up` prints every alias it serves.
+
+### Per-OS notes
+
+- **Windows.** `web chrome` finds Chrome under `Program Files`. Chrome 136 and
+  later only open a DevTools port for a non-default profile, which is exactly why
+  the capture profile exists.
+- **Linux.** Install Chrome or Chromium; `web chrome` also probes `google-chrome`
+  on `PATH`. Run headless hosts behind Xvfb, or log in on a desktop and copy the
+  data directory as a whole (not its files individually).
+- **macOS.** `web chrome` uses
+  `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`. Chrome may ask
+  for Keychain access the first time; allow it so cookies stay decryptable.
 
 ## Operating notes
 

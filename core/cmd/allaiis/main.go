@@ -199,6 +199,7 @@ func run(ctx context.Context, args []string) error {
 	case "export opencode":
 		return exportOpenCode(os.Stdout, cfg.Listen, routes.Models(cfg.MinPrivacy))
 	case "up":
+		advertise(os.Stdout, cfg, routes.Models(cfg.MinPrivacy))
 		return serve(ctx, cfg.Listen, gateway.New(routes, store.ClientKey(), cfg.MinPrivacy))
 	}
 	return errors.New("unhandled command")
@@ -320,6 +321,24 @@ func writeJSON(w io.Writer, value any) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(value)
+}
+
+// advertise prints the served aliases and warns about unpinned pools.
+func advertise(w io.Writer, cfg config.Config, models []router.Model) {
+	fmt.Fprintf(w, "Serving %d alias(es) on http://%s/v1\n", len(models), cfg.Listen)
+	fmt.Fprintf(w, "Base URL: http://%s/v1\n", cfg.Listen)
+	for _, model := range models {
+		fmt.Fprintf(w, "  - %s (%s)\n", model.ID, model.Provider)
+	}
+	unpinned := 0
+	for _, route := range cfg.Models {
+		if route.CredentialLabel == "" {
+			unpinned++
+		}
+	}
+	if unpinned > 0 {
+		fmt.Fprintf(w, "Hint: %d alias(es) have no --label; a multi-session pool then picks one by request hash.\n", unpinned)
+	}
 }
 
 func serve(ctx context.Context, address string, handler http.Handler) error {
