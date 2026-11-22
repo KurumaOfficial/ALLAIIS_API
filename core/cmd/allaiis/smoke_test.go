@@ -149,3 +149,17 @@ func TestSmokeToolCallReadsTheName(t *testing.T) {
 		t.Fatalf("prose produced %q", name)
 	}
 }
+
+func TestSmokeToolProbeNeedsTheArgument(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Right name, no argument: the client would reject it.
+		io.WriteString(w, `{"choices":[{"message":{"tool_calls":[{"function":{"name":"list_files","arguments":"{}"}}]}}]}`)
+	}))
+	t.Cleanup(upstream.Close)
+
+	result := smokeTools(t.Context(), &http.Client{Timeout: 5 * time.Second}, upstream.URL, "sk", config.Route{ID: "one"})
+	if result.OK || !strings.Contains(result.Detail, "without path") {
+		t.Fatalf("empty arguments accepted: %+v", result)
+	}
+}

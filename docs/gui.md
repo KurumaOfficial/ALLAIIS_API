@@ -107,8 +107,8 @@ extra request; its row is named `<alias> (tools)`. A prose answer gets one firme
 the first still cannot produce a call, so a chatty model or one without tool
 support is not paged for on its own. The probe call is marked with `X-ALLAIIS-Probe: smoke`, so its
 deliberately unknown `list_files` name does not count as a model mistake in the
-unknown counters or the name record, and a call under another name is reported as
-such instead of passing.
+unknown counters or the name record, and a call under another name or without the
+argument is reported as such instead of passing.
 
 ## Diagnostics
 

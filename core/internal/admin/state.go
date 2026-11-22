@@ -475,10 +475,16 @@ func (s *Server) toolAttempt(ctx context.Context, cfg config.Config, route confi
 		result.Error = "answered without a tool call"
 		return result
 	}
-	// A call under another name means the guard or the model mangled it.
+	// A call under another name means the guard or the model mangled it; a call
+	// without the required field means the repair did not fill it.
 	if !strings.HasPrefix(result.Text, "list_files ") {
 		result.OK = false
 		result.Error = "called " + strings.Fields(result.Text)[0] + " instead of list_files"
+		return result
+	}
+	if !strings.Contains(result.Text, `"path"`) {
+		result.OK = false
+		result.Error = "called list_files without path"
 	}
 	return result
 }

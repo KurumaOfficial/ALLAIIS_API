@@ -388,6 +388,8 @@ func smokeToolAttempt(ctx context.Context, client *http.Client, base, key string
 		result.Detail = "answered without a tool call"
 	case name != "list_files":
 		result.Detail = "called " + name + " instead of list_files"
+	case !strings.Contains(arguments, `"path"`):
+		result.Detail = "called list_files without path"
 	default:
 		result.OK = true
 		result.Detail = strings.TrimSpace(name + " " + arguments)
