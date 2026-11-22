@@ -255,8 +255,26 @@ space and turns. Denying `execute` removes Code Mode and lists the tools directl
 ```
 
 Measured on the same task: 11 steps with the sandbox versus 11 without, 3 sandbox
-calls against 0, and 25 s against 15 s. An eight-function task finished in 44
-steps with no sandbox call at all.
+calls against 0, and 25 s against 15 s.
+
+Long work also needs an agent with a step budget, and the prompt has to say that
+a finished step is not a reason to yield:
+
+```md
+---
+description: DeepSeek on the Venice web transport for long tasks
+mode: primary
+model: allaiis/venice-deepseek
+steps: 200
+---
+```
+
+```sh
+opencode run --auto --agent venice "..." < TASK.md
+```
+
+An eight-function task then ran 44 steps, 73 tool calls, zero errors, zero leaked
+markers, 91 passing subtests, and finished with a summary.
 
 The alias decides whether the request goes to a key API or to the web
 transport. Keep the real model limits and capabilities in the OpenCode entry:
