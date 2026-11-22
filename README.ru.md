@@ -274,6 +274,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Горячая перезагрузка и наблюдатель | ✓ | `TestReloadSwapsAndKeepsPreviousOnError`, `TestWatchReloadsChangedConfig` | изменения без рестарта | — |
 | Ротация ключа гейтвея | ✓ | `TestPanelDeleteAndRotate` | — | — |
 | Прогон алиасов (`smoke`, панель) | ✓ | `TestSmokePassesEveryAlias`, `TestSmokeReportsFailures` | 20 подряд запусков с инструментами, все алиасы | — |
+| Плановый прогон и webhook-тревога | ✓ | `TestHealthReportsRegressionsOnly`, `TestWebhookDelivers`, `TestScheduledSmokeRecordsHistory` | — | — |
 | Диагностика (`doctor`, панель) | ✓ | `TestDiagnosticsFlagsMissingCredential` | запуск CLI на живом хранилище | — |
 | Метрики запросов и живой лог | ✓ | `TestPanelProbe` | счётчики в панели | — |
 | Ввод изображений и файлов | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | цвет по PNG, поле из .txt | — |

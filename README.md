@@ -285,6 +285,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Gateway key rotation | ✓ | `TestPanelDeleteAndRotate` | — | — |
 | Request metrics and live log | ✓ | `TestPanelProbe` | panel overview counters | — |
 | Alias probe loop (`smoke`, panel) | ✓ | `TestSmokePassesEveryAlias`, `TestSmokeReportsFailures` | 20 consecutive tool-capable runs, all aliases | — |
+| Scheduled sweep and webhook alert | ✓ | `TestHealthReportsRegressionsOnly`, `TestWebhookDelivers`, `TestScheduledSmokeRecordsHistory` | — | — |
 | Diagnostics (`doctor`, panel) | ✓ | `TestDiagnosticsFlagsMissingCredential` | CLI run on the live vault | — |
 | Web image and file input | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | colour from a PNG, owner from a .txt | — |
 

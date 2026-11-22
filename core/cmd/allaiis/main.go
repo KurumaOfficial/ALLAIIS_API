@@ -93,7 +93,8 @@ func run(ctx context.Context, args []string) error {
 	var providerID, label, keyEnv, authPath, listen, ui string
 	var noOpen, asJSON bool
 	var attempts int
-	var timeout time.Duration
+	var timeout, smokeEvery time.Duration
+	var smokeWebhook string
 	switch command {
 	case "import":
 		flags.Func("from", "key source, env or opencode (repeatable)", func(source string) error {
@@ -118,6 +119,8 @@ func run(ctx context.Context, args []string) error {
 		flags.StringVar(&listen, "listen", "", "gateway address (defaults to the configured one)")
 		flags.StringVar(&ui, "ui", "127.0.0.1:0", "control panel address")
 		flags.BoolVar(&noOpen, "no-open", false, "do not open a browser")
+		flags.DurationVar(&smokeEvery, "smoke-every", 0, "probe every alias on this interval (e.g. 15m)")
+		flags.StringVar(&smokeWebhook, "smoke-webhook", "", "POST failures and regressions to this URL")
 		fallthrough
 	case "smoke":
 		flags.StringVar(&label, "alias", "", "probe only this alias")
@@ -143,7 +146,7 @@ func run(ctx context.Context, args []string) error {
 		return errors.New("--provider and --label are required")
 	}
 	if command == "gui" {
-		return runGUI(ctx, dir, configPath, vaultPath, listen, ui, !noOpen)
+		return runGUI(ctx, dir, configPath, vaultPath, listen, ui, !noOpen, smokeEvery, smokeWebhook)
 	}
 	if command == "smoke" {
 		return runSmoke(ctx, dir, configPath, vaultPath, label, attempts, timeout, asJSON)

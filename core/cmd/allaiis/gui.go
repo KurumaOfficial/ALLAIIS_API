@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/admin"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
@@ -20,7 +21,7 @@ import (
 const version = "0.1.0"
 
 // runGUI serves the gateway and the loopback control panel together.
-func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, openBrowser bool) error {
+func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, openBrowser bool, smokeEvery time.Duration, smokeWebhook string) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
@@ -50,6 +51,7 @@ func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, 
 	panel, err := admin.New(admin.Options{
 		Gateway: live, Store: store, ConfigPath: configPath, DataDir: dir,
 		Passphrase: append([]byte{}, passphrase...), Version: version,
+		SmokeEvery: smokeEvery, SmokeWebhook: smokeWebhook,
 	})
 	if err != nil {
 		return err
@@ -61,6 +63,9 @@ func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, 
 	run, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go live.Watch(run)
+	if smokeEvery > 0 {
+		panel.StartSmoke(run, smokeEvery, smokeWebhook)
+	}
 
 	ready := make(chan string, 1)
 	failures := make(chan error, 2)

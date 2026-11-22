@@ -78,6 +78,22 @@ running one is never disturbed:
 .\allaiis.exe smoke --json                     # CI, exit 1 on any failure
 ```
 
+## Scheduled sweeps
+
+`allaiis gui --smoke-every 15m` probes every alias on a timer (minimum one
+minute) and keeps the last result per alias in the Playground tab. A route that
+passed before and fails now is logged as `alias regressed` and, when
+`--smoke-webhook https://…` is set, POSTed as JSON:
+
+```json
+{"passed": 7, "failed": 2, "regressions": [{"alias": "…", "status": 429, "error": "…"}],
+ "results": [], "time": "2026-11-22T17:00:00Z"}
+```
+
+Any failure also triggers a delivery, so a webhook can page on the first broken
+route instead of waiting for a user report. The sweep is off by default and
+runs sequentially.
+
 ## Diagnostics
 
 **Run checks** inspects the config, the vault, the listener, alias-to-credential

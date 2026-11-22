@@ -70,6 +70,7 @@ type stateView struct {
 	Models      []modelView    `json:"models"`
 	Usage       map[string]any `json:"usage"`
 	PrivacySeen []string       `json:"privacy_levels"`
+	SmokeEvery  string         `json:"smoke_every,omitempty"`
 }
 
 func (s *Server) snapshot(ctx context.Context) (stateView, error) {
@@ -87,6 +88,9 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 		},
 	}
 	view.Reachable = reachable(cfg.Listen)
+	if s.options.SmokeEvery > 0 {
+		view.SmokeEvery = s.options.SmokeEvery.String()
+	}
 
 	ids := cfg.ProviderIDs()
 	for id := range cfg.Providers {
@@ -267,6 +271,7 @@ type probeResult struct {
 	Alias    string `json:"alias,omitempty"`
 	Protocol string `json:"protocol,omitempty"`
 	Status   int    `json:"status"`
+	OK       bool   `json:"ok"`
 	Millis   int64  `json:"millis"`
 	Text     string `json:"text,omitempty"`
 	Error    string `json:"error,omitempty"`
@@ -302,10 +307,15 @@ func (s *Server) smoke(w http.ResponseWriter, r *http.Request) {
 		Alias string `json:"alias"`
 	}
 	decode(w, r, &input)
+	results, passed, failed := s.smokeRun(r.Context(), input.Alias)
+	writeJSON(w, http.StatusOK, map[string]any{"results": results, "passed": passed, "failed": failed})
+}
+
+// smokeRun probes the aliases with a credential in sorted order.
+func (s *Server) smokeRun(ctx context.Context, alias string) ([]probeResult, int, int) {
 	cfg, err := s.loadConfig()
 	if err != nil {
-		fail(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, 0, 0
 	}
 	labels := map[string][]string{}
 	for _, route := range cfg.Models {
@@ -316,7 +326,7 @@ func (s *Server) smoke(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
-		entries, err := s.options.Store.Entries(r.Context(), route.Provider, provider.BaseURL)
+		entries, err := s.options.Store.Entries(ctx, route.Provider, provider.BaseURL)
 		if err != nil {
 			continue
 		}
@@ -330,7 +340,7 @@ func (s *Server) smoke(w http.ResponseWriter, r *http.Request) {
 	results := make([]probeResult, 0, len(models))
 	passed, failed := 0, 0
 	for _, route := range models {
-		if route.Disabled || (input.Alias != "" && route.ID != input.Alias) {
+		if route.Disabled || (alias != "" && route.ID != alias) {
 			continue
 		}
 		names := labels[route.Provider]
@@ -343,28 +353,29 @@ func (s *Server) smoke(w http.ResponseWriter, r *http.Request) {
 		if route.CredentialLabel != "" {
 			key += "\x00" + route.CredentialLabel
 		}
-		until, err := s.options.Store.Cooldown(r.Context(), route.Provider, key)
-		if bare, bareErr := s.options.Store.Cooldown(r.Context(), route.Provider, provider.BaseURL); bareErr == nil && bare.After(until) {
+		until, err := s.options.Store.Cooldown(ctx, route.Provider, key)
+		if bare, bareErr := s.options.Store.Cooldown(ctx, route.Provider, provider.BaseURL); bareErr == nil && bare.After(until) {
 			until = bare
 		}
 		if err == nil && time.Now().Before(until) {
 			result.Error = "provider cooling until " + until.Format("15:04:05")
 		} else {
-			result = s.probeOne(r.Context(), cfg, route, "Reply with the single word: ready")
+			result = s.probeOne(ctx, cfg, route, "Reply with the single word: ready")
 		}
 		result.Alias = route.ID
 		result.Protocol = string(route.Protocol)
 		if result.Protocol == "" {
 			result.Protocol = "chat"
 		}
-		if result.Status == http.StatusOK && result.Text != "" {
+		result.OK = result.Status == http.StatusOK && result.Text != ""
+		if result.OK {
 			passed++
 		} else {
 			failed++
 		}
 		results = append(results, result)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"results": results, "passed": passed, "failed": failed})
+	return results, passed, failed
 }
 
 func findRoute(cfg config.Config, alias string) (config.Route, bool) {

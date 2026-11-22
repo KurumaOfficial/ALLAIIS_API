@@ -237,6 +237,28 @@ async function refresh () {
   }
 }
 
+async function refreshHealth () {
+  try {
+    const result = await api('/api/smoke/history')
+    $('sweep-mode').textContent = result.updated
+      ? 'last run ' + stamp(Date.parse(result.updated)) + (state?.smoke_every ? ' · every ' + state.smoke_every : '')
+      : state?.smoke_every ? 'every ' + state.smoke_every : 'off'
+    const box = $('health-out')
+    box.replaceChildren()
+    const ids = Object.keys(result.last || {}).sort()
+    if (!ids.length) box.innerHTML = '<p class="muted">No scheduled run yet.</p>'
+    for (const id of ids) {
+      const item = result.last[id]
+      const line = document.createElement('div')
+      line.className = 'row'
+      line.innerHTML = '<span class="badge ' + (item.ok ? 'ok' : 'bad') + '">' + (item.ok ? 'ok' : item.status) +
+        '</span><strong>' + esc(id) + '</strong><span class="muted tiny">' + stamp(Date.parse(item.time)) + ' · ' +
+        item.millis + ' ms · ' + esc(item.detail.slice(0, 120)) + '</span>'
+      box.append(line)
+    }
+  } catch (error) { /* transient */ }
+}
+
 async function refreshLogs () {
   try {
     const result = await api('/api/logs?since=' + logCursor)
@@ -490,4 +512,5 @@ refresh()
 setInterval(() => {
   if (view === 'overview' || view === 'aliases' || view === 'keys') refresh()
   if (view === 'logs') refreshLogs()
+  if (view === 'playground') refreshHealth()
 }, 4000)

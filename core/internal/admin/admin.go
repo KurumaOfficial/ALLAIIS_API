@@ -41,6 +41,9 @@ type Options struct {
 	DataDir    string
 	Passphrase []byte
 	Version    string
+	// SmokeEvery enables the scheduled probe sweep when non-zero.
+	SmokeEvery   time.Duration
+	SmokeWebhook string
 }
 
 type Server struct {
@@ -48,6 +51,7 @@ type Server struct {
 	token    string
 	logs     *logHub
 	catalogs *catalogCache
+	health   *health
 	mux      http.Handler
 }
 
@@ -55,7 +59,7 @@ func New(options Options) (*Server, error) {
 	if options.Gateway == nil || options.Store == nil {
 		return nil, errors.New("admin needs a gateway and a vault")
 	}
-	server := &Server{options: options, token: randomToken(), logs: newLogHub(), catalogs: newCatalogCache()}
+	server := &Server{options: options, token: randomToken(), logs: newLogHub(), catalogs: newCatalogCache(), health: newHealth()}
 	server.mux = server.routes()
 	return server, nil
 }
@@ -86,6 +90,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/discover", s.guard(s.discover))
 	mux.HandleFunc("POST /api/probe", s.guard(s.probe))
 	mux.HandleFunc("POST /api/smoke", s.guard(s.smoke))
+	mux.HandleFunc("GET /api/smoke/history", s.guard(s.smokeHistory))
 	mux.HandleFunc("GET /api/logs", s.guard(s.logsPage))
 	mux.HandleFunc("POST /api/web/chrome", s.guard(s.openChrome))
 	mux.HandleFunc("POST /api/web/login", s.guard(s.webLogin))
@@ -575,6 +580,16 @@ func (s *Server) resetLabel(ctx context.Context, providerID, label string) error
 	}
 	s.catalogs.dropProvider(providerID)
 	return s.options.Gateway.ResetCredential(context.WithoutCancel(ctx), provider, providerID, label, key)
+}
+
+// StartSmoke begins the scheduled sweep.
+func (s *Server) StartSmoke(ctx context.Context, every time.Duration, webhook string) {
+	s.startSmoke(ctx, every, webhook)
+}
+
+func (s *Server) smokeHistory(w http.ResponseWriter, r *http.Request) {
+	last, updated, running := s.health.snapshot()
+	writeJSON(w, http.StatusOK, map[string]any{"last": last, "updated": updated, "running": running})
 }
 
 // webQuota probes the remaining chat quota of every stored session.
