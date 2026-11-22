@@ -65,11 +65,17 @@ function render () {
   $('ov-tools-unknown').textContent = (state.usage.tool_unknown || 0) + ' unknown names'
   $('ov-tools-reset').hidden = !reshaped && !(state.usage.tool_unknown || 0)
   const seconds = state.usage.tool_ttl_seconds || 0
+  // Floor for the unit it lands in: 90 s is 1m, not a rounded-up 2m.
   const span = seconds >= 86400 ? Math.round(seconds / 86400) + 'd'
     : seconds >= 3600 ? Math.round(seconds / 3600) + 'h'
-    : Math.round(seconds / 60) + 'm'
+    : seconds >= 60 ? Math.floor(seconds / 60) + 'm'
+    : seconds + 's'
   $('ov-tools-ttl').textContent = seconds > 0 ? 'names kept ' + span : 'names kept forever'
-  const expiredCount = state.usage.tool_expired || 0
+  // With retention off nothing can expire, so Drop has no work and the card says
+  // why instead of leaving a button that always answers "No expired names".
+  $('ov-tools-off').hidden = seconds > 0
+  $('ov-tools-off').textContent = 'Nothing expires; set tool_name_ttl_days or ALLAIIS_TOOL_NAME_TTL to turn retention on.'
+  const expiredCount = seconds > 0 ? state.usage.tool_expired || 0 : 0
   $('ov-tools-drop').hidden = expiredCount === 0
   $('ov-tools-drop').textContent = expiredCount ? 'Drop ' + expiredCount + ' expired' : 'Drop expired'
   $('base-url').textContent = 'http://' + state.listen + '/v1'
