@@ -5,11 +5,13 @@ package gateway
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -19,6 +21,8 @@ import (
 )
 
 var errToolRepair = errors.New("tool block needs a repair attempt")
+
+var webDebug = os.Getenv("ALLAIIS_WEB_DEBUG") != ""
 
 // webCompletion serves a route whose provider has no documented API.
 func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, target router.Target, payload []byte, stream bool) {
@@ -67,6 +71,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	var startStream func()
 	firstSeen, held := false, ""
 	emit := func(event webprov.Event) error {
+		if webDebug {
+			slog.Info("web event", "kind", event.Kind, "len", len(event.Content))
+		}
 		if event.ServingModel != "" {
 			w.Header().Set("X-ALLAIIS-Upstream-Model", event.ServingModel)
 		}
@@ -350,13 +357,14 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		return webprov.Request{}, nil, nil, errors.New("expected a JSON object")
 	}
 	request := webprov.Request{
-		Model: model, Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
+		RequestID: randomID(), Model: model,
+		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
 	}
 	request.Reasoning = input.ReasoningEffort != "" || input.Reasoning.Effort != "" ||
 		strings.Contains(strings.ToLower(model), "reasoning")
 	reason := &webReason{reasoning: request.Reasoning}
 	for _, message := range input.Messages {
-		text := messageText(message.Content)
+		text, images := messageParts(message.Content)
 		switch message.Role {
 		case "system", "developer":
 			if reason.system == "" {
@@ -365,8 +373,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 				reason.system += "\n\n" + text
 			}
 		case "tool":
-			role := "user"
-			reason.turns = append(reason.turns, webprov.Message{Role: role, Content: text})
+			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
 		case "assistant":
 			if text == "" {
 				text = renderToolCalls(text, message.ToolCalls)
@@ -376,7 +383,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 			}
 			reason.turns = append(reason.turns, webprov.Message{Role: "assistant", Content: text})
 		default:
-			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text})
+			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
 		}
 	}
 	tools := input.Tools
@@ -390,26 +397,58 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	return request, reason, tools, nil
 }
 
-// messageText joins text parts and renders simple non-text parts.
-func messageText(raw json.RawMessage) string {
+// messageParts joins text parts and decodes inline data-URL images.
+func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 	var text string
 	if json.Unmarshal(raw, &text) == nil {
-		return text
+		return text, nil
 	}
 	var parts []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
+		Type     string `json:"type"`
+		Text     string `json:"text"`
+		ImageURL *struct {
+			URL string `json:"url"`
+		} `json:"image_url"`
+		URL string `json:"url"`
 	}
-	if json.Unmarshal(raw, &parts) == nil {
-		var joined strings.Builder
-		for _, part := range parts {
-			if part.Text != "" {
-				joined.WriteString(part.Text)
-			}
+	if json.Unmarshal(raw, &parts) != nil {
+		return string(raw), nil
+	}
+	var joined strings.Builder
+	var images []webprov.Image
+	for _, part := range parts {
+		if part.Text != "" {
+			joined.WriteString(part.Text)
 		}
-		return joined.String()
+		url := part.URL
+		if part.ImageURL != nil {
+			url = part.ImageURL.URL
+		}
+		if image, ok := decodeDataURL(url); ok {
+			images = append(images, image)
+		}
 	}
-	return string(raw)
+	return joined.String(), images
+}
+
+// decodeDataURL turns a `data:image/...;base64,...` URL into bytes.
+func decodeDataURL(raw string) (webprov.Image, bool) {
+	if !strings.HasPrefix(raw, "data:") || len(raw) > maxRequest {
+		return webprov.Image{}, false
+	}
+	header, payload, found := strings.Cut(strings.TrimPrefix(raw, "data:"), ",")
+	if !found || !strings.HasSuffix(header, ";base64") {
+		return webprov.Image{}, false
+	}
+	mime := strings.TrimSuffix(header, ";base64")
+	if !strings.HasPrefix(mime, "image/") {
+		return webprov.Image{}, false
+	}
+	data, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		return webprov.Image{}, false
+	}
+	return webprov.Image{Data: data, MIME: mime}, true
 }
 
 func messageToolCalls(raw json.RawMessage) []toolCall {

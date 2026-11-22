@@ -3,6 +3,7 @@
 package gateway_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -178,6 +179,35 @@ func TestWebProviderRejectsOtherProtocols(t *testing.T) {
 	result := httptest.NewRecorder()
 	handler.ServeHTTP(result, request)
 	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"content":"x"`) {
+		t.Fatalf("got %d %s", result.Code, result.Body.String())
+	}
+}
+
+func TestWebVisionUsesAgentMultipart(t *testing.T) {
+	png := base64.StdEncoding.EncodeToString([]byte("pngbytes"))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/mint"):
+			io.WriteString(w, `{"tokens":[{"token":"t"}]}`)
+		case r.URL.Path == "/inference/chat/agents/venice":
+			if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+				t.Errorf("content type %q", r.Header.Get("Content-Type"))
+			}
+			body, _ := io.ReadAll(r.Body)
+			if !strings.Contains(string(body), "input_image") || !strings.Contains(string(body), "pngbytes") {
+				t.Errorf("image missing from body")
+			}
+			io.WriteString(w, "event: response.output_text.delta\ndata: {\"delta\":\"Red\"}\n\ndata: [DONE]\n\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","messages":[{"role":"user","content":[` +
+		`{"type":"text","text":"colour?"},{"type":"image_url","image_url":{"url":"data:image/png;base64,` + png + `"}}]}]}`
+	result := complete(handler, store.ClientKey(), "", payload)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "Red") {
 		t.Fatalf("got %d %s", result.Code, result.Body.String())
 	}
 }

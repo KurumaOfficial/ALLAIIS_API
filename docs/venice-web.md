@@ -3,7 +3,8 @@
 Status: **working live** against `venice.ai`, on a guest session and on a Pro
 session. Verified 2026-11-22: streaming and non-streaming Chat Completions,
 attestation minting, catalog discovery, quota probe, a `read_file` tool call,
-Claude Opus 5.5 and an `e2ee-*` model. Guest requests need no login; Pro models
+Claude Opus 5.5, an `e2ee-*` model, and image input through the multipart
+transport. Guest requests need no login; Pro models
 need a captured signed-in session.
 
 Tier: `tier_c3` (`X-ALLAIIS-Transport-Tier: tier_c3`). The gateway talks to the
@@ -91,9 +92,14 @@ signed in or a guest. `allaiis up` prints every alias it serves.
 - **Pin aliases to a label.** A pool with several captured sessions picks one by
   request hash. Pass `--label` to `models add` so a route always uses the
   intended account.
-- **Vision is open.** Images travel as client-side `File` objects plus a nanoid
-  `media_id`; the bytes are only uploaded when the response stream emits
-  `mediaMaterialization` events, so a plain request cannot attach a new image yet.
+- **Vision works.** An `image_url` content part with a `data:` URL is re-encoded
+  as a `multipart/form-data` turn to `/api/inference/chat/agents/venice`: the
+  JSON lives in the `request` part and each image in a `media.<id>.1` part, so a
+  message carrying images needs an `id` equal to the media prefix. Text-only
+  turns stay on the cheaper JSON endpoint.
+- **Agent endpoint differences.** Image turns run on the agent endpoint, which
+  answers with SSE (`response.output_text.delta`) instead of NDJSON, so both
+  decoders coexist.
 - **Privacy**: routes default to the operator's classification; use
   `--privacy zdr` for Venice Private models. `e2ee-*` ids work when signed in and
   are served over the same plain transport; per-field client-side encryption is

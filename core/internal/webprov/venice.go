@@ -138,14 +138,16 @@ func (c Credential) clerkCookie(name string) string {
 	return ""
 }
 
-// Message is one text turn sent upstream.
+// Message is one turn sent upstream, optionally with images.
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string  `json:"role"`
+	Content string  `json:"content"`
+	Images  []Image `json:"-"`
 }
 
 // Request is a provider-neutral chat request.
 type Request struct {
+	RequestID   string
 	Model       string
 	Messages    []Message
 	Reasoning   bool
@@ -224,6 +226,9 @@ func (c *Client) WithHTTP(client *http.Client) *Client {
 func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit func(Event) error) error {
 	if len(req.Messages) == 0 {
 		return errors.New("no messages to send")
+	}
+	if req.Images() > 0 {
+		return c.ChatImages(ctx, cred, req, emit)
 	}
 	// One generation per account: the web app rejects parallel turns.
 	release, err := c.lock(ctx, cred)
@@ -325,6 +330,15 @@ func (c *Client) lock(ctx context.Context, cred Credential) (func(), error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+// Images reports how many attachments the request carries.
+func (r Request) Images() int {
+	total := 0
+	for _, message := range r.Messages {
+		total += len(message.Images)
+	}
+	return total
 }
 
 func venicePayload(cred Credential, req Request, userID string) map[string]any {

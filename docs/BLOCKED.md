@@ -7,7 +7,7 @@ are the cross-platform login walkthrough, multi-session isolation and feature
 parity with the official API.
 
 - Windows, Linux, and macOS walkthrough for the login step.
-- Vision and file upload for web routes.
+- File (PDF, text) upload for web routes; images already work.
 - A second web provider on the same capture flow.
 
 ## B2. Handoff
@@ -25,7 +25,7 @@ parity with the official API.
 | Guest capture and replay | done | — |
 | Pro capture and replay | done | — |
 | Tool emulation on web routes | done | live check passed |
-| Vision and uploads | open | upstream multipart contract |
+| Vision | done | live colour answer |
 | E2EE models | done (server-side path) | client-side field encryption is open |
 | Second web provider | open | per-provider protocol capture |
 | Second live web session | done | — |
