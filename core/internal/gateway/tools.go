@@ -325,9 +325,10 @@ func indexFrom(current, sub string, from int) int {
 var (
 	dsmlPrefix = regexp.MustCompile(`<[|｜]DSML[|｜]\s*(?:calls|function_calls|invoke)\b`)
 	dsmlCalls  = regexp.MustCompile(`<[|｜]DSML[|｜]\s*(?:calls|function_calls)\b[^>]*>`)
-	dsmlInvoke = regexp.MustCompile(`<[|｜]DSML[|｜]\s*invoke\s+([^>]+)>`)
-	dsmlParam  = regexp.MustCompile(`<[|｜]DSML[|｜]\s*parameter\s+([^>]+)>`)
-	dsmlEnd    = regexp.MustCompile(`(?:</[|｜]DSML[|｜]\s*|<[|｜]/DSML[|｜]\s*)(calls|function_calls|invoke|parameter)\s*>`)
+	// Inner tags may arrive without the DSML prefix when a model mixes dialects.
+	dsmlInvoke = regexp.MustCompile(`<(?:[|｜]DSML[|｜]\s*)?invoke\s+([^>]+)>`)
+	dsmlParam  = regexp.MustCompile(`<(?:[|｜]DSML[|｜]\s*)?parameter\s+([^>]+)>`)
+	dsmlEnd    = regexp.MustCompile(`(?:</(?:[|｜]DSML[|｜]\s*)?|<[|｜]/DSML[|｜]\s*)(calls|function_calls|invoke|parameter)\s*>`)
 )
 
 // dsmlIndex reports the first DSML block start, envelope or bare invoke.
@@ -477,12 +478,26 @@ func dsmlValues(body string) (map[string]any, int, error) {
 	}
 }
 
+// unwrapArguments flattens a lone "arguments" object, which some dialects use
+// as a wrapper for the real argument object.
+func unwrapArguments(values map[string]any) any {
+	if len(values) == 1 {
+		if inner, ok := values["arguments"]; ok {
+			switch inner.(type) {
+			case map[string]any, []any:
+				return inner
+			}
+		}
+	}
+	return values
+}
+
 // buildCallFromValues marshals typed arguments into a tool call.
 func buildCallFromValues(name string, values map[string]any) (toolCall, error) {
 	if name == "" {
 		return toolCall{}, errNoToolBlock
 	}
-	encoded, err := json.Marshal(values)
+	encoded, err := json.Marshal(unwrapArguments(values))
 	if err != nil {
 		return toolCall{}, errNoToolBlock
 	}
@@ -699,7 +714,7 @@ func buildCallFromBody(name, body string) (toolCall, error) {
 			object[parameter] = parameterValue(after[:end])
 			body = after[end+len("</parameter>"):]
 		}
-		encoded, err := json.Marshal(object)
+		encoded, err := json.Marshal(unwrapArguments(object))
 		if err != nil {
 			return toolCall{}, errNoToolBlock
 		}

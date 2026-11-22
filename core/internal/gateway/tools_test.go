@@ -367,3 +367,25 @@ func TestReasoningKeyIgnoresSurroundingSpace(t *testing.T) {
 		t.Fatalf("reasoning %q", got)
 	}
 }
+
+func TestToolGuardAcceptsMixedDialect(t *testing.T) {
+	guard := guardFor("bash")
+	fragment := "<|DSML|calls>\n<|DSML|invoke name=\"bash\">\n" +
+		"<parameter name=\"arguments\">{\"command\":\"go test\"}</parameter>\n" +
+		"</invoke>\n</|DSML|calls>"
+	text, calls, err := guard.Write(fragment)
+	if err != nil || len(calls) != 1 || strings.TrimSpace(text) != "" {
+		t.Fatalf("mixed: %q %+v %v", text, calls, err)
+	}
+	if calls[0].Function.Name != "bash" || calls[0].Function.Arguments != `{"command":"go test"}` {
+		t.Fatalf("call %+v", calls[0])
+	}
+}
+
+func TestInvokeArgumentsWrapperIsFlattened(t *testing.T) {
+	guard := guardFor("bash")
+	_, calls, err := guard.Write(`<invoke name="bash"><parameter name="arguments">{"command":"go test"}</parameter></invoke>`)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"command":"go test"}` {
+		t.Fatalf("wrapper: %+v %v", calls, err)
+	}
+}

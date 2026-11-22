@@ -254,7 +254,8 @@ What the gateway guarantees to an OpenAI-compatible client:
 - `stream_options.include_usage` produces one final chunk with estimated
   `usage`, and non-stream replies always carry usage;
 - the native DeepSeek DSML syntax, the sentinel envelope and Claude-style
-  `<invoke>` XML all become normal `tool_calls`;
+  `<invoke>` XML all become normal `tool_calls`, including a DSML envelope whose
+  inner tags lost the prefix, and a lone `arguments` object is unwrapped;
 - a tool block cut off at the end of a stream is repaired instead of being
   silently dropped.
 
