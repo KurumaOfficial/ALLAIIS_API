@@ -47,6 +47,10 @@ type modelView struct {
 	LargeContext  bool            `json:"large_context,omitempty"`
 	StrictOrder   bool            `json:"strict_order,omitempty"`
 	InactivityMS  int             `json:"inactivity_ms,omitempty"`
+	NoSampling    bool            `json:"no_sampling,omitempty"`
+	Frequency     bool            `json:"frequency_penalty,omitempty"`
+	Presence      bool            `json:"presence_penalty,omitempty"`
+	Replacement   string          `json:"replacement,omitempty"`
 }
 
 type stateView struct {
@@ -121,6 +125,8 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 			MaxResponse: route.MaxResponse, MaxImages: route.MaxImages,
 			MaxTools: route.MaxTools, WebSearch: route.WebSearch,
 			LargeContext: route.LargeContext, StrictOrder: route.StrictOrder, InactivityMS: route.InactivityMS,
+			NoSampling: route.NoSampling, Frequency: route.Frequency, Presence: route.Presence,
+			Replacement: route.Replacement,
 		}
 		for _, provider := range view.Providers {
 			if provider.ID != route.Provider {
@@ -224,6 +230,8 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 				ProOnly: model.ProOnly, Credits: model.UsesCredits,
 				MaxTools: model.MaxTools, WebSearch: model.WebSearch,
 				LargeContext: model.LargeContext, StrictOrder: model.StrictOrder, Inactivity: model.InactivityMS,
+				Sampling: model.Sampling, Frequency: model.Frequency, Presence: model.Presence,
+				Replacement: model.Replacement, Retiring: model.Retiring,
 				Temperature: model.Temperature, TopP: model.TopP,
 			})
 			if len(result) >= 500 {

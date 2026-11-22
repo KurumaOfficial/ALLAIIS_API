@@ -365,9 +365,17 @@ func applyCapabilities(request *webprov.Request, route config.Route) error {
 		value := *route.Temperature
 		request.Temperature = &value
 	}
-	if route.TopP != nil && request.TopP == nil {
+	if route.NoSampling {
+		request.Temperature, request.TopP = nil, nil
+	} else if route.TopP != nil && request.TopP == nil {
 		value := *route.TopP
 		request.TopP = &value
+	}
+	if !route.Frequency {
+		request.FrequencyPenalty = nil
+	}
+	if !route.Presence {
+		request.PresencePenalty = nil
 	}
 	if route.MaxResponse > 0 && request.MaxTokens > route.MaxResponse {
 		request.MaxTokens = route.MaxResponse
@@ -454,8 +462,11 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 		writeError(w, protocol, http.StatusBadRequest, "context_length_exceeded",
 			"The prompt exceeds the model context window.")
 	case errors.Is(err, webprov.ErrUnknownModel()):
-		writeError(w, protocol, http.StatusNotFound, "model_not_found",
-			"The web app does not offer this model for the captured session.")
+		message := "The web app does not offer this model for the captured session."
+		if target.Route.Replacement != "" {
+			message += " Try " + target.Route.Replacement + "."
+		}
+		writeError(w, protocol, http.StatusNotFound, "model_not_found", message)
 	default:
 		writeError(w, protocol, http.StatusBadGateway, "upstream_error", "The web provider failed: "+err.Error())
 	}
@@ -518,9 +529,11 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		Reasoning   struct {
 			Effort string `json:"effort"`
 		} `json:"reasoning"`
-		ReasoningEffort string     `json:"reasoning_effort"`
-		Tools           []toolSpec `json:"tools"`
-		ToolChoice      any        `json:"tool_choice"`
+		ReasoningEffort  string     `json:"reasoning_effort"`
+		FrequencyPenalty *float64   `json:"frequency_penalty"`
+		PresencePenalty  *float64   `json:"presence_penalty"`
+		Tools            []toolSpec `json:"tools"`
+		ToolChoice       any        `json:"tool_choice"`
 	}
 	if err := json.Unmarshal(payload, &input); err != nil {
 		return webprov.Request{}, nil, nil, errors.New("expected a JSON object")
@@ -528,6 +541,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	request := webprov.Request{
 		RequestID: randomID(), Model: model,
 		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
+		FrequencyPenalty: input.FrequencyPenalty, PresencePenalty: input.PresencePenalty,
 	}
 	request.ReasoningEffort = input.ReasoningEffort
 	if request.ReasoningEffort == "" {

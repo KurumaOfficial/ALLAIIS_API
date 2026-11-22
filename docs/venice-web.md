@@ -139,10 +139,13 @@ an alias created from the panel stores them:
 | `large_context` | asks for the extended-context mode when the model is eligible (`enableLargeContextChat`) |
 | `strict_order` | merges consecutive same-role turns for models that require strict order |
 | `inactivity_ms` | aborts a stream that stays silent that long; clamped to 1 s – 10 min, default 2 min |
+| `no_sampling` | models that ignore sampling get neither `temperature` nor `top_p` |
+| `frequency_penalty`, `presence_penalty` | forwarded only when the model supports them |
+| `replacement` | an upstream ID returned with `model_not_found` as a hint |
 
 The CLI sets the same fields with `--reasoning true|false`, `--max-context`,
 `--max-response`, `--max-images`, `--max-tools`, `--web-search`, `--large-context`,
-`--strict-order` and `--inactivity-ms`. The catalog also tags `pro_only` and
+`--strict-order` and `--inactivity-ms`; the rest are set from discovery. The catalog also tags `pro_only` and
 `uses_credits`, which the panel shows so a paid model is not picked by accident.
 
 ### Thinking depth

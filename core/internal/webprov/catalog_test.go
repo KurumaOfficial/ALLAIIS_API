@@ -21,6 +21,8 @@ func TestCatalogCarriesCapabilities(t *testing.T) {
 			{"id":"thinker","friendly_name":"Thinker","active":true,"usesCredits":true,"proOnly":true,
 			 "maxContextLength":200000,"maxResponseTokens":8000,"maxImages":4,
 			 "supportsReasoning":true,"supportsFunctionCalling":true,
+			 "supportsSamplingParams":false,"supportsFrequencyPenalty":true,"supportsPresencePenalty":true,
+			 "apiDeprecationReplacementModelId":"thinker-2","retiringSoonDate":1790000000,
 			 "settings":{"temperature":0.4,"topP":0.8}},
 			{"id":"retired","active":false}
 		]}}`)
@@ -34,6 +36,10 @@ func TestCatalogCarriesCapabilities(t *testing.T) {
 		t.Fatalf("models %d", len(models))
 	}
 	model := models[0]
+	if model.Sampling || !model.Frequency || !model.Presence || !model.Retiring ||
+		model.Replacement != "thinker-2" {
+		t.Fatalf("new capabilities lost: %+v", model)
+	}
 	if !model.Reasoning || !model.Tools || !model.ProOnly || !model.UsesCredits ||
 		model.MaxImages != 4 || model.ContextLimit != 200000 || model.MaxResponse != 8000 ||
 		model.Temperature == nil || *model.Temperature != 0.4 || model.TopP == nil || *model.TopP != 0.8 {

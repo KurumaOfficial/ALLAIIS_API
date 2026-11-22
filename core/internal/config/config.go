@@ -153,6 +153,10 @@ type Route struct {
 	LargeContext bool     `json:"large_context,omitempty"`
 	StrictOrder  bool     `json:"strict_order,omitempty"`
 	InactivityMS int      `json:"inactivity_ms,omitempty"`
+	NoSampling   bool     `json:"no_sampling,omitempty"`
+	Frequency    bool     `json:"frequency_penalty,omitempty"`
+	Presence     bool     `json:"presence_penalty,omitempty"`
+	Replacement  string   `json:"replacement,omitempty"`
 	Temperature  *float64 `json:"temperature,omitempty"`
 	TopP         *float64 `json:"top_p,omitempty"`
 }
@@ -318,6 +322,9 @@ func (c *Config) validate() error {
 		}
 		if route.Temperature != nil && (*route.Temperature < 0 || *route.Temperature > 2) {
 			return fmt.Errorf("model %q has an out-of-range temperature", route.ID)
+		}
+		if route.Replacement != "" && !modelID.MatchString(route.Replacement) {
+			return fmt.Errorf("model %q has an invalid replacement ID", route.ID)
 		}
 		if route.TopP != nil && (*route.TopP < 0 || *route.TopP > 1) {
 			return fmt.Errorf("model %q has an out-of-range top_p", route.ID)

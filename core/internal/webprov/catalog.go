@@ -29,6 +29,11 @@ type CatalogModel struct {
 	LargeContext bool   `json:"large_context,omitempty"`
 	StrictOrder  bool   `json:"strict_order,omitempty"`
 	InactivityMS int    `json:"inactivity_ms,omitempty"`
+	Sampling     bool   `json:"sampling,omitempty"`
+	Frequency    bool   `json:"frequency_penalty,omitempty"`
+	Presence     bool   `json:"presence_penalty,omitempty"`
+	Replacement  string `json:"replacement,omitempty"`
+	Retiring     bool   `json:"retiring,omitempty"`
 	Tools        bool   `json:"function_calling,omitempty"`
 	Temperature  *float64
 	TopP         *float64
@@ -75,6 +80,11 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 				LargeContext bool   `json:"largeContextChatEligible"`
 				StrictOrder  bool   `json:"strictMessageOrderRequired"`
 				InactivityMS int    `json:"streamInactivityTimeoutMs"`
+				Sampling     bool   `json:"supportsSamplingParams"`
+				Frequency    bool   `json:"supportsFrequencyPenalty"`
+				Presence     bool   `json:"supportsPresencePenalty"`
+				Replacement  string `json:"apiDeprecationReplacementModelId"`
+				RetiringDate int64  `json:"retiringSoonDate"`
 				Reasoning    bool   `json:"supportsReasoning"`
 				Tools        bool   `json:"supportsFunctionCalling"`
 				Settings     struct {
@@ -105,6 +115,8 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 			ProOnly: model.ProOnly, ContextLimit: model.MaxContext, MaxResponse: model.MaxResponse,
 			MaxImages: model.MaxImages, MaxTools: model.MaxTools, WebSearch: model.WebSearch,
 			LargeContext: model.LargeContext, StrictOrder: model.StrictOrder, InactivityMS: model.InactivityMS,
+			Sampling: model.Sampling, Frequency: model.Frequency, Presence: model.Presence,
+			Replacement: model.Replacement, Retiring: model.RetiringDate > 0,
 			Reasoning: model.Reasoning, Tools: model.Tools,
 			Temperature: model.Settings.Temperature, TopP: model.Settings.TopP,
 		})

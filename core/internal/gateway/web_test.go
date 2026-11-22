@@ -522,3 +522,74 @@ func TestStalledStreamMapsToUpstreamTimeout(t *testing.T) {
 		t.Fatalf("got %d %s", result.Code, result.Body)
 	}
 }
+
+func TestSamplingAndPenaltiesFollowCapabilities(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		if _, ok := body["temperature"]; ok {
+			t.Errorf("sampling sent to a no-sampling model: %v", body["temperature"])
+		}
+		if body["frequencyPenalty"] != 0.5 || body["presencePenalty"] != 0.25 {
+			t.Errorf("penalties %v %v", body["frequencyPenalty"], body["presencePenalty"])
+		}
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
+	})
+	store, cfg := setup(t, server.URL)
+	cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+	cfg.Models = []config.Route{{
+		ID: "plain", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer,
+		NoSampling: true, Frequency: true, Presence: true,
+	}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "web", Endpoint: server.URL, Label: "one",
+		Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	body := `{"model":"plain","temperature":0.9,"frequency_penalty":0.5,"presence_penalty":0.25,` +
+		`"messages":[{"role":"user","content":"hi"}]}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
+func TestUnknownModelMentionsTheReplacement(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":"Model not found"}`)
+	})
+	store, cfg := setup(t, server.URL)
+	cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+	cfg.Models = []config.Route{{
+		ID: "old", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer, Replacement: "new-model",
+	}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "web", Endpoint: server.URL, Label: "one",
+		Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"old","messages":[{"role":"user","content":"hi"}]}`))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusNotFound || !strings.Contains(result.Body.String(), "new-model") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}

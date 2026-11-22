@@ -168,6 +168,9 @@ type Request struct {
 	LargeContext bool
 	// Inactivity aborts a stream that stays silent this long.
 	Inactivity time.Duration
+	// Penalties are forwarded when the model supports them.
+	FrequencyPenalty *float64
+	PresencePenalty  *float64
 }
 
 // Event is one decoded upstream event. Kind is "content", "reasoning" or "meta".
@@ -383,8 +386,6 @@ func venicePayload(cred Credential, req Request, userID string) map[string]any {
 		"modelId":                   req.Model,
 		"prompt":                    prompt,
 		"reasoning":                 req.Reasoning,
-		"temperature":               0.7,
-		"topP":                      0.9,
 		"requestId":                 requestID(cred, req),
 		"userId":                    userID,
 		"simpleMode":                false,
@@ -417,6 +418,12 @@ func venicePayload(cred Credential, req Request, userID string) map[string]any {
 	}
 	if req.LargeContext {
 		payload["enableLargeContextChat"] = true
+	}
+	if req.FrequencyPenalty != nil {
+		payload["frequencyPenalty"] = *req.FrequencyPenalty
+	}
+	if req.PresencePenalty != nil {
+		payload["presencePenalty"] = *req.PresencePenalty
 	}
 	return payload
 }
