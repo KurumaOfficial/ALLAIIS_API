@@ -80,9 +80,10 @@ through a temporary file and read at startup, so a doctor warning is not wiped b
 a restart. The panel's **Reset** button on the Tool reshaping card (or
 `POST /api/tools/reset`, or `allaiis tools reset`) zeroes both and deletes the
 file; `allaiis tools reset --expired`, or the same endpoint with `{"expired": true}`,
-drops only the names past retention, which keeps the fresh evidence, which is how a fixed tool list stops carrying old blame. The counters also travel per name as
-`allaiis_tool_unknown_name_total{name=…}` plus an age gauge, so a doctor started
-in another process reads the running gateway instead of its own zeroes.
+drops only the names past retention, which keeps the fresh evidence, which is how a fixed tool list stops carrying old blame. The counters and names also travel as JSON on `GET /tool-names` (name, count,
+age), so a doctor started in another process reads the running gateway instead
+of its own zeroes. The names are arbitrary strings, so they stay out of the
+Prometheus labels and the exposition keeps a fixed shape.
 `allaiis tools
 show` prints the record with the time each name was last seen and marks a name
 past retention as expired, so a stopped gateway cannot make the view lie; a running

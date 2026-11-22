@@ -3,6 +3,7 @@
 package gateway
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
@@ -146,6 +147,45 @@ func (g *Gateway) recordCompletion(w http.ResponseWriter, start time.Time, proto
 	})
 }
 
+// toolNameEntry is one unknown name with how often and how long ago it was seen.
+type toolNameEntry struct {
+	Name       string `json:"name"`
+	Count      int    `json:"count"`
+	AgeSeconds int64  `json:"age_seconds"`
+}
+
+// toolNamesPage reports the tool counters and names as JSON. The names are
+// arbitrary strings, so they stay out of the Prometheus labels and this
+// endpoint is the way another process (the CLI doctor) reads them.
+func (g *Gateway) toolNamesPage(w http.ResponseWriter, _ *http.Request) {
+	now := time.Now()
+	unknownNames.mu.Lock()
+	entries := make([]toolNameEntry, 0, len(unknownNames.count))
+	for name, count := range unknownNames.count {
+		entries = append(entries, toolNameEntry{
+			Name:       name,
+			Count:      count,
+			AgeSeconds: int64(now.Sub(unknownNames.seen[name]) / time.Second),
+		})
+	}
+	unknownNames.mu.Unlock()
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Count != entries[j].Count {
+			return entries[i].Count > entries[j].Count
+		}
+		return entries[i].Name < entries[j].Name
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"repaired":    toolCounters.fold.Load() + toolCounters.suffix.Load(),
+		"unknown":     toolCounters.unknown.Load(),
+		"ttl_seconds": toolNameTTL.Load(),
+		"names":       entries,
+	})
+}
+
 // Metrics reports the request tally for the dashboard.
 func (g *Gateway) Metrics() map[string]any { return g.metrics.summary() }
 
@@ -197,25 +237,6 @@ func (m *metrics) prometheus(models int) string {
 	out.WriteString("# HELP allaiis_tool_unknown_total Calls delivered with a name no tool declares.\n")
 	out.WriteString("# TYPE allaiis_tool_unknown_total counter\n")
 	fmt.Fprintf(&out, "allaiis_tool_unknown_total %d\n", toolCounters.unknown.Load())
-	// The name set is bounded, so one line per name is cheap and lets another
-	// process (the CLI doctor) read what this one remembers.
-	out.WriteString("# HELP allaiis_tool_unknown_name_total Calls per unknown tool name.\n")
-	out.WriteString("# TYPE allaiis_tool_unknown_name_total counter\n")
-	out.WriteString("# HELP allaiis_tool_unknown_name_age_seconds Seconds since the name was last seen.\n")
-	out.WriteString("# TYPE allaiis_tool_unknown_name_age_seconds gauge\n")
-	now := time.Now()
-	unknownNames.mu.Lock()
-	names := make([]string, 0, len(unknownNames.count))
-	for name := range unknownNames.count {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		fmt.Fprintf(&out, "allaiis_tool_unknown_name_total{name=%q} %d\n", name, unknownNames.count[name])
-		fmt.Fprintf(&out, "allaiis_tool_unknown_name_age_seconds{name=%q} %d\n", name,
-			int64(now.Sub(unknownNames.seen[name])/time.Second))
-	}
-	unknownNames.mu.Unlock()
 	out.WriteString("# HELP allaiis_models_served gauge\n")
 	out.WriteString("# TYPE allaiis_models_served gauge\n")
 	fmt.Fprintf(&out, "allaiis_models_served %d\n", models)

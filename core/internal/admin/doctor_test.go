@@ -123,18 +123,15 @@ func TestDiagnosePrefersTheLiveGateway(t *testing.T) {
 	}
 }
 
-func TestFetchLiveStatsParsesTheExposition(t *testing.T) {
-	body := strings.Join([]string{
-		`allaiis_tool_name_fold_total 3`,
-		`allaiis_tool_name_suffix_total 1`,
-		`allaiis_tool_unknown_total 5`,
-		`allaiis_tool_ttl_seconds 86400`,
-		`allaiis_tool_unknown_name_total{name="bash"} 4`,
-		`allaiis_tool_unknown_name_age_seconds{name="bash"} 60`,
-		`allaiis_tool_unknown_name_total{name="grep"} 1`,
-		`allaiis_tool_unknown_name_age_seconds{name="grep"} 200000`,
-	}, "\n")
+func TestFetchLiveStatsReadsTheEndpoint(t *testing.T) {
+	body := `{"repaired":4,"unknown":5,"ttl_seconds":86400,"names":[` +
+		`{"name":"bash","count":4,"age_seconds":60},` +
+		`{"name":"grep","count":1,"age_seconds":200000}]}`
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/tool-names" {
+			http.NotFound(w, r)
+			return
+		}
 		io.WriteString(w, body)
 	}))
 	defer upstream.Close()
@@ -149,6 +146,16 @@ func TestFetchLiveStatsParsesTheExposition(t *testing.T) {
 	// grep is past the one-day retention and must not be listed.
 	if len(stats.names) != 1 || stats.names[0] != "bash" {
 		t.Fatalf("names: %v", stats.names)
+	}
+}
+
+func TestFetchLiveStatsRejectsGarbage(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "not json")
+	}))
+	defer upstream.Close()
+	if _, ok := fetchLiveStats(context.Background(), strings.TrimPrefix(upstream.URL, "http://")); ok {
+		t.Fatal("garbage accepted")
 	}
 }
 

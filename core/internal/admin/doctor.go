@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -45,11 +43,12 @@ type liveStats struct {
 	ttl      time.Duration
 }
 
-// fetchLiveStats reads the tool counters from the gateway's metrics. It returns
-// false when the gateway is unreachable or the text does not parse.
+// fetchLiveStats reads the tool counters from the gateway's /tool-names
+// endpoint. It returns false when the gateway is unreachable or the body does
+// not parse.
 func fetchLiveStats(ctx context.Context, listen string) (liveStats, bool) {
 	client := &http.Client{Timeout: 700 * time.Millisecond}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+listen+"/metrics", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+listen+"/tool-names", nil)
 	if err != nil {
 		return liveStats{}, false
 	}
@@ -61,69 +60,28 @@ func fetchLiveStats(ctx context.Context, listen string) (liveStats, bool) {
 	if response.StatusCode != http.StatusOK {
 		return liveStats{}, false
 	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-	if err != nil {
+	var body struct {
+		Repaired   int64 `json:"repaired"`
+		Unknown    int64 `json:"unknown"`
+		TTLSeconds int64 `json:"ttl_seconds"`
+		Names      []struct {
+			Name       string `json:"name"`
+			AgeSeconds int64  `json:"age_seconds"`
+		} `json:"names"`
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&body); err != nil {
 		return liveStats{}, false
 	}
 
-	stats := liveStats{}
-	counts := map[string]int64{}
-	ages := map[string]int64{}
-	for _, line := range strings.Split(string(body), "\n") {
-		index := strings.LastIndexByte(line, ' ')
-		if index <= 0 {
+	stats := liveStats{repaired: body.Repaired, unknown: body.Unknown, ttl: time.Duration(body.TTLSeconds) * time.Second}
+	for _, item := range body.Names {
+		// A name past retention is no longer evidence, matching the in-process view.
+		if stats.ttl > 0 && time.Duration(item.AgeSeconds)*time.Second > stats.ttl {
 			continue
 		}
-		number, convErr := strconv.ParseInt(line[index+1:], 10, 64)
-		if convErr != nil {
-			continue
-		}
-		switch {
-		case strings.HasPrefix(line, "allaiis_tool_name_fold_total"),
-			strings.HasPrefix(line, "allaiis_tool_name_suffix_total"):
-			stats.repaired += number
-		case strings.HasPrefix(line, "allaiis_tool_unknown_total"):
-			stats.unknown = number
-		case strings.HasPrefix(line, "allaiis_tool_ttl_seconds"):
-			stats.ttl = time.Duration(number) * time.Second
-		case strings.HasPrefix(line, "allaiis_tool_unknown_name_total{"):
-			if name, ok := metricName(line); ok {
-				counts[name] = number
-			}
-		case strings.HasPrefix(line, "allaiis_tool_unknown_name_age_seconds{"):
-			if name, ok := metricName(line); ok {
-				ages[name] = number
-			}
-		}
+		stats.names = append(stats.names, item.Name)
 	}
-	for name, count := range counts {
-		// A name past retention is no longer evidence, matching the doctor's
-		// in-process view.
-		if stats.ttl > 0 {
-			if age, known := ages[name]; known && age > int64(stats.ttl/time.Second) {
-				continue
-			}
-		}
-		stats.names = append(stats.names, name)
-		_ = count
-	}
-	sort.Slice(stats.names, func(i, j int) bool {
-		if counts[stats.names[i]] != counts[stats.names[j]] {
-			return counts[stats.names[i]] > counts[stats.names[j]]
-		}
-		return stats.names[i] < stats.names[j]
-	})
 	return stats, true
-}
-
-// metricName returns the name label of one exposition line.
-func metricName(line string) (string, bool) {
-	start := strings.IndexByte(line, '"')
-	end := strings.LastIndexByte(line, '"')
-	if start < 0 || end <= start {
-		return "", false
-	}
-	return line[start+1 : end], true
 }
 
 // fetchStats is a seam over the live fetch.

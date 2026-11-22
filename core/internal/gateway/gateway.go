@@ -95,6 +95,7 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 	mux.HandleFunc("POST /v1/responses", g.completion(config.Responses, "/responses"))
 	mux.HandleFunc("POST /v1/messages", g.completion(config.Messages, "/messages"))
 	mux.HandleFunc("GET /metrics", g.metricsPage)
+	mux.HandleFunc("GET /tool-names", g.toolNamesPage)
 	g.mux = g.instrument(mux)
 	return g
 }
