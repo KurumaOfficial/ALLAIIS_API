@@ -13,7 +13,8 @@ key gives clients access to the routes the operator has configured.
   cooldowns that respect `Retry-After`.
 - **Venice web transport (Tier C)**: page-free replay of the web app's own
   inference API with a browser TLS fingerprint, single-use attestation pool,
-  Clerk session tokens, NDJSON streaming, quota probe, and model discovery. See
+  Clerk session tokens, NDJSON streaming, quota probe, and model discovery. Tool
+  calls are emulated with a sentinel guard buffer and one repair retry. See
   [docs/venice-web.md](docs/venice-web.md).
 - Upstream model discovery with per-provider results, public catalogs, and
   authenticated catalogs for supported APIs. Exact upstream IDs stay attached to
@@ -29,8 +30,6 @@ key gives clients access to the routes the operator has configured.
   each OS.
 - Add tier labels to the catalog page and a `--transport` column so web and
   official routes for one model are visibly distinct.
-- Web tool emulation: prompt envelope, streaming guard buffer, JSON repair, and
-  the `X-ALLAIIS-Emulated-Features: tools` marker.
 - Vision and file upload for web routes.
 - Add richer catalog metadata for modalities, context windows, and endpoint
   compatibility where providers publish those fields.

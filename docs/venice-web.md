@@ -67,8 +67,10 @@ remaining chat/image/scrape counters and the reset time.
   marks `"estimated": true` and sets `X-ALLAIIS-Emulated-Features: usage_estimate`.
 - **Reasoning** is forwarded as `reasoning_content` when the model is a
   reasoning model or the request sets `reasoning_effort`/`reasoning.effort`.
-- **No tools** yet: the web endpoint ignores an OpenAI `tools` array. Aliases
-  that need tool calls should point at the official Venice API or another tier.
+- **Tool calls** are emulated: the gateway injects a call envelope, hides the
+  sentinel block from the client, validates JSON, retries once on a malformed
+  block, and returns native `tool_calls` with `finish_reason: tool_calls`.
+  Declared via `X-ALLAIIS-Emulated-Features: tools`.
 - **Privacy**: routes default to the operator's classification; use
   `--privacy zdr` for Venice Private models. E2EE (`e2ee-*`) models negotiate
   client-side encryption in the browser and are not covered yet.
@@ -88,4 +90,5 @@ remaining chat/image/scrape counters and the reset time.
 - `core/internal/webprov/cdp.go` — one-time cookie/User-Agent capture over DevTools
 - `core/internal/webprov/catalog.go` — text-model discovery
 - `core/internal/gateway/web.go` — OpenAI translation, streaming guard, estimated usage
-- Offline coverage: `core/internal/webprov/venice_test.go`, `core/internal/gateway/web_test.go`
+- `core/internal/gateway/tools.go` — tool envelope, sentinel guard buffer, repair message
+- Offline coverage: `core/internal/webprov/venice_test.go`, `core/internal/gateway/web_test.go`, `core/internal/gateway/web_tools_test.go`, `core/internal/gateway/tools_test.go`

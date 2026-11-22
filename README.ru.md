@@ -234,7 +234,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Закрытая веб-интеграция Venice | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | JSON и SSE | — |
 | Проба квоты и каталог Venice web | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget` | только гостевой фолбэк | ручной вход |
-| Эмуляция тулов Тира C | Нет | — | — | [Заблокировано](docs/BLOCKED.md) |
+| Эмуляция тулов Тира C | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | вызов `read_file` | — |
 
 ### Офлайн-совместимость
 

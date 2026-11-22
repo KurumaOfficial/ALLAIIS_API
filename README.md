@@ -240,7 +240,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Venice web transport (guest) | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | Chat JSON + SSE | — |
 | Venice web quota probe and catalog | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Venice web Pro session | ✓ | `TestClerkExpiryAndForget` | Guest fallback only | manual login |
-| Tier C tool emulation | No | — | — | [Blocked](docs/BLOCKED.md) |
+| Tier C tool emulation | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call | — |
 
 ### Offline compatibility
 
@@ -252,6 +252,7 @@ tests. It uses synthetic input, loopback servers, and the fixture limits below.
 | A1. Private Venice transport | ✓ | `TestWebCompletionStreams`, `TestChatStreamsAndAuthenticates` | Chat JSON + SSE | Pro login is manual |
 | A2. SSE, truncation, errors, and denial fixtures | ✓ | `TestSSEFixtures` | — | — |
 | A3. Tool formats and recovery | ✓ | `TestToolFixtureCorpus`, `TestToolParserRecovery`, `TestToolsCancelAndRetry`, `TestReasoningBudgetCancelsAndReturnsStreamError` | — | — |
+| A3b. Web tool envelope and repair | ✓ | `TestToolGuardRejectsBadBlocks`, `TestWebToolRepairRetry` | `tool_calls` reply | — |
 | A4–A5. History and NUL cleanup in the harness | ✓ | `TestToolPolicyHistoryAndNUL`, `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A6. Estimated usage on fixture JSON and SSE results | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A7. Context-specific 413 mapping and trimming | ✓ | `TestContextOverflowTrimsOrReturns400` | — | — |

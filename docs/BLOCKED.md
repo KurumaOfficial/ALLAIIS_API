@@ -7,7 +7,6 @@ path and to feature parity with the official API.
 
 - Pro session captured and replayed on Windows, Linux, and macOS.
 - Two Pro accounts in one pool with session isolation.
-- Web tool emulation (prompt envelope plus JSON repair).
 - Vision and file upload for web routes.
 - E2EE (`e2ee-*`) models that encrypt in the browser.
 - A second web provider on the same capture flow.
@@ -26,7 +25,7 @@ path and to feature parity with the official API.
 | --- | --- | --- |
 | Guest capture and replay | done | — |
 | Pro capture and replay | implemented, needs a live check | operator login |
-| Tool emulation on web routes | open | prompt envelope plus repair loop |
+| Tool emulation on web routes | done | live check passed |
 | Vision and uploads | open | upstream multipart contract |
 | E2EE models | open | page-driven transport |
 | Second web provider | open | per-provider protocol capture |
@@ -37,6 +36,7 @@ path and to feature parity with the official API.
 - [x] Verify the streaming path emits deltas and a terminal event.
 - [x] Verify a `403` maps to `cloudflare_challenge` and a `429` cools the pool.
 - [x] Verify catalog discovery and the quota probe.
+- [x] Verify a tool call round trip (`read_file`).
 - [ ] Capture a Pro session and replay a Pro-only model.
 - [ ] Run two sessions side by side and confirm isolation.
 - [ ] Record the test name, provider, model, and result in the README status matrix.
