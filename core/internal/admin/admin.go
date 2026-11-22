@@ -44,17 +44,18 @@ type Options struct {
 }
 
 type Server struct {
-	options Options
-	token   string
-	logs    *logHub
-	mux     http.Handler
+	options  Options
+	token    string
+	logs     *logHub
+	catalogs *catalogCache
+	mux      http.Handler
 }
 
 func New(options Options) (*Server, error) {
 	if options.Gateway == nil || options.Store == nil {
 		return nil, errors.New("admin needs a gateway and a vault")
 	}
-	server := &Server{options: options, token: randomToken(), logs: newLogHub()}
+	server := &Server{options: options, token: randomToken(), logs: newLogHub(), catalogs: newCatalogCache()}
 	server.mux = server.routes()
 	return server, nil
 }
@@ -279,6 +280,11 @@ func (s *Server) addKey(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.catalogs.dropProvider(input.Provider)
+	if err := s.options.Gateway.ResetCredential(r.Context(), provider, input.Provider, label, key); err != nil {
+		fail(w, http.StatusInternalServerError, "key saved but the state reset failed: "+err.Error())
+		return
+	}
 	if err := s.reloadFile(r.Context()); err != nil {
 		fail(w, http.StatusBadRequest, "key saved but reloading failed: "+err.Error())
 		return
@@ -321,6 +327,11 @@ func (s *Server) removeKey(w http.ResponseWriter, r *http.Request) {
 	}
 	if !removed {
 		fail(w, http.StatusNotFound, "that label is not stored")
+		return
+	}
+	s.catalogs.dropProvider(input.Provider)
+	if err := s.options.Gateway.ResetCredential(r.Context(), provider, input.Provider, input.Label, ""); err != nil {
+		fail(w, http.StatusInternalServerError, "key removed but the state reset failed: "+err.Error())
 		return
 	}
 	if err := s.reloadFile(r.Context()); err != nil {
@@ -505,11 +516,39 @@ func (s *Server) webLogin(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadGateway, strings.TrimSpace(out+" "+err.Error()))
 		return
 	}
+	if err := s.resetLabel(r.Context(), input.Provider, input.Label); err != nil {
+		fail(w, http.StatusInternalServerError, "session captured but the state reset failed: "+err.Error())
+		return
+	}
 	if err := s.reloadFile(r.Context()); err != nil {
 		fail(w, http.StatusBadRequest, "session captured but reloading failed: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"output": strings.TrimSpace(out)})
+}
+
+// resetLabel drops cached session state and cooldowns for a fresh capture.
+func (s *Server) resetLabel(ctx context.Context, providerID, label string) error {
+	cfg, err := s.loadConfig()
+	if err != nil {
+		return err
+	}
+	provider, ok := cfg.Provider(providerID)
+	if !ok {
+		return nil
+	}
+	entries, err := s.options.Store.Entries(context.WithoutCancel(ctx), providerID, provider.BaseURL)
+	if err != nil {
+		return err
+	}
+	key := ""
+	for _, entry := range entries {
+		if entry.Label == label {
+			key = entry.Key
+		}
+	}
+	s.catalogs.dropProvider(providerID)
+	return s.options.Gateway.ResetCredential(context.WithoutCancel(ctx), provider, providerID, label, key)
 }
 
 // webQuota probes the remaining chat quota of every stored session.
@@ -595,6 +634,10 @@ func (s *Server) recapture(w http.ResponseWriter, r *http.Request) {
 	steps = append(steps, out)
 	if err != nil {
 		fail(w, http.StatusBadGateway, strings.TrimSpace(strings.Join(steps, "\n")))
+		return
+	}
+	if err := s.resetLabel(r.Context(), input.Provider, input.Label); err != nil {
+		fail(w, http.StatusInternalServerError, "session captured but the state reset failed: "+err.Error())
 		return
 	}
 	if err := s.reloadFile(r.Context()); err != nil {

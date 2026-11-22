@@ -660,11 +660,39 @@ func (c *Client) clerkToken(ctx context.Context, cred Credential) (string, error
 	return token.JWT, nil
 }
 
-// Forget drops cached tokens so the next call re-mints them.
+// Forget drops cached tokens and attestations after a credential was replaced.
+// Signed-in state is keyed by subject, so the pools are cleared wholesale; they
+// are small and refill on demand.
 func (c *Client) Forget(cred Credential) {
 	c.mu.Lock()
 	delete(c.tokens, credentialKey(cred))
+	c.attesting = map[string][]cached{}
 	c.mu.Unlock()
+}
+
+// Sweep drops expired token and attestation entries plus idle locks.
+func (c *Client) Sweep() {
+	now := c.now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key, entry := range c.tokens {
+		if !now.Before(entry.expires) {
+			delete(c.tokens, key)
+		}
+	}
+	for key, pool := range c.attesting {
+		kept := pool[:0]
+		for _, entry := range pool {
+			if now.Before(entry.expires) {
+				kept = append(kept, entry)
+			}
+		}
+		if len(kept) == 0 {
+			delete(c.attesting, key)
+			continue
+		}
+		c.attesting[key] = kept
+	}
 }
 
 func credentialKey(cred Credential) string {

@@ -232,7 +232,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	if err != nil && sent {
 		writeStreamError(w, protocol, err)
-		slog.Warn("web provider stream failed", "provider", target.Route.Provider, "error", err)
+		slog.Warn("web provider stream failed", "request_id", requestID(r),
+			"provider", target.Route.Provider, "error", err)
 		return reason.chars(), len(calls)
 	}
 	if err != nil {
@@ -264,7 +265,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			cancel()
 		}
 	}
-	slog.Info("web completion", "provider", target.Route.Provider, "model", target.Route.ID,
+	slog.Info("web completion", "request_id", requestID(r),
+		"provider", target.Route.Provider, "model", target.Route.ID,
 		"protocol", protocol, "stream", stream, "chars", reason.chars(), "calls", len(calls),
 		"attempts", attempts, "duration_ms", time.Since(started).Milliseconds())
 	return reason.chars(), len(calls)

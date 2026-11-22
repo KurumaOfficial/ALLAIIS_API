@@ -27,7 +27,8 @@ apply to the running gateway within seconds through a hot reload — no restart.
 `allaiis doctor` runs the same diagnostics without a browser, and
 `allaiis smoke` probes every alias through a throwaway in-process gateway, so a
 CI job can catch a broken route without touching the live one. See
-[docs/gui.md](docs/gui.md).
+[docs/gui.md](docs/gui.md). Cache layers, invalidation points, retries and
+error codes are described in [docs/quality.md](docs/quality.md).
 
 ## Quick start
 
@@ -119,6 +120,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /healthz` | Local liveness probe |
+| `OPTIONS /v1/*` | CORS preflight without a key |
 | `GET /v1/models` | Aliases available under the configured privacy policy |
 | `POST /v1/chat/completions` | Chat Completions with native JSON or SSE |
 | `POST /v1/responses` | Foreground Responses creation with native JSON or SSE, also on web routes |
@@ -261,6 +263,9 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Venice web quota probe and catalog | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Venice web Pro session | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
+| Request IDs and CORS | ✓ | `TestRequestIDIsEchoedAndStamped`, `TestErrorBodyCarriesRequestID`, `TestPreflightAndCORSHeaders` | — | — |
+| Cache invalidation on credential change | ✓ | `TestForgetDropsTokenAndAttestationCaches`, `TestReplacingAKeyClearsItsCooldown` | — | — |
+| Catalog cache with bypass | ✓ | `TestCatalogCacheServesAndBypasses` | panel cached and bypassed results | — |
 | Empty-reply retry and lead-in handling | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
 | Tier C tool emulation (sentinel and XML dialects) | ✓ | `TestToolGuardSplitsMarkers`, `TestToolGuardParsesInvokeXML`, `TestToolGuardDropsDuplicatedDialect`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call on all three protocols | — |
 | Web routes on `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | Opus text and `tool_use` | — |

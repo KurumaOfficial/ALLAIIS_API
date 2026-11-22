@@ -27,7 +27,8 @@ ALLAIIS — локальный шлюз на Go для AI-клиентов, вк
 через горячую перезагрузку — без рестарта. Ту же диагностику без браузера даёт
 `allaiis doctor`, а `allaiis smoke` прогоняет каждый алиас через временный
 внутренний гейтвей — CI ловит сломанный маршрут, не трогая рабочий. См.
-[docs/gui.ru.md](docs/gui.ru.md).
+[docs/gui.ru.md](docs/gui.ru.md). Слои кеша, инвалидация, повторы и коды ошибок
+описаны в [docs/quality.ru.md](docs/quality.ru.md).
 
 ## Быстрый старт
 
@@ -119,6 +120,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Эндпоинт | Назначение |
 | --- | --- |
 | `GET /healthz` | Проверка доступности локального шлюза |
+| `OPTIONS /v1/*` | CORS-preflight без ключа |
 | `GET /v1/models` | Алиасы, доступные по настроенной политике приватности |
 | `POST /v1/chat/completions` | Chat Completions с нативным JSON или SSE |
 | `POST /v1/responses` | Создание Responses в синхронном режиме с JSON или SSE |
@@ -251,6 +253,9 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Проба квоты и каталог Venice web | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Гостевой и Pro алиасы рядом | ✓ | `TestProviderAliasesAndPinnedCredentials` | гость + Pro в одном прогоне | — |
+| Request ID и CORS | ✓ | `TestRequestIDIsEchoedAndStamped`, `TestErrorBodyCarriesRequestID`, `TestPreflightAndCORSHeaders` | — | — |
+| Инвалидация кеша при смене ключа | ✓ | `TestForgetDropsTokenAndAttestationCaches`, `TestReplacingAKeyClearsItsCooldown` | — | — |
+| Кеш каталога с обходом | ✓ | `TestCatalogCacheServesAndBypasses` | кеш и обход в панели | — |
 | Повтор пустого ответа и первый пустой чанк | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
 | Эмуляция тулов Тира C (sentinel и XML) | ✓ | `TestToolGuardSplitsMarkers`, `TestToolGuardParsesInvokeXML`, `TestToolGuardDropsDuplicatedDialect`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | вызов `read_file` на всех трёх протоколах | — |
 | Веб-маршруты на `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | текст Opus и `tool_use` | — |

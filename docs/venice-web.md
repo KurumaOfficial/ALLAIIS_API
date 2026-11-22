@@ -174,6 +174,8 @@ decides whether the request goes to a key API or to the web transport. Messages
 aliases are exported under a separate `allaiis-anthropic` provider. Web
 aliases also carry tool calls, so an agent loop works; usage stays estimated.
 
+### Failure codes
+
 | Code | Meaning |
 | --- | --- |
 | `cloudflare_challenge` | stored clearance rejected; recapture |

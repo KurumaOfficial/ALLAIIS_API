@@ -92,8 +92,98 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 	mux.HandleFunc("POST /v1/chat/completions", g.completion(config.Chat, "/chat/completions"))
 	mux.HandleFunc("POST /v1/responses", g.completion(config.Responses, "/responses"))
 	mux.HandleFunc("POST /v1/messages", g.completion(config.Messages, "/messages"))
-	g.mux = mux
+	g.mux = g.instrument(mux)
 	return g
+}
+
+// instrument stamps a request ID on every response, keeps cache and CORS
+// headers uniform, and turns a panic into a JSON 500 when nothing was written.
+func (g *Gateway) instrument(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := inboundRequestID(r.Header.Get("X-Request-Id"))
+		if id == "" {
+			id = "req_" + randomID()
+		}
+		w.Header().Set("X-Request-Id", id)
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Request-Id, X-ALLAIIS-Transport-Tier, X-ALLAIIS-Provider, X-ALLAIIS-Model, X-ALLAIIS-Upstream-Model, X-ALLAIIS-Emulated-Features")
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Key, Anthropic-Version, Anthropic-Beta, X-ALLAIIS-Session, X-ALLAIIS-Min-Privacy, X-Request-Id")
+			w.Header().Set("Access-Control-Max-Age", "600")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		tracker := &writeTracker{ResponseWriter: w}
+		defer func() {
+			recovered := recover()
+			if recovered == nil {
+				return
+			}
+			if recovered != http.ErrAbortHandler {
+				slog.Error("handler panic", "request_id", id, "path", r.URL.Path, "panic", recovered)
+			}
+			if !tracker.wrote {
+				writeError(w, config.Chat, http.StatusInternalServerError, "internal_error",
+					"The gateway hit an internal error. Quote the request id when reporting it.")
+			}
+		}()
+		next.ServeHTTP(tracker, r.WithContext(context.WithValue(r.Context(), requestIDKey{}, id)))
+	})
+}
+
+// writeTracker remembers whether a body or status was already written.
+type writeTracker struct {
+	http.ResponseWriter
+	wrote bool
+}
+
+func (t *writeTracker) WriteHeader(status int) {
+	t.wrote = true
+	t.ResponseWriter.WriteHeader(status)
+}
+
+func (t *writeTracker) Write(body []byte) (int, error) {
+	t.wrote = true
+	return t.ResponseWriter.Write(body)
+}
+
+func (t *writeTracker) Unwrap() http.ResponseWriter { return t.ResponseWriter }
+
+type requestIDKey struct{}
+
+func requestID(r *http.Request) string {
+	id, _ := r.Context().Value(requestIDKey{}).(string)
+	return id
+}
+
+// inboundRequestID keeps a client-supplied trace ID when it is safe.
+func inboundRequestID(raw string) string {
+	if raw == "" || len(raw) > 64 {
+		return ""
+	}
+	for index := range len(raw) {
+		ch := raw[index]
+		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' ||
+			ch == '-' || ch == '_' || ch == '.' {
+			continue
+		}
+		return ""
+	}
+	return raw
+}
+
+// ResetCredential drops cached session state and any cooldown for a label after
+// its credential was replaced or removed.
+func (g *Gateway) ResetCredential(ctx context.Context, provider config.Provider, providerID, label, rawKey string) error {
+	if rawKey != "" {
+		if credential, err := webprov.ParseCredential(rawKey); err == nil {
+			g.web.Forget(credential)
+		}
+	}
+	return g.ClearCooldown(ctx, provider, providerID, label)
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) { g.mux.ServeHTTP(w, r) }
@@ -176,6 +266,7 @@ func (g *Gateway) Watch(ctx context.Context) {
 		case <-ticker.C:
 		}
 		info, err := os.Stat(g.reload.path)
+		g.web.Sweep()
 		changed := err == nil && (info.ModTime().UnixNano() != g.reload.mtime.Load() || info.Size() != g.reload.size.Load())
 		if current, err := g.reload.store.CredentialStamp(ctx); err == nil {
 			if last := g.reload.stamp.Load(); last == nil || *last != current {
@@ -200,7 +291,6 @@ func (g *Gateway) Watch(ctx context.Context) {
 
 func (g *Gateway) authorize(protocol config.Protocol, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
 		if g.validKey(clientCredential(r, protocol)) {
 			next(w, r)
 			return
@@ -570,9 +660,11 @@ func writeError(w http.ResponseWriter, protocol config.Protocol, status int, cod
 		})
 		return
 	}
-	writeJSON(w, status, map[string]any{"error": map[string]string{
-		"message": message, "type": kind, "code": code,
-	}})
+	payload := map[string]string{"message": message, "type": kind, "code": code}
+	if id := w.Header().Get("X-Request-Id"); id != "" {
+		payload["request_id"] = id
+	}
+	writeJSON(w, status, map[string]any{"error": payload})
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

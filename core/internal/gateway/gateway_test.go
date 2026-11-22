@@ -343,3 +343,68 @@ func complete(handler http.Handler, key, session, body string) *httptest.Respons
 	handler.ServeHTTP(result, request)
 	return result
 }
+
+func TestRequestIDIsEchoedAndStamped(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"demo","messages":[{"role":"user","content":"hi"}]}`))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	request.Header.Set("X-Request-Id", "trace-123")
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if got := result.Header().Get("X-Request-Id"); got != "trace-123" {
+		t.Fatalf("request id %q", got)
+	}
+}
+
+func TestInvalidRequestIDIsReplaced(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	request.Header.Set("X-Request-Id", "bad id!")
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	got := result.Header().Get("X-Request-Id")
+	if !strings.HasPrefix(got, "req_") {
+		t.Fatalf("invalid id kept: %q", got)
+	}
+}
+
+func TestErrorBodyCarriesRequestID(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	request.Header.Set("X-Request-Id", "trace-err")
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusUnauthorized || !strings.Contains(result.Body.String(), `"request_id":"trace-err"`) {
+		t.Fatalf("no request id in error: %d %s", result.Code, result.Body)
+	}
+}
+
+func TestPreflightAndCORSHeaders(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	preflight := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
+	preflight.Header.Set("Origin", "http://localhost:3000")
+	preflight.Header.Set("Access-Control-Request-Headers", "authorization")
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, preflight)
+	if result.Code != http.StatusNoContent || result.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("preflight: %d %v", result.Code, result.Header())
+	}
+	if !strings.Contains(result.Header().Get("Access-Control-Allow-Headers"), "Authorization") {
+		t.Fatalf("authorization not allowed: %q", result.Header().Get("Access-Control-Allow-Headers"))
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Header().Get("Access-Control-Allow-Origin") != "*" ||
+		!strings.Contains(response.Header().Get("Access-Control-Expose-Headers"), "X-Request-Id") {
+		t.Fatalf("cors headers missing: %v", response.Header())
+	}
+}

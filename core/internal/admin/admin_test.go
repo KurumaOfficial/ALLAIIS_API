@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -315,5 +316,95 @@ func TestClearCooldownEndpoint(t *testing.T) {
 	until, err := f.store.Cooldown(t.Context(), "fake", key)
 	if err != nil || !until.IsZero() {
 		t.Fatalf("cooldown survived: %v %v", until, err)
+	}
+}
+
+func TestReplacingAKeyClearsItsCooldown(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")
+	key := f.upward.URL + "\x00work"
+	if err := f.store.SetCooldown(t.Context(), "fake", key, time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	result := f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-new"}`, "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("replace: %d %s", result.Code, result.Body)
+	}
+	if until, err := f.store.Cooldown(t.Context(), "fake", key); err != nil || !until.IsZero() {
+		t.Fatalf("cooldown survived a key replacement: %v %v", until, err)
+	}
+}
+
+func catalogFixture(t *testing.T, hits *int32) *Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(hits, 1)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data":[{"id":"model-a"},{"id":"model-b"}]}`))
+	}))
+	t.Cleanup(server.Close)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	gate := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(gate.Close)
+	cfg := config.Default()
+	cfg.Listen = strings.TrimPrefix(gate.URL, "http://")
+	cfg.Providers = map[string]config.Provider{"fake": {BaseURL: server.URL}}
+	cfg.Models = []config.Route{}
+	body, _ := json.Marshal(cfg)
+	if err := os.WriteFile(path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	vaultPath := filepath.Join(dir, "vault.sqlite")
+	pass := []byte("catalog-test-passphrase")
+	if err := vault.Init(t.Context(), vaultPath, pass); err != nil {
+		t.Fatal(err)
+	}
+	store, err := vault.Open(t.Context(), vaultPath, pass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "fake", Endpoint: server.URL, Label: "work", Key: "sk-catalog",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithReload(path, store)
+	panel, err := New(Options{Gateway: live, Store: store, ConfigPath: path, DataDir: dir, Passphrase: pass})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return panel
+}
+
+func TestCatalogCacheServesAndBypasses(t *testing.T) {
+	var hits int32
+	panel := catalogFixture(t, &hits)
+	call := func(path string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		request.Header.Set(tokenHeader, panel.token)
+		result := httptest.NewRecorder()
+		panel.ServeHTTP(result, request)
+		return result
+	}
+	first := call("/api/discover?provider=fake&label=work")
+	if first.Code != http.StatusOK || strings.Contains(first.Body.String(), `"cached":true`) {
+		t.Fatalf("first call: %d %s", first.Code, first.Body)
+	}
+	second := call("/api/discover?provider=fake&label=work")
+	if !strings.Contains(second.Body.String(), `"cached":true`) {
+		t.Fatalf("second call not cached: %s", second.Body)
+	}
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Fatalf("upstream hit %d times, want 1", hits)
+	}
+	refresh := call("/api/discover?provider=fake&label=work&refresh=1")
+	if refresh.Code != http.StatusOK || atomic.LoadInt32(&hits) != 2 {
+		t.Fatalf("refresh did not refetch: %d hits=%d", refresh.Code, hits)
 	}
 }

@@ -366,3 +366,48 @@ func TestClerkExpiryAndForget(t *testing.T) {
 		t.Fatalf("forget did not evict: %d", mints)
 	}
 }
+
+func TestForgetDropsTokenAndAttestationCaches(t *testing.T) {
+	client := New(5 * time.Second)
+	cred := Credential{DistinctID: "device", Venice: []Cookie{{Name: "cf_clearance", Value: "c"}}}
+	client.mu.Lock()
+	client.tokens[credentialKey(cred)] = cached{value: "jwt", expires: time.Now().Add(time.Minute)}
+	client.attesting["user_1"] = []cached{{value: "attestation", expires: time.Now().Add(time.Minute)}}
+	client.mu.Unlock()
+
+	client.Forget(cred)
+
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if len(client.tokens) != 0 || len(client.attesting) != 0 {
+		t.Fatalf("caches survived: %d tokens, %d pools", len(client.tokens), len(client.attesting))
+	}
+}
+
+func TestSweepDropsExpiredEntriesOnly(t *testing.T) {
+	client := New(5 * time.Second)
+	now := time.Now()
+	client.now = func() time.Time { return now }
+	client.mu.Lock()
+	client.tokens["stale"] = cached{value: "old", expires: now.Add(-time.Second)}
+	client.tokens["fresh"] = cached{value: "new", expires: now.Add(time.Minute)}
+	client.attesting["user"] = []cached{
+		{value: "stale", expires: now.Add(-time.Second)},
+		{value: "fresh", expires: now.Add(time.Minute)},
+	}
+	client.mu.Unlock()
+
+	client.Sweep()
+
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if _, ok := client.tokens["stale"]; ok {
+		t.Fatal("expired token kept")
+	}
+	if _, ok := client.tokens["fresh"]; !ok {
+		t.Fatal("fresh token dropped")
+	}
+	if pool := client.attesting["user"]; len(pool) != 1 || pool[0].value != "fresh" {
+		t.Fatalf("attestation pool %+v", pool)
+	}
+}

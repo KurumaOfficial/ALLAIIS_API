@@ -159,6 +159,13 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 	}
 	label := r.URL.Query().Get("label")
 	match := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("match")))
+	cacheKey := id + "\x00" + label + "\x00" + match
+	if r.URL.Query().Get("refresh") == "" {
+		if models, ok := s.catalogs.get(cacheKey); ok {
+			writeJSON(w, http.StatusOK, map[string]any{"models": models, "cached": true})
+			return
+		}
+	}
 	entries, err := s.options.Store.Entries(r.Context(), id, provider.BaseURL)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, err.Error())
@@ -203,6 +210,7 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
+		s.catalogs.put(cacheKey, result)
 		writeJSON(w, http.StatusOK, map[string]any{"models": result})
 		return
 	}
@@ -215,6 +223,7 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	s.catalogs.put(cacheKey, models)
 	writeJSON(w, http.StatusOK, map[string]any{"models": models})
 }
 
