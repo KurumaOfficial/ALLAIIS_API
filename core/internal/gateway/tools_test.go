@@ -965,3 +965,11 @@ func TestToolNamesFromAnOldFileStayFresh(t *testing.T) {
 		t.Fatalf("old file dropped: %v", names)
 	}
 }
+
+func TestMetricsReportToolRetention(t *testing.T) {
+	setToolNameTTL(t, 7)
+	summary := newMetrics().summary()
+	if got := summary["tool_ttl_days"]; got != int64(7) {
+		t.Fatalf("retention not reported: %v", got)
+	}
+}

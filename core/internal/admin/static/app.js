@@ -64,6 +64,8 @@ function render () {
   $('ov-tools').textContent = reshaped.toLocaleString()
   $('ov-tools-unknown').textContent = (state.usage.tool_unknown || 0) + ' unknown names'
   $('ov-tools-reset').hidden = !reshaped && !(state.usage.tool_unknown || 0)
+  const ttl = state.usage.tool_ttl_days || 0
+  $('ov-tools-ttl').textContent = ttl > 0 ? 'names kept ' + ttl + 'd' : 'names kept forever'
   $('base-url').textContent = 'http://' + state.listen + '/v1'
   $('client-key').textContent = keyVisible ? state.client_key : '•'.repeat(32)
   $('fact-data').textContent = state.data_dir

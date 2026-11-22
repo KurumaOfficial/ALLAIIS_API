@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"text/tabwriter"
+	"time"
 )
 
 const toolsUsage = `allaiis tools — inspect the tool name record the doctor reads
@@ -21,10 +22,11 @@ const toolsUsage = `allaiis tools — inspect the tool name record the doctor re
 
 // toolNameRecord mirrors the file the gateway keeps.
 type toolNameRecord struct {
-	Folded   int64          `json:"folded"`
-	Suffixed int64          `json:"suffixed"`
-	Unknown  int64          `json:"unknown"`
-	Names    map[string]int `json:"names"`
+	Folded   int64            `json:"folded"`
+	Suffixed int64            `json:"suffixed"`
+	Unknown  int64            `json:"unknown"`
+	Names    map[string]int   `json:"names"`
+	Seen     map[string]int64 `json:"seen"`
 }
 
 func runTools(dataDir string, args []string) error {
@@ -78,11 +80,29 @@ func showToolNames(out io.Writer, path string, asJSON bool) error {
 		return names[i] < names[j]
 	})
 	table := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(table, "\nNAME\tCALLS")
+	fmt.Fprintln(table, "\nNAME\tCALLS\tLAST SEEN")
+	now := time.Now()
 	for _, name := range names {
-		fmt.Fprintf(table, "%s\t%d\n", name, record.Names[name])
+		fmt.Fprintf(table, "%s\t%d\t%s\n", name, record.Names[name], age(now, record.Seen[name]))
 	}
 	return table.Flush()
+}
+
+// age renders how long ago a name was last seen, empty when unknown.
+func age(now time.Time, stamp int64) string {
+	if stamp == 0 {
+		return "unknown"
+	}
+	span := now.Sub(time.UnixMilli(stamp))
+	switch {
+	case span < time.Minute:
+		return "just now"
+	case span < time.Hour:
+		return fmt.Sprintf("%dm", int(span.Minutes()))
+	case span < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(span.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(span.Hours()/24))
 }
 
 // resetToolNames removes the record; a running gateway notices the deletion.

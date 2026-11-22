@@ -6,8 +6,10 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeRecord(t *testing.T, dir, body string) {
@@ -84,5 +86,40 @@ func TestToolsResetWithoutARecord(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "No record") {
 		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestAgeRendering(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	cases := []struct {
+		stamp int64
+		want  string
+	}{
+		{0, "unknown"},
+		{now.UnixMilli() - 30_000, "just now"},
+		{now.UnixMilli() - 5*60_000, "5m"},
+		{now.UnixMilli() - 3*3_600_000, "3h"},
+		{now.UnixMilli() - 9*24*3_600_000, "9d"},
+	}
+	for _, item := range cases {
+		if got := age(now, item.stamp); got != item.want {
+			t.Fatalf("age(%d) = %q, want %q", item.stamp, got, item.want)
+		}
+	}
+}
+
+func TestToolsShowPrintsAge(t *testing.T) {
+	dir := t.TempDir()
+	stamp := time.Now().Add(-5 * time.Hour).UnixMilli()
+	body := `{"unknown":1,"names":{"aged":1},"seen":{"aged":` + strconv.FormatInt(stamp, 10) + `}}`
+	if err := os.WriteFile(filepath.Join(dir, "tool-names.json"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "LAST SEEN") || !strings.Contains(out.String(), "5h") {
+		t.Fatalf("age not printed: %q", out.String())
 	}
 }
