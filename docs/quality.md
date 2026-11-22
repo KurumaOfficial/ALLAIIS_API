@@ -79,7 +79,8 @@ in `tool-names.json` in the data directory, written at most every three seconds
 through a temporary file and read at startup, so a doctor warning is not wiped by
 a restart. The panel's **Reset** button on the Tool reshaping card (or
 `POST /api/tools/reset`, or `allaiis tools reset`) zeroes both and deletes the
-file, which is how a fixed tool list stops carrying old blame. `allaiis tools
+file; `allaiis tools reset --expired` drops only the names past retention, which
+keeps the fresh evidence, which is how a fixed tool list stops carrying old blame. `allaiis tools
 show` prints the record with the time each name was last seen and marks a name
 past retention as expired, so a stopped gateway cannot make the view lie; a running
 gateway notices an outside edit or deletion within a couple of seconds. A name also expires after

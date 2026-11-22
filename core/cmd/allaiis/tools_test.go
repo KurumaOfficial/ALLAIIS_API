@@ -65,7 +65,7 @@ func TestToolsReset(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	err := resetToolNames(&out, filepath.Join(dir, "tool-names.json"))
+	err := resetToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestToolsReset(t *testing.T) {
 
 func TestToolsResetWithoutARecord(t *testing.T) {
 	var out bytes.Buffer
-	if err := resetToolNames(&out, filepath.Join(t.TempDir(), "tool-names.json")); err != nil {
+	if err := resetToolNames(&out, filepath.Join(t.TempDir(), "tool-names.json"), 0, false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "No record") {
@@ -140,5 +140,70 @@ func TestToolsShowPrintsAge(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "LAST SEEN") || !strings.Contains(out.String(), "5h") {
 		t.Fatalf("age not printed: %q", out.String())
+	}
+}
+
+func TestToolsResetDropsOnlyExpired(t *testing.T) {
+	dir := t.TempDir()
+	old := time.Now().Add(-40 * 24 * time.Hour).UnixMilli()
+	fresh := time.Now().UnixMilli()
+	body := `{"unknown":2,"names":{"ghost":1,"kept":1},"seen":{"ghost":` + strconv.FormatInt(old, 10) +
+		`,"kept":` + strconv.FormatInt(fresh, 10) + `}}`
+	path := filepath.Join(dir, "tool-names.json")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	if err := resetToolNames(&out, path, 30, true); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "ghost") {
+		t.Fatalf("expired name kept: %s", raw)
+	}
+	if !strings.Contains(string(raw), "kept") {
+		t.Fatalf("fresh name lost: %s", raw)
+	}
+	if !strings.Contains(out.String(), "Dropped 1") {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestToolsResetExpiredWithoutExpiredNames(t *testing.T) {
+	dir := t.TempDir()
+	body := `{"unknown":1,"names":{"kept":1},"seen":{"kept":` + strconv.FormatInt(time.Now().UnixMilli(), 10) + `}}`
+	path := filepath.Join(dir, "tool-names.json")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := resetToolNames(&out, path, 30, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "No expired names") {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestToolsResetExpiredWithRetentionOff(t *testing.T) {
+	dir := t.TempDir()
+	body := `{"unknown":1,"names":{"kept":1},"seen":{"kept":1}}`
+	path := filepath.Join(dir, "tool-names.json")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := resetToolNames(&out, path, 0, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Retention is off") {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("file removed: %v", err)
 	}
 }

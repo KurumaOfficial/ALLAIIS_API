@@ -19,7 +19,7 @@ import (
 const toolsUsage = `allaiis tools — inspect the tool name record the doctor reads
 
   allaiis tools show [--json]   Print repaired and unknown name counts
-  allaiis tools reset           Forget the record (a running gateway follows)
+  allaiis tools reset [--expired]  Forget the record, or only names past retention
 `
 
 // toolNameRecord mirrors the file the gateway keeps.
@@ -42,7 +42,8 @@ func runTools(dataDir, configPath string, args []string) error {
 		asJSON := len(args) > 1 && args[1] == "--json"
 		return showToolNames(os.Stdout, path, retentionDays(configPath), asJSON)
 	case "reset":
-		return resetToolNames(os.Stdout, path)
+		expiredOnly := len(args) > 1 && args[1] == "--expired"
+		return resetToolNames(os.Stdout, path, retentionDays(configPath), expiredOnly)
 	default:
 		return fmt.Errorf("unknown tools command %q", args[0])
 	}
@@ -135,10 +136,11 @@ func age(now time.Time, stamp int64, ttlDays int) string {
 	return fmt.Sprintf("%dd", int(span.Hours()/24))
 }
 
-// resetToolNames removes the record; a running gateway notices the deletion.
-func resetToolNames(out io.Writer, path string) error {
+// resetToolNames removes the record, or only the names past retention. A running
+// gateway notices either change through the watch.
+func resetToolNames(out io.Writer, path string, ttlDays int, expiredOnly bool) error {
 	os.Remove(path + ".tmp")
-	err := os.Remove(path)
+	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintln(out, "No record to clear.")
 		return nil
@@ -146,6 +148,52 @@ func resetToolNames(out io.Writer, path string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(out, "Record cleared. A running gateway drops it within a few seconds.")
+	if !expiredOnly {
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+		fmt.Fprintln(out, "Record cleared. A running gateway drops it within a few seconds.")
+		return nil
+	}
+	return dropExpiredFromFile(out, path, raw, ttlDays)
+}
+
+// dropExpiredFromFile rewrites the record without the names past retention.
+func dropExpiredFromFile(out io.Writer, path string, raw []byte, ttlDays int) error {
+	var record toolNameRecord
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return fmt.Errorf("the record is not readable: %w", err)
+	}
+	if ttlDays <= 0 {
+		fmt.Fprintln(out, "Retention is off (tool_name_ttl_days is 0): nothing expires.")
+		return nil
+	}
+	cutoff := time.Now().Add(-time.Duration(ttlDays) * 24 * time.Hour).UnixMilli()
+	dropped := 0
+	for name := range record.Names {
+		stamp, known := record.Seen[name]
+		if known && stamp < cutoff {
+			delete(record.Names, name)
+			delete(record.Seen, name)
+			dropped++
+		}
+	}
+	if dropped == 0 {
+		fmt.Fprintln(out, "No expired names.")
+		return nil
+	}
+	encoded, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	temp := path + ".tmp"
+	if err := os.WriteFile(temp, encoded, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(temp, path); err != nil {
+		os.Remove(temp)
+		return err
+	}
+	fmt.Fprintf(out, "Dropped %d expired name(s). A running gateway follows within a few seconds.\n", dropped)
 	return nil
 }
