@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
@@ -25,8 +26,11 @@ func (s *Server) diagnose(ctx context.Context) []Check {
 	return Diagnose(ctx, s.options.Store, s.options.ConfigPath)
 }
 
-// nameStats is a seam so a test can supply parser counters.
-var nameStats = gateway.ToolNameStats
+// nameStats is a seam so a test can supply parser counters and names.
+var nameStats = func() (repaired, unknown int64, names []string) {
+	repaired, unknown = gateway.ToolNameStats()
+	return repaired, unknown, gateway.ToolUnknownNames(3)
+}
 
 // Diagnose validates the local setup without spending provider quota.
 func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Check {
@@ -115,15 +119,21 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 }
 
 // toolNameVerdict turns the name counters into a cheap diagnostic: a name the
-// parser could not repair means the model invents tools the catalog lacks.
-func toolNameVerdict(repaired, unknown int64) (status, detail string, ok bool) {
+// parser could not repair means the model invents tools the catalog lacks. The
+// names themselves are listed because "bash" and "Read-File" call for different
+// fixes.
+func toolNameVerdict(repaired, unknown int64, names []string) (status, detail string, ok bool) {
 	if repaired+unknown == 0 {
 		return "", "", false
 	}
-	if unknown > repaired {
-		return "warn", fmt.Sprintf("%d call(s) named a tool outside the catalog, only %d were repaired", unknown, repaired), true
+	listed := ""
+	if len(names) > 0 {
+		listed = " (" + strings.Join(names, ", ") + ")"
 	}
-	return "ok", fmt.Sprintf("%d call(s) had a name repaired, %d stayed unknown", repaired, unknown), true
+	if unknown > repaired {
+		return "warn", fmt.Sprintf("%d call(s) named a tool outside the catalog%s, only %d were repaired", unknown, listed, repaired), true
+	}
+	return "ok", fmt.Sprintf("%d call(s) had a name repaired, %d stayed unknown%s", repaired, unknown, listed), true
 }
 
 func (s *Server) doctor(w http.ResponseWriter, r *http.Request) {

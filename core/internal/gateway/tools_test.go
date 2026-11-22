@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -689,5 +690,45 @@ func TestToolCountersTrackReshaping(t *testing.T) {
 	// the genuinely unknown bash counts here.
 	if got := toolCounters.unknown.Load() - unknownBefore; got != 1 {
 		t.Fatalf("unknown counter: %d", got)
+	}
+}
+
+func TestToolGuardRemembersUnknownNames(t *testing.T) {
+	for _, name := range []string{"uxtool_a", "uxtool_a", "uxtool_b"} {
+		guard := guardFor("shell")
+		_, calls, err := guard.Write(`<invoke name="` + name + `"><parameter name="command">ls</parameter></invoke>`)
+		if err != nil || len(calls) != 1 || calls[0].Function.Name != name {
+			t.Fatalf("%s: %+v %v", name, calls, err)
+		}
+	}
+	names := ToolUnknownNames(0)
+	index := func(name string) int {
+		for i, got := range names {
+			if got == name {
+				return i
+			}
+		}
+		return -1
+	}
+	if index("uxtool_a") < 0 || index("uxtool_b") < 0 {
+		t.Fatalf("names not remembered: %v", names)
+	}
+	if index("uxtool_a") > index("uxtool_b") {
+		t.Fatalf("names not ordered by frequency: %v", names)
+	}
+}
+
+func TestToolUnknownNamesIsBounded(t *testing.T) {
+	for i := 0; i < maxUnknownNames+8; i++ {
+		noteUnknownName("tool" + strconv.Itoa(i))
+	}
+	if got := len(ToolUnknownNames(0)); got > maxUnknownNames {
+		t.Fatalf("set not bounded: %d", got)
+	}
+	// Whatever still has a place moves to the top when it repeats.
+	first := ToolUnknownNames(1)[0]
+	noteUnknownName(first)
+	if ToolUnknownNames(1)[0] != first {
+		t.Fatalf("repeated name lost: %v", ToolUnknownNames(3))
 	}
 }

@@ -9,16 +9,20 @@ import (
 )
 
 func TestToolNameVerdict(t *testing.T) {
-	if status, _, ok := toolNameVerdict(0, 0); ok || status != "" {
+	if status, _, ok := toolNameVerdict(0, 0, nil); ok || status != "" {
 		t.Fatalf("quiet parser reported: %q %v", status, ok)
 	}
-	if status, _, ok := toolNameVerdict(5, 1); !ok || status != "ok" {
+	if status, _, ok := toolNameVerdict(5, 1, nil); !ok || status != "ok" {
 		t.Fatalf("repairs mostly worked: %q %v", status, ok)
 	}
-	if status, detail, ok := toolNameVerdict(1, 5); !ok || status != "warn" || !strings.Contains(detail, "outside the catalog") {
+	status, detail, ok := toolNameVerdict(1, 5, []string{"bash", "grep"})
+	if !ok || status != "warn" || !strings.Contains(detail, "outside the catalog") {
 		t.Fatalf("unknown names not flagged: %q %q %v", status, detail, ok)
 	}
-	if status, _, ok := toolNameVerdict(0, 3); !ok || status != "warn" {
+	if !strings.Contains(detail, "bash, grep") {
+		t.Fatalf("names not listed: %q", detail)
+	}
+	if status, _, ok := toolNameVerdict(0, 3, nil); !ok || status != "warn" {
 		t.Fatalf("all names unknown: %q %v", status, ok)
 	}
 }
@@ -26,7 +30,7 @@ func TestToolNameVerdict(t *testing.T) {
 func TestDiagnoseReportsToolNames(t *testing.T) {
 	f := setup(t)
 	previous := nameStats
-	nameStats = func() (int64, int64) { return 1, 4 }
+	nameStats = func() (int64, int64, []string) { return 1, 4, []string{"bash"} }
 	t.Cleanup(func() { nameStats = previous })
 
 	checks := Diagnose(context.Background(), f.store, f.path)
@@ -44,7 +48,7 @@ func TestDiagnoseReportsToolNames(t *testing.T) {
 func TestDiagnoseSkipsToolNamesWithoutTraffic(t *testing.T) {
 	f := setup(t)
 	previous := nameStats
-	nameStats = func() (int64, int64) { return 0, 0 }
+	nameStats = func() (int64, int64, []string) { return 0, 0, nil }
 	t.Cleanup(func() { nameStats = previous })
 
 	for _, check := range Diagnose(context.Background(), f.store, f.path) {

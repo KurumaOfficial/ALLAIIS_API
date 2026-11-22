@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
@@ -138,6 +139,58 @@ func ToolNameStats() (repaired, unknown int64) {
 	return toolCounters.fold.Load() + toolCounters.suffix.Load(), toolCounters.unknown.Load()
 }
 
+// unknownNames remembers which names stayed unknown, so the warning can name
+// them instead of only counting. The set is bounded: names beyond the cap
+// replace the least frequent one, which keeps the map small and the report
+// focused on what keeps happening.
+const maxUnknownNames = 16
+
+var unknownNames struct {
+	mu    sync.Mutex
+	count map[string]int
+}
+
+// noteUnknownName counts one unknown name under the cap.
+func noteUnknownName(name string) {
+	unknownNames.mu.Lock()
+	defer unknownNames.mu.Unlock()
+	if unknownNames.count == nil {
+		unknownNames.count = map[string]int{}
+	}
+	if _, seen := unknownNames.count[name]; seen || len(unknownNames.count) < maxUnknownNames {
+		unknownNames.count[name]++
+		return
+	}
+	lowest, count := "", 0
+	for candidate, seen := range unknownNames.count {
+		if lowest == "" || seen < count {
+			lowest, count = candidate, seen
+		}
+	}
+	delete(unknownNames.count, lowest)
+	unknownNames.count[name] = 1
+}
+
+// ToolUnknownNames lists the most frequent unknown names, newest first on a tie.
+func ToolUnknownNames(limit int) []string {
+	unknownNames.mu.Lock()
+	defer unknownNames.mu.Unlock()
+	names := make([]string, 0, len(unknownNames.count))
+	for name := range unknownNames.count {
+		names = append(names, name)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		if unknownNames.count[names[i]] != unknownNames.count[names[j]] {
+			return unknownNames.count[names[i]] > unknownNames.count[names[j]]
+		}
+		return names[i] < names[j]
+	})
+	if limit > 0 && len(names) > limit {
+		names = names[:limit]
+	}
+	return names
+}
+
 type toolGuard struct {
 	tools   []toolSpec
 	buf     strings.Builder
@@ -227,6 +280,7 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 		}
 		// Nothing matched: the name goes to the client as it is.
 		toolCounters.unknown.Add(1)
+		noteUnknownName(name)
 	}
 	return calls
 }
