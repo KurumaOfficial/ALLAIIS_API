@@ -134,6 +134,9 @@ an alias created from the panel stores them:
 | `max_context` | prompt estimate is checked before a request; oversized prompts get `context_length_exceeded` without spending quota |
 | `max_response` | `max_tokens` / `max_output_tokens` is clamped down to it |
 | `max_images` | attachment count is checked before upload (`too_many_attachments`) |
+
+The request body itself is capped globally by `max_request_mb` (default 8, up to
+128); inline data URLs count at their encoded size.
 | `reasoning` | forces thinking on or off instead of guessing from the model name |
 | `temperature`, `top_p` | used only when the client did not send its own |
 | `max_tools` | tool count is checked before the envelope is built (`too_many_tools`) |
