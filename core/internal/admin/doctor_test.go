@@ -147,6 +147,9 @@ func TestFetchLiveStatsReadsTheEndpoint(t *testing.T) {
 	if len(stats.names) != 1 || stats.names[0] != "bash" {
 		t.Fatalf("names: %v", stats.names)
 	}
+	if stats.expired != 1 {
+		t.Fatalf("expired not counted: %d", stats.expired)
+	}
 }
 
 func TestFetchLiveStatsRejectsGarbage(t *testing.T) {
@@ -162,5 +165,25 @@ func TestFetchLiveStatsRejectsGarbage(t *testing.T) {
 func TestFetchLiveStatsFailsWhenUnreachable(t *testing.T) {
 	if _, ok := fetchLiveStats(context.Background(), "127.0.0.1:1"); ok {
 		t.Fatal("unreachable gateway reported ok")
+	}
+}
+
+func TestDiagnoseMentionsExpiredNames(t *testing.T) {
+	f := setup(t)
+	previous, previousLive := nameStats, fetchStats
+	nameStats = func() (int64, int64, []string) { return 0, 0, nil }
+	fetchStats = func(context.Context, string) (liveStats, bool) {
+		return liveStats{unknown: 4, names: []string{"bash"}, expired: 2}, true
+	}
+	t.Cleanup(func() { nameStats, fetchStats = previous, previousLive })
+
+	found := false
+	for _, check := range Diagnose(context.Background(), f.store, f.path) {
+		if check.Name == "tool names" {
+			found = strings.Contains(check.Detail, "2 older name(s) expired")
+		}
+	}
+	if !found {
+		t.Fatal("expired names not mentioned")
 	}
 }

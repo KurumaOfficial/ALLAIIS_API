@@ -40,6 +40,7 @@ type liveStats struct {
 	repaired int64
 	unknown  int64
 	names    []string
+	expired  int
 	ttl      time.Duration
 }
 
@@ -77,6 +78,7 @@ func fetchLiveStats(ctx context.Context, listen string) (liveStats, bool) {
 	for _, item := range body.Names {
 		// A name past retention is no longer evidence, matching the in-process view.
 		if stats.ttl > 0 && time.Duration(item.AgeSeconds)*time.Second > stats.ttl {
+			stats.expired++
 			continue
 		}
 		stats.names = append(stats.names, item.Name)
@@ -160,11 +162,15 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 	}
 
 	repaired, unknown, names := nameStats()
+	expired := 0
 	if live, ok := fetchStats(ctx, cfg.Listen); ok {
 		// A running gateway knows better than this process does.
-		repaired, unknown, names = live.repaired, live.unknown, live.names
+		repaired, unknown, names, expired = live.repaired, live.unknown, live.names, live.expired
 	}
 	if status, detail, ok := toolNameVerdict(repaired, unknown, firstNames(names, 3)); ok {
+		if expired > 0 {
+			detail += fmt.Sprintf("; %d older name(s) expired and ignored", expired)
+		}
 		add("tool names", status, detail)
 	}
 
