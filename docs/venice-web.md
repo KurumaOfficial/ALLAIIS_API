@@ -301,7 +301,9 @@ What the gateway guarantees to an OpenAI-compatible client:
   for them; when the harness routes tools through a sandbox, the header says a
   direct call works anyway and names the sandbox as the alternative;
 - a lone `arguments` wrapper is unwrapped whether its value is an object or a
-  stringified object.
+  stringified object;
+- a closed block that names an unknown tool is delivered as a call instead of
+  stalling the stream, so the client can report the name to the model.
 
 Measured on a free model, 2026-11-22: five of five streams returned 200 and
 `[DONE]`, three of them in parallel; time to first content ran 2.5–7.4 s

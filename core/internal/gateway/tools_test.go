@@ -149,8 +149,11 @@ func TestToolGuardInvokeJSONBodyAndUnknownTool(t *testing.T) {
 		t.Fatalf("json body: %q %+v %v", safe, calls, err)
 	}
 	guard = guardFor("read_file")
-	if _, _, err := guard.Write(`<invoke name="other"><parameter name="x">1</parameter></invoke>`); err == nil {
-		t.Fatal("unknown tool accepted")
+	// A closed block with an unknown name is delivered so the client can report
+	// it, instead of stalling the stream.
+	if _, calls, err = guard.Write(`<invoke name="other"><parameter name="x">1</parameter></invoke>`); err != nil ||
+		len(calls) != 1 || calls[0].Function.Name != "other" {
+		t.Fatalf("unknown tool dropped: %+v %v", calls, err)
 	}
 	guard = guardFor("read_file")
 	_, calls, err = guard.Write(`<invoke name="read_file"><parameter name="items"><item>a</item><item>2</item></parameter></invoke>`)
@@ -499,5 +502,17 @@ func TestInvokeArgumentsStringWrapperIsFlattened(t *testing.T) {
 		`{"command":"go test ./..."}</parameter></invoke>`)
 	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"command":"go test ./..."}` {
 		t.Fatalf("string wrapper: %+v %v", calls, err)
+	}
+}
+
+func TestUnknownToolIsDeliveredWhileStreaming(t *testing.T) {
+	guard := guardFor("shell")
+	if _, calls, err := guard.Write(`<invoke name="bash">`); err != nil || len(calls) != 0 {
+		t.Fatalf("open block parsed too early: %+v %v", calls, err)
+	}
+	_, calls, err := guard.Write(`<parameter name="command">ls</parameter></invoke>`)
+	if err != nil || len(calls) != 1 || calls[0].Function.Name != "bash" ||
+		calls[0].Function.Arguments != `{"command":"ls"}` {
+		t.Fatalf("unknown tool stalled: %+v %v", calls, err)
 	}
 }

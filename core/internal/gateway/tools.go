@@ -213,7 +213,10 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 					g.buf.WriteString(current[dsmlStart:])
 					return current[:dsmlStart], nil, err
 				}
-				if !complete || !g.knownCalls(calls) {
+				// A closed block with an unknown name is still delivered: the name
+				// cannot change any more, and the client reports it better than a
+				// stalled buffer.
+				if !complete {
 					g.buf.Reset()
 					g.buf.WriteString(current[dsmlStart:])
 					if g.buf.Len() > maxToolBuffer {
@@ -245,10 +248,7 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 					g.scanned = max(0, g.buf.Len()-toolOverlap)
 					return current[:xmlStart], nil, nil
 				}
-				if !g.knownCalls(calls) {
-					g.buf.Reset()
-					g.buf.WriteString(current[xmlStart:])
-					g.scanned = max(0, g.buf.Len()-toolOverlap)
+				if g.buf.Len() > maxToolBuffer {
 					return current[:xmlStart], nil, errNoToolBlock
 				}
 				calls = g.unique(calls)
@@ -313,9 +313,6 @@ func (g *toolGuard) Flush() (string, []toolCall, error) {
 		if dsmlStart := dsmlIndex(current); dsmlStart >= 0 {
 			fragment := trimPartialClose(current[dsmlStart:], toolClose)
 			head, calls, _, _, err := consumeDSML(fragment, true)
-			if err == nil && len(calls) > 0 && !g.knownCalls(calls) {
-				err = errNoToolBlock
-			}
 			if err == nil && len(calls) == 0 {
 				// The marker was prose, not a block: keep it visible.
 				return current, nil, nil
@@ -327,9 +324,6 @@ func (g *toolGuard) Flush() (string, []toolCall, error) {
 		}
 		if xmlStart := invokeIndex(current); xmlStart >= 0 {
 			head, calls, _, _, err := consumeInvokes(current[xmlStart:])
-			if err == nil && len(calls) > 0 && !g.knownCalls(calls) {
-				err = errNoToolBlock
-			}
 			if err == nil {
 				calls = g.unique(calls)
 			}
