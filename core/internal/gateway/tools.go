@@ -230,6 +230,10 @@ func (g *toolGuard) Flush() (string, []toolCall, error) {
 			if err == nil && len(calls) > 0 && !g.knownCalls(calls) {
 				err = errNoToolBlock
 			}
+			if err == nil && len(calls) == 0 {
+				// The marker was prose, not a block: keep it visible.
+				return current, nil, nil
+			}
 			if err == nil {
 				calls = g.unique(calls)
 			}

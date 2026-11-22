@@ -169,6 +169,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				if len(parsed) > 0 {
 					reason.callsChars(parsed)
 					calls = append(calls, parsed...)
+					if strings.TrimSpace(text) == "" {
+						text = ""
+					}
 					if stream {
 						startStream()
 						shape.calls(parsed)
@@ -254,7 +257,11 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		held = ""
 	}
 	if len(tools) > 0 {
+		raw := guard.buf.String()
 		if tail, parsed, parseErr := guard.Flush(); parseErr == nil {
+			if len(parsed) > 0 && strings.TrimSpace(tail) == "" {
+				tail = ""
+			}
 			if tail != "" {
 				reason.append(tail)
 				if stream {
@@ -269,6 +276,12 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			if len(parsed) > 0 && stream {
 				startStream()
 				shape.calls(parsed)
+			}
+		} else if tail := strings.TrimSpace(trimPartialClose(strings.TrimPrefix(raw, toolOpen), toolClose)); tail != "" {
+			reason.append(tail)
+			if stream {
+				startStream()
+				shape.text(tail)
 			}
 		}
 	}
@@ -617,8 +630,8 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		case "tool":
 			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
 		case "assistant":
-			if text == "" {
-				text = renderToolCalls(text, message.ToolCalls)
+			if strings.TrimSpace(text) == "" {
+				text = renderToolCalls("", message.ToolCalls)
 			}
 			if text == "" {
 				text = "(empty)"

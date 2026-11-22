@@ -185,3 +185,28 @@ func TestStreamedToolCallIndexesKeepRising(t *testing.T) {
 		t.Fatalf("indexes merged: %d %s", result.Code, text)
 	}
 }
+
+func TestWhitespaceAssistantTextKeepsToolCalls(t *testing.T) {
+	var seen map[string]any
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
+		seen = body
+		writeFrames(w, "ok")
+	})
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","messages":[{"role":"user","content":"read a"},` +
+		`{"role":"assistant","content":"\n\n","tool_calls":[{"id":"c1","type":"function",` +
+		`"function":{"name":"read_file","arguments":"{\"path\":\"a.txt\"}"}}]},` +
+		`{"role":"tool","tool_call_id":"c1","content":"A"},{"role":"user","content":"again"}]}`
+	result := complete(handler, store.ClientKey(), "", payload)
+	if result.Code != http.StatusOK {
+		t.Fatalf("status %d %s", result.Code, result.Body)
+	}
+	prompt, _ := seen["prompt"].([]any)
+	if len(prompt) < 2 {
+		t.Fatalf("prompt %v", seen["prompt"])
+	}
+	assistant, _ := prompt[1].(map[string]any)["content"].(string)
+	if !strings.Contains(assistant, "ALLAIIS_TOOL_CALL") || !strings.Contains(assistant, "a.txt") {
+		t.Fatalf("tool call lost: %q", assistant)
+	}
+}

@@ -267,3 +267,14 @@ func TestToolGuardFlushRepairsTruncatedBlock(t *testing.T) {
 		t.Fatalf("arguments %s", calls[0].Function.Arguments)
 	}
 }
+
+func TestToolGuardKeepsInlineMarkerAsText(t *testing.T) {
+	guard := guardFor("read_file")
+	if _, _, err := guard.Write("Use `<|DSML|calls>` for calls."); err != nil {
+		t.Fatal(err)
+	}
+	tail, calls, err := guard.Flush()
+	if err != nil || len(calls) != 0 || !strings.Contains(tail, "<|DSML|calls>") {
+		t.Fatalf("inline marker %q %+v %v", tail, calls, err)
+	}
+}
