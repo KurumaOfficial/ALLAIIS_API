@@ -1,9 +1,10 @@
 # Venice web transport (Tier C)
 
-Status: **working live** against `venice.ai` as a guest session. Verified with the
-`uncensored-venice-web` alias: streaming and non-streaming Chat Completions,
-attestation minting, catalog discovery, and quota probe all ran against the live
-host on 2026-11-22.
+Status: **working live** against `venice.ai`, on a guest session and on a Pro
+session. Verified 2026-11-22: streaming and non-streaming Chat Completions,
+attestation minting, catalog discovery, quota probe, a `read_file` tool call,
+Claude Opus 5.5 and an `e2ee-*` model. Guest requests need no login; Pro models
+need a captured signed-in session.
 
 Tier: `tier_c3` (`X-ALLAIIS-Transport-Tier: tier_c3`). The gateway talks to the
 web app's own inference API over HTTP with a Chrome TLS fingerprint; no browser
@@ -71,9 +72,13 @@ remaining chat/image/scrape counters and the reset time.
   sentinel block from the client, validates JSON, retries once on a malformed
   block, and returns native `tool_calls` with `finish_reason: tool_calls`.
   Declared via `X-ALLAIIS-Emulated-Features: tools`.
+- **Pin aliases to a label.** A pool with several captured sessions picks one by
+  request hash. Pass `--label` to `models add` so a route always uses the
+  intended account.
 - **Privacy**: routes default to the operator's classification; use
-  `--privacy zdr` for Venice Private models. E2EE (`e2ee-*`) models negotiate
-  client-side encryption in the browser and are not covered yet.
+  `--privacy zdr` for Venice Private models. `e2ee-*` ids work when signed in and
+  are served over the same plain transport; per-field client-side encryption is
+  not implemented.
 
 ## Failure codes
 
@@ -81,6 +86,7 @@ remaining chat/image/scrape counters and the reset time.
 | --- | --- |
 | `cloudflare_challenge` | stored clearance rejected; recapture |
 | `web_session_expired` | Clerk session dead and the guest fallback failed |
+| `sign_in_required` | the model needs a signed-in session (guest cookie) |
 | `context_length_exceeded` | upstream `userPromptTooLong` |
 | `rate_limit_exceeded` | guest or plan quota spent; pool cools down for 10 minutes |
 

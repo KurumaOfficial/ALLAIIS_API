@@ -233,7 +233,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | SSE и отмена при отключении клиента | ✓ | `TestStreamFlushAndCancel` | — | — |
 | Закрытая веб-интеграция Venice | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | JSON и SSE | — |
 | Проба квоты и каталог Venice web | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
-| Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget` | только гостевой фолбэк | ручной вход |
+| Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Эмуляция тулов Тира C | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | вызов `read_file` | — |
 
 ### Офлайн-совместимость

@@ -239,7 +239,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel` | — | — |
 | Venice web transport (guest) | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | Chat JSON + SSE | — |
 | Venice web quota probe and catalog | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
-| Venice web Pro session | ✓ | `TestClerkExpiryAndForget` | Guest fallback only | manual login |
+| Venice web Pro session | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Tier C tool emulation | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call | — |
 
 ### Offline compatibility
