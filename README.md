@@ -240,6 +240,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Venice web transport (guest) | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | Chat JSON + SSE | — |
 | Venice web quota probe and catalog | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Venice web Pro session | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
+| Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
 | Tier C tool emulation | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call | — |
 
 ### Offline compatibility

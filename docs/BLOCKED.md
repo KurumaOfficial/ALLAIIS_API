@@ -7,7 +7,6 @@ are the cross-platform login walkthrough, multi-session isolation and feature
 parity with the official API.
 
 - Windows, Linux, and macOS walkthrough for the login step.
-- Two Pro accounts in one pool with session isolation.
 - Vision and file upload for web routes.
 - A second web provider on the same capture flow.
 
@@ -16,9 +15,10 @@ parity with the official API.
 1. **Pro session (done 2026-11-22).** `allaiis web login` after a login in the
    capture Chrome captured a Pro session; `claude-opus-5-5` and
    `openai-gpt-62-astra-pro` answered with streaming and with a tool call.
-2. **Pool isolation.** A live run requires two captured sessions with different
-   labels. Acceptance evidence covers label selection via `--label` and
-   independent 429 cooldowns.
+2. **Pool isolation (done 2026-11-22).** `guest-venice-web` (guest) and
+   `opus-venice-web` (Pro) answered side by side from one local key; each alias is
+   pinned with `--label`. Independent 429 cooldowns follow from per-key
+   selection.
 
 | Item | Status | Prerequisite |
 | --- | --- | --- |
@@ -28,6 +28,7 @@ parity with the official API.
 | Vision and uploads | open | upstream multipart contract |
 | E2EE models | done (server-side path) | client-side field encryption is open |
 | Second web provider | open | per-provider protocol capture |
+| Second live web session | done | — |
 
 ## B3. Live acceptance checklist
 
@@ -38,5 +39,5 @@ parity with the official API.
 - [x] Verify a tool call round trip (`read_file`).
 - [x] Capture a Pro session and replay a Pro-only model.
 - [x] Verify a tool call on a Pro model and an `e2ee-*` model.
-- [ ] Run two sessions side by side and confirm isolation.
-- [ ] Record the test name, provider, model, and result in the README status matrix.
+- [x] Run two sessions side by side and confirm isolation.
+- [x] Record the test name, provider, model, and result in the README status matrix.

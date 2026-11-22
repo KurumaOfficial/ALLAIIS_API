@@ -234,6 +234,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Закрытая веб-интеграция Venice | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | JSON и SSE | — |
 | Проба квоты и каталог Venice web | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
+| Гостевой и Pro алиасы рядом | ✓ | `TestProviderAliasesAndPinnedCredentials` | гость + Pro в одном прогоне | — |
 | Эмуляция тулов Тира C | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | вызов `read_file` | — |
 
 ### Офлайн-совместимость
