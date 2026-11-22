@@ -278,8 +278,14 @@ async function refreshHealth () {
       const item = result.last[id]
       const line = document.createElement('div')
       line.className = 'row'
+      // The streak is the shape of the last few runs: a flapping route reads
+      // differently from one that broke once.
+      const streak = (result.recent?.[id] || [])
+        .map(step => '<span class="dot ' + (step.ok ? 'ok' : 'bad') + '" title="' + stamp(Date.parse(step.time)) + '"></span>')
+        .join('')
       line.innerHTML = '<span class="badge ' + (item.ok ? 'ok' : 'bad') + '">' + (item.ok ? 'ok' : item.status) +
-        '</span><strong>' + esc(id) + '</strong><span class="muted tiny">' + stamp(Date.parse(item.time)) + ' · ' +
+        '</span><strong>' + esc(id) + '</strong><span class="streak">' + streak + '</span>' +
+        '<span class="muted tiny">' + stamp(Date.parse(item.time)) + ' · ' +
         item.millis + ' ms · ' + esc(item.detail.slice(0, 120)) + '</span>'
       box.append(line)
     }

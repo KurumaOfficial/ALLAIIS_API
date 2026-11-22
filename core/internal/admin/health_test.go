@@ -22,9 +22,29 @@ func TestHealthReportsRegressionsOnly(t *testing.T) {
 	if len(regressed) != 1 || regressed[0].Alias != "a" {
 		t.Fatalf("regression missed: %+v", regressed)
 	}
-	last, updated, _ := h.snapshot()
+	last, recent, updated, _ := h.snapshot()
 	if last["a"].OK || last["b"].OK == false || updated.IsZero() {
 		t.Fatalf("state %+v", last)
+	}
+	// The streak holds both runs in order, so a row can draw them.
+	if streak := recent["a"]; len(streak) != 2 || !streak[0].OK || streak[1].OK {
+		t.Fatalf("streak %+v", recent)
+	}
+	// A snapshot is a copy: changing it must not reach the store.
+	recent["a"][0].OK = false
+	if _, streaks, _, _ := h.snapshot(); !streaks["a"][0].OK {
+		t.Fatal("snapshot aliases the store")
+	}
+}
+
+func TestHealthStreakIsBounded(t *testing.T) {
+	h := newHealth()
+	for i := 0; i < recentLimit+5; i++ {
+		h.record([]probeResult{{Alias: "a", Status: 200, OK: true}})
+	}
+	_, recent, _, _ := h.snapshot()
+	if got := len(recent["a"]); got != recentLimit {
+		t.Fatalf("streak length %d", got)
 	}
 }
 
@@ -52,11 +72,14 @@ func TestScheduledSmokeRecordsHistory(t *testing.T) {
 	f.call(t, http.MethodPost, "/api/models",
 		`{"provider":"fake","upstream_model":"gpt-x","name":"x-alias","label":"work"}`, "")
 	f.panel.runScheduledSmoke(t.Context(), "")
-	last, updated, running := f.panel.health.snapshot()
+	last, recent, updated, running := f.panel.health.snapshot()
 	if updated.IsZero() || running {
 		t.Fatal("sweep did not finish")
 	}
 	if state, ok := last["x-alias"]; !ok || !state.OK {
 		t.Fatalf("history %+v", last)
+	}
+	if len(recent["x-alias"]) == 0 {
+		t.Fatalf("streak empty: %+v", recent)
 	}
 }

@@ -82,7 +82,9 @@ running one is never disturbed:
 ## Scheduled sweeps
 
 `allaiis gui --smoke-every 15m` probes every alias on a timer (minimum one
-minute) and keeps the last result per alias in the Playground tab. A route that
+minute) and keeps the last result per alias in the Playground tab, with a short
+streak of the runs before it — a flapping route reads differently from one that
+broke once. A route that
 passed before and fails now is logged as `alias regressed` and, when
 `--smoke-webhook https://…` is set, POSTed as JSON:
 

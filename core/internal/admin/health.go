@@ -28,11 +28,12 @@ func newJSONRequest(ctx context.Context, url string, payload any) (*http.Request
 	return request, nil
 }
 
-// health keeps the last scheduled probe result per alias and reports a route
-// that used to pass and now fails.
+// health keeps the last scheduled probe result per alias, a short streak of
+// earlier ones, and reports a route that used to pass and now fails.
 type health struct {
 	mu      sync.Mutex
 	last    map[string]probeState
+	recent  map[string][]probeState
 	updated time.Time
 	running bool
 }
@@ -45,16 +46,25 @@ type probeState struct {
 	Millis int64     `json:"millis"`
 }
 
-func newHealth() *health { return &health{last: map[string]probeState{}} }
+// recentLimit is how many earlier results one alias keeps for the streak.
+const recentLimit = 10
 
-func (h *health) snapshot() (map[string]probeState, time.Time, bool) {
+func newHealth() *health {
+	return &health{last: map[string]probeState{}, recent: map[string][]probeState{}}
+}
+
+func (h *health) snapshot() (map[string]probeState, map[string][]probeState, time.Time, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	copied := make(map[string]probeState, len(h.last))
 	for key, value := range h.last {
 		copied[key] = value
 	}
-	return copied, h.updated, h.running
+	streaks := make(map[string][]probeState, len(h.recent))
+	for key, value := range h.recent {
+		streaks[key] = append([]probeState(nil), value...)
+	}
+	return copied, streaks, h.updated, h.running
 }
 
 // record stores the results and returns aliases that regressed.
@@ -67,10 +77,18 @@ func (h *health) record(results []probeResult) []probeResult {
 		if known && previous.OK && !result.OK {
 			regressed = append(regressed, result)
 		}
-		h.last[result.Alias] = probeState{
+		state := probeState{
 			OK: result.OK, Status: result.Status, Detail: trimDetail(result),
 			Time: time.Now(), Millis: result.Millis,
 		}
+		h.last[result.Alias] = state
+		// The streak keeps only what a row can draw; the detail stays in the last
+		// result and in the log.
+		streak := append(h.recent[result.Alias], probeState{OK: state.OK, Status: state.Status, Time: state.Time})
+		if len(streak) > recentLimit {
+			streak = streak[len(streak)-recentLimit:]
+		}
+		h.recent[result.Alias] = streak
 	}
 	h.updated = time.Now()
 	h.running = false
@@ -93,6 +111,7 @@ func (s *Server) startSmoke(ctx context.Context, every time.Duration, webhook st
 	if every < time.Minute {
 		every = time.Minute
 	}
+	slog.Info("scheduled smoke armed", "every", every.String())
 	go func() {
 		timer := time.NewTicker(every)
 		defer timer.Stop()

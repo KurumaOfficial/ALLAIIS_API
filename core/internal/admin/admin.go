@@ -589,8 +589,10 @@ func (s *Server) StartSmoke(ctx context.Context, every time.Duration, webhook st
 }
 
 func (s *Server) smokeHistory(w http.ResponseWriter, r *http.Request) {
-	last, updated, running := s.health.snapshot()
-	writeJSON(w, http.StatusOK, map[string]any{"last": last, "updated": updated, "running": running})
+	last, recent, updated, running := s.health.snapshot()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"last": last, "recent": recent, "updated": updated, "running": running,
+	})
 }
 
 // webQuota probes the remaining chat quota of every stored session.

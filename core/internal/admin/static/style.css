@@ -87,6 +87,11 @@ td input[type="checkbox"] { width: auto; margin-right: 8px; vertical-align: midd
 .badge.ok { background: #12301c; color: var(--ok); }
 .badge.bad { background: #34161a; color: var(--bad); }
 
+.streak { display: inline-flex; gap: 3px; align-items: center; }
+.streak .dot { width: 7px; height: 7px; border-radius: 50%; background: #37414f; }
+.streak .dot.ok { background: var(--ok); }
+.streak .dot.bad { background: var(--bad); }
+
 .out { background: #0b0f14; border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow: auto; max-height: 320px; white-space: pre-wrap; word-break: break-word; margin: 10px 0 0; }
 .logs { height: 60vh; overflow: auto; background: #0b0f14; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
 .log-line { display: grid; grid-template-columns: 78px 54px 1fr; gap: 8px; padding: 1px 0; }
