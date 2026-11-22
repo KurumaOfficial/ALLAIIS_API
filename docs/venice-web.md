@@ -136,6 +136,18 @@ SQLite file, AES-GCM sealed like credentials, expire after an hour and are cappe
 at 128 entries, so a follow-up survives a gateway restart without exposing
 prompts on disk.
 
+## Client setup (Claude Code)
+
+```sh
+export ANTHROPIC_BASE_URL=http://127.0.0.1:8420
+export ANTHROPIC_API_KEY="$(./allaiis key)"
+# register a messages alias first, then pick it in the client
+```
+
+Claude Code sends `x-api-key`, an `anthropic-version` header and Messages bodies;
+all three are accepted. Tool calls come back as `tool_use`, so the agent loop
+works without any client-side shim.
+
 ## Client setup (OpenCode)
 
 ```sh
