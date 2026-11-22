@@ -461,3 +461,43 @@ func TestReasoningStoreFindsBareProse(t *testing.T) {
 		t.Fatalf("block load %q", got)
 	}
 }
+
+func TestToolEnvelopeListsShapesAndCodeMode(t *testing.T) {
+	tools := make([]toolSpec, 1)
+	tools[0].Function.Name = "read"
+	tools[0].Function.Parameters = json.RawMessage(
+		`{"type":"object","properties":{"filePath":{"type":"string"},"limit":{"type":"integer"}},` +
+			`"required":["filePath"]}`)
+	code := "Use the `execute` tool to call the tools listed below." +
+		" They only work inside code you pass to `execute`."
+	envelope := toolEnvelope(code, tools)
+	if !strings.Contains(envelope, "tools.<name>") {
+		t.Fatalf("sandbox route missing: %q", envelope[:200])
+	}
+	if !strings.Contains(envelope, "read{filePath,limit?}") {
+		t.Fatalf("shape missing: %q", envelope[:200])
+	}
+	if plain := toolEnvelope("base", tools); strings.Contains(plain, "tools.<name>") {
+		t.Fatal("code mode leaked into a plain prompt")
+	}
+}
+
+func TestToolShapeSkipsOptionalOverflow(t *testing.T) {
+	tools := make([]toolSpec, 1)
+	tools[0].Function.Name = "write"
+	tools[0].Function.Parameters = json.RawMessage(
+		`{"type":"object","properties":{"a":{"type":"string"},"b":{"type":"string"},` +
+			`"c":{"type":"string"},"d":{"type":"string"}},"required":["a"]}`)
+	if shape := toolShape(tools[0]); shape != "write{a,b?,c?}" {
+		t.Fatalf("shape %q", shape)
+	}
+}
+
+func TestInvokeArgumentsStringWrapperIsFlattened(t *testing.T) {
+	guard := guardFor("bash")
+	_, calls, err := guard.Write(`<invoke name="bash"><parameter name="arguments">` +
+		`{"command":"go test ./..."}</parameter></invoke>`)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"command":"go test ./..."}` {
+		t.Fatalf("string wrapper: %+v %v", calls, err)
+	}
+}

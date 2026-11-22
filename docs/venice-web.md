@@ -260,8 +260,12 @@ What the gateway guarantees to an OpenAI-compatible client:
   inner tags lost the prefix, and a lone `arguments` object is unwrapped;
 - a tool block cut off at the end of a stream is repaired instead of being
   silently dropped, including a DSML block whose closing tags never arrived;
-- the tool names are repeated at the top of the system prompt, so a model does
-  not spend turns searching for them.
+- the tool names are repeated at the top of the system prompt together with the
+  required argument shape of each one, so a model does not spend turns searching
+  for them; when the harness routes tools through a sandbox, the header says a
+  direct call works anyway and names the sandbox as the alternative;
+- a lone `arguments` wrapper is unwrapped whether its value is an object or a
+  stringified object.
 
 Measured on a free model, 2026-11-22: five of five streams returned 200 and
 `[DONE]`, three of them in parallel; time to first content ran 2.5–7.4 s

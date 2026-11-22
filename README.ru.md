@@ -272,6 +272,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Повтор пустого ответа и первый пустой чанк | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
 | Линейный скан guard и лимит блока | ✓ | `TestGuardScansForwardThroughLongProse`, `TestGuardRejectsOversizedUnclosedBlock` | 5/5 прогонов агента после правки | — |
 | Дефолтный лимит ответа и финиш `length` | ✓ | `TestDefaultResponseCapWhenClientOmitsTokens`, `TestReplyNearTheTokenCapReportsLength` | 9/9 прогонов агента без обрыва | — |
+| Шапка с формой аргументов и сандбокс-маршрутом | ✓ | `TestToolEnvelopeListsShapesAndCodeMode`, `TestToolShapeSkipsOptionalOverflow`, `TestInvokeArgumentsStringWrapperIsFlattened` | прогон OpenCode в Code Mode: задача сделана, тесты зелёные | — |
 | Незакрытый DSML-блок дочитывается в конце стрима | ✓ | `TestToolGuardFlushRepairsUnclosedDSML`, `TestToolEnvelopePutsNamesFirst` | задача на 52 шага: тесты зелёные, поиск через `execute` упал с 25 до 7 | — |
 | Смешанные диалекты тулов и обёртка `arguments` | ✓ | `TestToolGuardAcceptsMixedDialect`, `TestInvokeArgumentsWrapperIsFlattened` | две задачи на код: баг исправлен, тесты зелёные | — |
 | Диалект тулов DeepSeek DSML и растущие индексы вызовов | ✓ | `TestToolGuardParsesDeepSeekDSML`, `TestStreamedToolCallIndexesKeepRising`, `TestWebToolCallStreamDSML`, `TestToolGuardFlushRepairsTruncatedBlock`, `TestWhitespaceAssistantTextKeepsToolCalls` | цикл агента OpenCode на `deepseek-v4-1-flash-uncensored`: 9 вызовов, 5 шагов, 16 с | — |

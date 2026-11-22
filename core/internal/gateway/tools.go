@@ -7,6 +7,8 @@ import (
 	"encoding/xml"
 	"errors"
 	"regexp"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
@@ -48,13 +50,20 @@ type toolCall struct {
 }
 
 // toolEnvelope appends the call format to the system prompt.
+//
+// OpenCode's Code Mode tells the model that the tools can only be reached from
+// its `execute` sandbox, while it still declares them. A model reading only that
+// section spends turns searching. The header says both routes exist and lists the
+// argument shape of each tool, so no discovery is needed.
 func toolEnvelope(system string, tools []toolSpec) string {
-	var names strings.Builder
+	var names, shapes strings.Builder
 	for i, tool := range tools {
 		if i > 0 {
 			names.WriteString(", ")
+			shapes.WriteString(" ")
 		}
 		names.WriteString(tool.Function.Name)
+		shapes.WriteString(toolShape(tool))
 	}
 	var spec strings.Builder
 	for _, tool := range tools {
@@ -64,13 +73,51 @@ func toolEnvelope(system string, tools []toolSpec) string {
 		}
 		spec.WriteString("- " + tool.Function.Name + ": " + tool.Function.Description + "\n  arguments schema: " + parameters + "\n")
 	}
-	header := "[Tool calls available: " + names.String() + ". Use them directly, do not search for them.]\n\n"
+	header := "[Tool calls available: " + names.String() + ". Use them directly, do not search for them."
+	if codeMode(system) {
+		header += " A direct call by name works; `execute` can also reach them as tools.<name> and offers search()."
+	}
+	header += "]\n"
+	if shapes.Len() > 0 {
+		header += "Shapes:" + shapes.String() + "\n"
+	}
+	header += "\n"
 	return header + system + "\n\n## Tools\n" +
 		"To call a tool, output ONLY a block that starts with " + toolOpen + " and ends with " + toolClose +
 		", containing valid JSON of the shape {\"calls\":[{\"name\":\"...\",\"arguments\":{...}}]}." +
 		" Call at least one of: " + names.String() + ". Do not wrap the block in Markdown.\n" +
-		"Prefer the tool's exact name and a JSON argument object. Claude-style XML is also accepted:\n" +
+		"Prefer the tool's exact name and a JSON argument object; a direct call works even where a sandbox lists the same tools. Claude-style XML is also accepted:\n" +
 		"<invoke name=\"tool\"><parameter name=\"argument\">value</parameter></invoke>\n" + spec.String()
+}
+
+// codeMode reports whether the harness prompt routes tools through a sandbox.
+func codeMode(system string) bool {
+	return strings.Contains(system, "only work inside code you pass to")
+}
+
+// toolShape renders a tool's required arguments, plus up to two optional ones,
+// so the model can call it without looking the schema up.
+func toolShape(tool toolSpec) string {
+	var required []string
+	var optional []string
+	var schema struct {
+		Required   []string                   `json:"required"`
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if err := json.Unmarshal(tool.Function.Parameters, &schema); err == nil {
+		required = schema.Required
+		for name := range schema.Properties {
+			if !slices.Contains(required, name) {
+				optional = append(optional, name+"?")
+			}
+		}
+		sort.Strings(optional)
+		if len(optional) > 2 {
+			optional = optional[:2]
+		}
+	}
+	shape := tool.Function.Name + "{" + strings.Join(append(required, optional...), ",") + "}"
+	return shape
 }
 
 // toolGuard splits a text stream into visible text and parsed tool blocks.
@@ -491,14 +538,26 @@ func dsmlValues(body string, final bool) (map[string]any, int, error) {
 	}
 }
 
-// unwrapArguments flattens a lone "arguments" object, which some dialects use
-// as a wrapper for the real argument object.
+// unwrapArguments flattens a lone "arguments" member, which some dialects use as
+// a wrapper for the real argument object. The wrapper value is usually an object,
+// but a model that stringifies it must be unwrapped too.
 func unwrapArguments(values map[string]any) any {
-	if len(values) == 1 {
-		if inner, ok := values["arguments"]; ok {
-			switch inner.(type) {
+	if len(values) != 1 {
+		return values
+	}
+	inner, ok := values["arguments"]
+	if !ok {
+		return values
+	}
+	switch inner := inner.(type) {
+	case map[string]any, []any:
+		return inner
+	case string:
+		var decoded any
+		if json.Unmarshal([]byte(inner), &decoded) == nil {
+			switch decoded.(type) {
 			case map[string]any, []any:
-				return inner
+				return decoded
 			}
 		}
 	}
