@@ -242,7 +242,7 @@ func run(ctx context.Context, args []string) error {
 		return exportOpenCode(os.Stdout, cfg.Listen, routes.Models(cfg.MinPrivacy))
 	case "up":
 		advertise(os.Stdout, cfg, routes.Models(cfg.MinPrivacy))
-		live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithStateDir(ctx, dir).WithToolNameTTL(cfg.ToolNameTTLDays).WithReload(configPath, store)
+		live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithToolNameTTL(cfg.ToolNameTTLDays).WithStateDir(ctx, dir).WithReload(configPath, store)
 		go live.Watch(ctx)
 		return serve(ctx, cfg.Listen, live)
 	}

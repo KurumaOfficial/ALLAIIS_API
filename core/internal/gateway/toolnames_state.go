@@ -60,18 +60,21 @@ func (g *Gateway) WithStateDir(ctx context.Context, dir string) *Gateway {
 
 // dropExpiredNames forgets names older than the retention. The caller holds the
 // lock.
-func dropExpiredNames(now time.Time) {
+func dropExpiredNames(now time.Time) int {
 	days := toolNameTTL.Load()
 	if days <= 0 || len(unknownNames.seen) == 0 {
-		return
+		return 0
 	}
 	cutoff := now.Add(-time.Duration(days) * 24 * time.Hour)
+	dropped := 0
 	for name, seen := range unknownNames.seen {
 		if seen.Before(cutoff) {
 			delete(unknownNames.seen, name)
 			delete(unknownNames.count, name)
+			dropped++
 		}
 	}
+	return dropped
 }
 
 // toolNameWatchEvery is how often the file is checked for an outside change.
@@ -164,9 +167,17 @@ func loadToolNameState(path string) {
 			unknownNames.seen[name] = now
 		}
 	}
-	dropExpiredNames(now)
+	dropped := dropExpiredNames(now)
 	trimUnknownNames(maxUnknownNames)
 	unknownNames.mu.Unlock()
+	if dropped > 0 {
+		// Write straight away so the file stops listing expired names, which is
+		// what `allaiis tools show` reads.
+		toolNameFile.mu.Lock()
+		toolNameFile.lastSave = time.Time{}
+		toolNameFile.mu.Unlock()
+		saveToolNameState()
+	}
 }
 
 // ResetToolNameState forgets the counters, the names and the saved file, so the

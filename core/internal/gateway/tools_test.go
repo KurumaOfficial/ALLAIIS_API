@@ -926,6 +926,13 @@ func TestToolNamesExpireOnLoad(t *testing.T) {
 	if names := ToolUnknownNames(0); len(names) != 0 {
 		t.Fatalf("expired name loaded: %v", names)
 	}
+	raw, err := os.ReadFile(filepath.Join(dir, "tool-names.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "ttl_loaded") {
+		t.Fatalf("expired name kept in the file: %s", raw)
+	}
 }
 
 func TestToolNamesExpiryCanBeDisabled(t *testing.T) {
