@@ -15,7 +15,7 @@ ALLAIIS — локальный шлюз на Go для AI-клиентов, вк
 
 ## Быстрый старт
 
-**Локальный запуск проверен офлайн. Записанных live-проверок провайдеров: 0.** Тест использует сервер на loopback и тестовые ключи.
+**Локальный запуск проверен офлайн. Записанных live-проверок провайдеров: 1 (Venice web).** Тест использует сервер на loopback и тестовые ключи.
 
 | Шаг | Статус |
 | --- | --- |
@@ -130,12 +130,26 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 
 ## Провайдеры
 
+Маршруты работают либо на официальном API-ключе, либо на **веб-сессии** (Тир C). Веб-маршруты используют тот же локальный ключ, те же алиасы и тот же OpenAI-контракт; отличаются только транспорт и квота. Venice — первый живой веб-транспорт: [досье Venice web](docs/venice-web.md).
+
+```sh
+./allaiis web chrome                                  # одноразовый браузер для входа
+./allaiis web login --label personal                  # захват куки в хранилище
+./allaiis models discover --provider venice-web --match uncensored
+./allaiis models add --provider venice-web --upstream-model venice-uncensored-1-2 \
+  --name uncensored --privacy zdr
+```
+
+`web login` без `--cookie` читает Chrome на `127.0.0.1:9222`; передай `--cookie "cf_clearance=…; __client=…"`, чтобы захватить из любого другого браузера. `./allaiis web quota` показывает остаток веб-квоты. Веб-ответы помечены `X-ALLAIIS-Transport-Tier: tier_c3` и `X-ALLAIIS-Emulated-Features: usage_estimate`, а токены в них оценочные.
+
+
 | ID провайдера | Переменная с API-ключом | Документация |
 | --- | --- | --- |
 | `openai` | `OPENAI_API_KEY` | [OpenAI](https://platform.openai.com/docs/api-reference/chat) |
 | `deepseek` | `DEEPSEEK_API_KEY` | [DeepSeek](https://api-docs.deepseek.com/) |
 | `zai` | `ZAI_API_KEY` | [Z.ai](https://docs.z.ai/api-reference/llm/chat-completion) |
 | `venice` | `VENICE_API_KEY` | [Venice](https://docs.venice.ai/api-reference/endpoint/chat/completions) |
+| `venice-web` | веб-сессия | [Venice web](docs/venice-web.md) |
 | `qwen` | `DASHSCOPE_API_KEY` | [Alibaba Cloud](https://help.aliyun.com/en/model-studio/compatibility-of-openai-with-dashscope) |
 | `gemini` | `GEMINI_API_KEY` | [Gemini](https://ai.google.dev/gemini-api/docs/openai) |
 | `anthropic` | `ANTHROPIC_API_KEY` | [Claude](https://platform.claude.com/docs/en/api/openai-sdk) |
@@ -210,14 +224,17 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 
 ## Статус
 
-**Записанных live-проверок для этой матрицы: 0.**
+**Записанных live-проверок для этой матрицы: 1 (Venice web).**
 
 | Возможность | Реализовано | Офлайн-тест | Live-тест | Блокер |
 | --- | :---: | --- | :---: | --- |
 | Маршрутизация, приватность и пауза после 429 | ✓ | `TestRoutingAndProviderCooldown` | — | — |
 | Нативные Responses и Messages | ✓ | `TestNativeProtocols` | — | — |
 | SSE и отмена при отключении клиента | ✓ | `TestStreamFlushAndCancel` | — | — |
-| Закрытая веб-интеграция Venice | Нет | Не покрыто | Нет | [Заблокировано](docs/BLOCKED.md) |
+| Закрытая веб-интеграция Venice | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | JSON и SSE | — |
+| Проба квоты и каталог Venice web | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
+| Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget` | только гостевой фолбэк | ручной вход |
+| Эмуляция тулов Тира C | Нет | — | — | [Заблокировано](docs/BLOCKED.md) |
 
 ### Офлайн-совместимость
 
@@ -227,14 +244,14 @@ Go-тестах. Он использует синтетические данны
 
 | Возможность | Реализовано | Офлайн-тест | Live-тест | Блокер |
 | --- | :---: | --- | :---: | --- |
-| A1. Закрытый транспорт Venice | Нет | Не покрыто | Нет | [Заблокировано](docs/BLOCKED.md) |
+| A1. Закрытый транспорт Venice | ✓ | `TestWebCompletionStreams`, `TestChatStreamsAndAuthenticates` | JSON и SSE | вход в Pro вручную |
 | A2. Фикстуры SSE, обрыва, ошибок и отказа в доступе | ✓ | `TestSSEFixtures` | — | — |
 | A3. Форматы инструментов и повтор при ошибке | ✓ | `TestToolFixtureCorpus`, `TestToolParserRecovery`, `TestToolsCancelAndRetry`, `TestReasoningBudgetCancelsAndReturnsStreamError` | — | — |
 | A4–A5. Нормализация истории и удаление NUL в тестовом обработчике | ✓ | `TestToolPolicyHistoryAndNUL`, `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A6. Оценка usage в тестовых ответах JSON и SSE | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A7. Преобразование 413 переполнения и обрезка | ✓ | `TestContextOverflowTrimsOrReturns400` | — | — |
 | A8. Бесплатные модели в фикстуре и отказ по tools на агентских | ✓ | `TestOfflineCatalogAndAgentToolRejection` | — | — |
-| A9. Пул веб-сессий и переключение при 429 | Нет | Не покрыто | Нет | [Заблокировано](docs/BLOCKED.md) |
+| A9. Пул веб-сессий и переключение при 429 | ✓ | `TestWebCompletionErrorsAndCooldown` | гостевой пул | мультисессии Pro ожидают |
 | A10. Отмена стрима шлюза и изоляция поздних ответов | ✓ | `TestStreamFlushAndCancel` | — | — |
 | A11. Метаданные и ротация логов в тестовом обработчике | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestCompletionLogRotation` | — | — |
 

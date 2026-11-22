@@ -49,6 +49,7 @@ type Provider struct {
 	KeyEnv        string        `json:"key_env,omitempty"`
 	CatalogFormat CatalogFormat `json:"catalog_format,omitempty"`
 	CatalogPublic bool          `json:"catalog_public,omitempty"`
+	Transport     Transport     `json:"transport,omitempty"`
 	session       bool
 	catalogURL    string
 	customizable  bool
@@ -56,6 +57,19 @@ type Provider struct {
 }
 
 func (p Provider) SendSession() bool { return p.session }
+
+// Transport selects how a provider route is executed.
+type Transport string
+
+const (
+	// TransportAPI forwards the request body to an OpenAI-shaped JSON endpoint.
+	TransportAPI Transport = ""
+	// TransportVeniceWeb drives the Venice web inference API with browser cookies.
+	TransportVeniceWeb Transport = "venice_web"
+)
+
+// Web reports whether the provider is served by a browser web transport.
+func (p Provider) Web() bool { return p.Transport != TransportAPI }
 
 type CatalogFormat string
 
@@ -88,6 +102,10 @@ var defaults = map[string]Provider{
 	"venice": {
 		BaseURL: "https://api.venice.ai/api/v1", KeyEnv: "VENICE_API_KEY", CatalogPublic: true,
 		catalogURL: "https://api.venice.ai/api/v1/models?type=all",
+	},
+	"venice-web": {
+		BaseURL: "https://outerface.venice.ai/api", KeyEnv: "VENICE_WEB_COOKIE",
+		Transport: TransportVeniceWeb, catalogURL: "https://outerface.venice.ai/api/app/models?matureFilter=true&onlySafeVenice=true",
 	},
 	"qwen": {
 		BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", KeyEnv: "DASHSCOPE_API_KEY",
@@ -192,6 +210,9 @@ func Load(path string) (Config, error) {
 	return *cfg, nil
 }
 
+// Validate checks the whole configuration before it is used.
+func (c *Config) Validate() error { return c.validate() }
+
 func (c *Config) validate() error {
 	host, port, err := net.SplitHostPort(c.Listen)
 	ip := net.ParseIP(host)
@@ -225,6 +246,11 @@ func (c *Config) validate() error {
 		if p.KeyEnv != "" && !envName.MatchString(p.KeyEnv) {
 			return fmt.Errorf("provider %q has an invalid key_env", id)
 		}
+		switch p.Transport {
+		case TransportAPI, TransportVeniceWeb:
+		default:
+			return fmt.Errorf("provider %q has unknown transport %q", id, p.Transport)
+		}
 		if p.CatalogFormat != OpenAICatalog && (p.CatalogFormat != DashScopeCatalog ||
 			!strings.HasSuffix(p.BaseURL, "/compatible-mode/v1")) {
 			return fmt.Errorf("provider %q: use catalog_format dashscope with a /compatible-mode/v1 base URL", id)
@@ -255,6 +281,9 @@ func (c *Config) validate() error {
 		if _, custom := c.Providers[route.Provider]; !custom && route.Protocol != Chat &&
 			defaults[route.Provider].native != route.Protocol {
 			return fmt.Errorf("model %q: provider %q has no %s endpoint configured", route.ID, route.Provider, route.Protocol)
+		}
+		if provider, ok := c.Provider(route.Provider); ok && provider.Web() && route.Protocol != Chat {
+			return fmt.Errorf("model %q: web providers serve chat completions only", route.ID)
 		}
 		if route.Privacy == "" {
 			route.Privacy = Consumer

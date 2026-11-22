@@ -263,11 +263,12 @@ func entryAAD(entry Entry) []byte {
 }
 
 func validKey(key string) bool {
-	if len(key) == 0 || len(key) > 4096 {
+	if len(key) == 0 || len(key) > 8192 {
 		return false
 	}
 	for i := range len(key) {
-		if key[i] <= ' ' || key[i] > '~' {
+		// Printable ASCII including spaces: web-session credentials are JSON.
+		if key[i] < ' ' || key[i] > '~' {
 			return false
 		}
 	}

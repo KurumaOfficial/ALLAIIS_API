@@ -1,6 +1,5 @@
 /allaiis
-/allaiis.exe
-/dist/
+/allaiis.exe\n/allaiis.exe~\n/dist/
 /.allaiis/
 /profiles/
 .env
@@ -11,3 +10,4 @@
 *.sqlite3-*
 vault.enc
 auth.json
+

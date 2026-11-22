@@ -36,6 +36,9 @@ const usage = `Usage: allaiis <command>
   account remove    Remove a key from the vault
   models discover   List upstream models from one or all provider catalogs
   models add        Register a model alias for chat, responses, or messages
+  web chrome        Open the capture browser for a web provider
+  web login         Capture a logged-in web session into the vault
+  web quota         Show remaining quota for stored web sessions
   status            Show configured models, key labels, and provider cooldowns
   key               Print the local gateway bearer key
   export opencode   Print a custom provider config for OpenCode
@@ -68,6 +71,9 @@ func run(ctx context.Context, args []string) error {
 	vaultPath := filepath.Join(dir, "vault.sqlite")
 	if args[0] == "models" {
 		return runModels(ctx, configPath, args[1:])
+	}
+	if args[0] == "web" {
+		return runWeb(ctx, dir, configPath, vaultPath, args[1:])
 	}
 
 	command := args[0]

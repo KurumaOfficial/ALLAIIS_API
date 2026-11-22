@@ -130,12 +130,32 @@ Send `{"model":"messages-anthropic","max_tokens":32,"messages":[{"role":"user","
 
 ## Providers
 
+Routes can run on an official key API or on a **web session** (Tier C). Web
+routes share the same local key, alias names, and OpenAI contract; only the
+transport and the quota differ. Venice is the first live web transport:
+[Venice web dossier](docs/venice-web.md).
+
+```sh
+./allaiis web chrome                                  # one-time login browser
+./allaiis web login --label personal                  # capture cookies into the vault
+./allaiis models discover --provider venice-web --match uncensored
+./allaiis models add --provider venice-web --upstream-model venice-uncensored-1-2 \
+  --name uncensored --privacy zdr
+```
+
+`web login` without `--cookie` reads a Chrome on `127.0.0.1:9222`; pass
+`--cookie "cf_clearance=…; __client=…"` to capture from any other browser.
+`./allaiis web quota` shows the remaining web quota. Web replies carry
+`X-ALLAIIS-Transport-Tier: tier_c3`, `X-ALLAIIS-Emulated-Features:
+usage_estimate`, and estimated token counts.
+
+
 | Provider ID | API key variable | Reference |
 | --- | --- | --- |
-| `openai` | `OPENAI_API_KEY` | [OpenAI](https://platform.openai.com/docs/api-reference/chat) |
-| `deepseek` | `DEEPSEEK_API_KEY` | [DeepSeek](https://api-docs.deepseek.com/) |
+| `openai` | `OPENAI_API_KEY` | [OpenAI](https://platform.openai.com/docs/api-reference/chat) || `deepseek` | `DEEPSEEK_API_KEY` | [DeepSeek](https://api-docs.deepseek.com/) |
 | `zai` | `ZAI_API_KEY` | [Z.ai](https://docs.z.ai/api-reference/llm/chat-completion) |
 | `venice` | `VENICE_API_KEY` | [Venice](https://docs.venice.ai/api-reference/endpoint/chat/completions) |
+| `venice-web` | web session | [Venice web](docs/venice-web.md) |
 | `qwen` | `DASHSCOPE_API_KEY` | [Alibaba Cloud](https://help.aliyun.com/en/model-studio/compatibility-of-openai-with-dashscope) |
 | `gemini` | `GEMINI_API_KEY` | [Gemini](https://ai.google.dev/gemini-api/docs/openai) |
 | `anthropic` | `ANTHROPIC_API_KEY` | [Claude](https://platform.claude.com/docs/en/api/openai-sdk) |
@@ -210,14 +230,17 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 
 ## Status
 
-**Live provider tests recorded for this matrix: 0.**
+**Live provider tests recorded for this matrix: 1 (Venice web).**
 
 | Feature | Implemented | Tested offline | Tested live | Blocked |
 | --- | :---: | --- | :---: | --- |
 | Model routing, privacy and cooldowns | ✓ | `TestRoutingAndProviderCooldown` | — | — |
 | Native Responses and Messages | ✓ | `TestNativeProtocols` | — | — |
 | SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel` | — | — |
-| Private Venice web integration | No | Not covered | No | [Blocked](docs/BLOCKED.md) |
+| Venice web transport (guest) | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | Chat JSON + SSE | — |
+| Venice web quota probe and catalog | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
+| Venice web Pro session | ✓ | `TestClerkExpiryAndForget` | Guest fallback only | manual login |
+| Tier C tool emulation | No | — | — | [Blocked](docs/BLOCKED.md) |
 
 ### Offline compatibility
 
@@ -226,14 +249,14 @@ tests. It uses synthetic input, loopback servers, and the fixture limits below.
 
 | Feature | Implemented | Tested offline | Tested live | Blocked |
 | --- | :---: | --- | :---: | --- |
-| A1. Private Venice transport | No | Not covered | No | [Blocked](docs/BLOCKED.md) |
+| A1. Private Venice transport | ✓ | `TestWebCompletionStreams`, `TestChatStreamsAndAuthenticates` | Chat JSON + SSE | Pro login is manual |
 | A2. SSE, truncation, errors, and denial fixtures | ✓ | `TestSSEFixtures` | — | — |
 | A3. Tool formats and recovery | ✓ | `TestToolFixtureCorpus`, `TestToolParserRecovery`, `TestToolsCancelAndRetry`, `TestReasoningBudgetCancelsAndReturnsStreamError` | — | — |
 | A4–A5. History and NUL cleanup in the harness | ✓ | `TestToolPolicyHistoryAndNUL`, `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A6. Estimated usage on fixture JSON and SSE results | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A7. Context-specific 413 mapping and trimming | ✓ | `TestContextOverflowTrimsOrReturns400` | — | — |
 | A8. Free fixture catalog and agent tool rejection | ✓ | `TestOfflineCatalogAndAgentToolRejection` | — | — |
-| A9. Private web-session pools and 429 failover | No | Not covered | No | [Blocked](docs/BLOCKED.md) |
+| A9. Private web-session pools and 429 failover | ✓ | `TestWebCompletionErrorsAndCooldown` | guest pool | multi-session Pro pending |
 | A10. Gateway stream cancellation and late response isolation | ✓ | `TestStreamFlushAndCancel` | — | — |
 | A11. Fixture metadata and log rotation | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestCompletionLogRotation` | — | — |
 

@@ -21,6 +21,7 @@ import (
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
 
 const (
@@ -33,11 +34,17 @@ const (
 type Gateway struct {
 	router    *router.Router
 	client    *http.Client
+	web       *webprov.Client
 	keyDigest [32]byte
 	minimum   config.Privacy
 }
 
 func New(routes *router.Router, clientKey string, minimum config.Privacy) http.Handler {
+	return NewWithWeb(routes, clientKey, minimum, webprov.New(10*time.Minute))
+}
+
+// NewWithWeb builds a gateway with an explicit web-provider client.
+func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy, web *webprov.Client) http.Handler {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.ResponseHeaderTimeout = 90 * time.Second
@@ -45,6 +52,7 @@ func New(routes *router.Router, clientKey string, minimum config.Privacy) http.H
 		router:    routes,
 		keyDigest: sha256.Sum256([]byte(clientKey)),
 		minimum:   minimum,
+		web:       web,
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   10 * time.Minute,
@@ -189,6 +197,10 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 		return
 	}
 
+	if target.Provider.Web() {
+		g.webCompletion(w, r, protocol, target, body, stream)
+		return
+	}
 	fields["model"], _ = json.Marshal(target.Route.UpstreamModel)
 	forward, err := json.Marshal(fields)
 	if err != nil {

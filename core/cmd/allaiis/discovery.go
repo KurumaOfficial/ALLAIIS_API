@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/catalog"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
 
 type catalogResult struct {
@@ -94,6 +97,27 @@ func discoverProvider(ctx context.Context, store *vault.Store, id string, provid
 		result.Scope, result.Credential = "credential", entry.Label
 	} else {
 		result.Scope = "public"
+	}
+	if provider.Transport == config.TransportVeniceWeb {
+		cred, err := webprov.ParseCredential(entry.Key)
+		if err != nil {
+			result.Status, result.Error = "error", err.Error()
+			return result
+		}
+		models, err := webprov.New(60*time.Second).Catalog(ctx, cred)
+		if err != nil {
+			result.Status, result.Error = "error", err.Error()
+			return result
+		}
+		for _, model := range models {
+			if match != "" && !strings.Contains(strings.ToLower(model.ID), strings.ToLower(match)) &&
+				!strings.Contains(strings.ToLower(model.Name), strings.ToLower(match)) {
+				continue
+			}
+			result.Models = append(result.Models, catalog.Model{ID: model.ID, Name: model.Name, Type: model.Kind})
+		}
+		result.Status = "ok"
+		return result
 	}
 	models, err := catalog.List(ctx, provider.CatalogURL(), provider.CatalogFormat, entry.Key, match)
 	if err != nil {
