@@ -12,6 +12,17 @@ import (
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
 
+// providerWeb reports whether a provider uses a web transport.
+func providerWeb(ctx context.Context, path, id string) bool {
+	_ = ctx
+	cfg, err := config.Load(path)
+	if err != nil {
+		return false
+	}
+	provider, ok := cfg.Provider(id)
+	return ok && provider.Web()
+}
+
 func runModels(ctx context.Context, path string, args []string) error {
 	if len(args) == 0 {
 		return errors.New("expected models discover or models add")
@@ -66,6 +77,9 @@ func runModels(ctx context.Context, path string, args []string) error {
 		}
 		if added {
 			fmt.Fprintf(os.Stdout, "Added %s. Restart a running gateway to load the model.\n", route.ID)
+			if label == "" && providerWeb(ctx, path, *providerID) {
+				fmt.Fprintln(os.Stdout, "Hint: pass --label to pin the alias when the provider has several sessions.")
+			}
 		} else {
 			fmt.Fprintf(os.Stdout, "Model %s is already configured.\n", route.ID)
 		}

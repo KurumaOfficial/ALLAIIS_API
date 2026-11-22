@@ -81,6 +81,9 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   marks `"estimated": true` and sets `X-ALLAIIS-Emulated-Features: usage_estimate`.
 - **Reasoning** is forwarded as `reasoning_content` when the model is a
   reasoning model or the request sets `reasoning_effort`/`reasoning.effort`.
+- **Transient failures retry once.** A transport error, a `5xx`, a spent
+  attestation, or a stream that dies before its first event triggers one retry
+  with a fresh attestation. A stream that already delivered text is not retried.
 - **Tool calls** are emulated: the gateway injects a call envelope, hides the
   sentinel block from the client, validates JSON, retries once on a malformed
   block, and returns native `tool_calls` with `finish_reason: tool_calls`.

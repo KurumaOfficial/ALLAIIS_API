@@ -259,13 +259,31 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 		}
 		response, err := c.http.Do(httpReq)
 		if err != nil {
+			if attempt == 1 && ctx.Err() == nil {
+				c.invalidateAttestation(userID)
+				continue
+			}
 			return err
 		}
 		if response.StatusCode == http.StatusOK {
-			defer response.Body.Close()
-			return decodeEvents(response.Body, emit)
+			delivered := false
+			streamErr := decodeEvents(response.Body, func(event Event) error {
+				delivered = true
+				return emit(event)
+			})
+			response.Body.Close()
+			// A stream that dies before the first event is worth one retry.
+			if streamErr != nil && attempt == 1 && ctx.Err() == nil && !delivered {
+				continue
+			}
+			return streamErr
 		}
 		status := response.StatusCode
+		if status >= 500 && attempt == 1 {
+			io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+			response.Body.Close()
+			continue
+		}
 		if status == http.StatusUnauthorized && userID == "anonymous" {
 			io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
 			response.Body.Close()

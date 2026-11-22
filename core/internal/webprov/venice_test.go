@@ -286,6 +286,53 @@ func TestExpiredSignedSessionIsUnauthorized(t *testing.T) {
 	}
 }
 
+func TestTransientFailuresRetryOnce(t *testing.T) {
+	for _, kind := range []string{"500", "truncated"} {
+		var chats atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/mint") {
+				fmt.Fprint(w, `{"tokens":[{"token":"t"},{"token":"t2"}]}`)
+				return
+			}
+			if chats.Add(1) == 1 {
+				if kind == "500" {
+					w.WriteHeader(http.StatusBadGateway)
+					return
+				}
+				fmt.Fprint(w, "{\"kind\":\"content\",\"content\":")
+				return
+			}
+			fmt.Fprint(w, `{"kind":"content","content":"ok"}`)
+		}))
+		var text strings.Builder
+		err := testClient(server).Chat(context.Background(), Credential{},
+			Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}},
+			func(event Event) error { text.WriteString(event.Content); return nil })
+		server.Close()
+		if err != nil || text.String() != "ok" || chats.Load() != 2 {
+			t.Fatalf("%s: text=%q chats=%d err=%v", kind, text.String(), chats.Load(), err)
+		}
+	}
+}
+
+func TestMidStreamFailureDoesNotRetry(t *testing.T) {
+	var chats atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/mint") {
+			fmt.Fprint(w, `{"tokens":[{"token":"t"}]}`)
+			return
+		}
+		chats.Add(1)
+		fmt.Fprint(w, `{"kind":"content","content":"partial"}`+"\n"+`{"broken":`)
+	}))
+	defer server.Close()
+	err := testClient(server).Chat(context.Background(), Credential{},
+		Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}}, func(Event) error { return nil })
+	if err == nil || chats.Load() != 1 {
+		t.Fatalf("chats=%d err=%v", chats.Load(), err)
+	}
+}
+
 func TestClerkExpiryAndForget(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	mints := 0
