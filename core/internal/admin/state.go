@@ -393,20 +393,39 @@ func (s *Server) smokeRun(ctx context.Context, alias string) ([]probeResult, int
 	return results, passed, failed
 }
 
-// toolProbe asks a healthy alias to call a tool and reports whether a tool call
-// came back. The name collides with no catalog tool, so the guard must deliver
-// it rather than drop it.
+// toolProbe asks a healthy alias to call a tool and reports whether a call with
+// the exact name came back. The name collides with no catalog tool, so the guard
+// must deliver it rather than drop it; a mangled name is a finding of its own.
+//
+// Prose happens on weak models, so one firmer retry runs before a failure: the
+// second prompt spells the answer out. Only a second prose costs the extra call.
 func (s *Server) toolProbe(ctx context.Context, cfg config.Config, route config.Route) probeResult {
+	prompts := []string{
+		"Call the tool list_files once with path . and nothing else. Do not answer in prose.",
+		"Use the list_files tool. Arguments: {\"path\": \".\"}. Reply with the tool call only, no prose.",
+	}
+	var result probeResult
+	for attempt, prompt := range prompts {
+		result = s.toolAttempt(ctx, cfg, route, prompt)
+		if result.OK {
+			break
+		}
+		if attempt == len(prompts)-1 || result.Status != http.StatusOK {
+			break
+		}
+	}
+	return result
+}
+
+// toolAttempt sends one tool probe and reads the reply.
+func (s *Server) toolAttempt(ctx context.Context, cfg config.Config, route config.Route, prompt string) probeResult {
 	result := probeResult{Alias: route.ID + " (tools)", Protocol: string(route.Protocol)}
 	if result.Protocol == "" {
 		result.Protocol = "chat"
 	}
 	payload, err := json.Marshal(map[string]any{
 		"model": route.ID, "max_tokens": 128, "stream": false,
-		"messages": []any{map[string]any{
-			"role":    "user",
-			"content": "Call the tool list_files once with path . and nothing else. Do not answer in prose.",
-		}},
+		"messages": []any{map[string]any{"role": "user", "content": prompt}},
 		"tools": []any{map[string]any{"type": "function", "function": map[string]any{
 			"name":        "list_files",
 			"description": "List the files in a directory",
@@ -447,8 +466,14 @@ func (s *Server) toolProbe(ctx context.Context, cfg config.Config, route config.
 		return result
 	}
 	result.Text, result.OK = toolCallText(raw, route.Protocol)
-	if !result.OK && result.Text == "" {
+	if !result.OK {
 		result.Error = "answered without a tool call"
+		return result
+	}
+	// A call under another name means the guard or the model mangled it.
+	if !strings.HasPrefix(result.Text, "list_files ") {
+		result.OK = false
+		result.Error = "called " + strings.Fields(result.Text)[0] + " instead of list_files"
 	}
 	return result
 }

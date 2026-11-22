@@ -30,6 +30,10 @@ type fixture struct {
 	upward *httptest.Server
 }
 
+// toolProseOnce makes the first tool probe answer in prose, so the retry path is
+// exercised by the smoke tests themselves.
+var toolProseOnce atomic.Int32
+
 func setup(t *testing.T) *fixture {
 	t.Helper()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,6 +41,10 @@ func setup(t *testing.T) *fixture {
 		body, _ := io.ReadAll(r.Body)
 		// The tool probe sends a tool list; answer it with a tool call.
 		if bytes.Contains(body, []byte(`"tools"`)) {
+			if toolProseOnce.Add(1) == 1 {
+				w.Write([]byte(`{"choices":[{"message":{"content":"Sure, I can list them."}}]}`))
+				return
+			}
 			w.Write([]byte(`{"choices":[{"message":{"tool_calls":[{"function":{"name":"list_files","arguments":"{\"path\":\".\"}"}}]}}]}`))
 			return
 		}
