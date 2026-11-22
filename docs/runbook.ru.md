@@ -37,7 +37,7 @@ Linux и macOS пишется unit-файл и печатаются две ос�
 
 ## Логи
 
-`service.cmd` запускает `up --log-file <данные>/logs/gateway.log --log-max-mb 32
+`service.cmd` запускает `gui --no-open --ui 127.0.0.1:8431 --log-file <данные>/logs/gateway.log --log-max-mb 32
 --log-keep 5`. Файл ротируется на 32 МиБ, пять старых остаются. Те же флаги
 работают при ручном запуске:
 

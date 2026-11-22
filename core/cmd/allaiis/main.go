@@ -139,11 +139,11 @@ func run(ctx context.Context, args []string) error {
 		flags.StringVar(&providerID, "provider", "", "configured provider ID")
 		flags.StringVar(&label, "label", "", "credential label within the pool")
 	case "up":
+		fallthrough
+	case "gui":
 		flags.StringVar(&logFile, "log-file", "", "append the log here, rotated")
 		flags.IntVar(&logMaxMB, "log-max-mb", 16, "rotate the log file at this size")
 		flags.IntVar(&logKeep, "log-keep", 3, "how many rotated log files to keep")
-		fallthrough
-	case "gui":
 		flags.StringVar(&listen, "listen", "", "gateway address (defaults to the configured one)")
 		flags.StringVar(&ui, "ui", "127.0.0.1:0", "control panel address")
 		flags.BoolVar(&noOpen, "no-open", false, "do not open a browser")

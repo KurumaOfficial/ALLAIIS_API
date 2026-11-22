@@ -38,7 +38,7 @@ left (`systemctl enable --now …`, `launchctl load …`).
 
 ## Logs
 
-`service.cmd` runs `up --log-file <data>/logs/gateway.log --log-max-mb 32
+`service.cmd` runs `gui --no-open --ui 127.0.0.1:8431 --log-file <data>/logs/gateway.log --log-max-mb 32
 --log-keep 5`. The file rotates at 32 MiB and five older files stay. The same
 flags work when you start it by hand:
 

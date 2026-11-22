@@ -28,8 +28,11 @@ func serviceCommand(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// The panel is the control surface on this machine, so the service runs the
+	// gateway with it, on its usual port.
 	log := filepath.Join(dir, "logs", "gateway.log")
-	return strings.Join([]string{exe, "up", "--log-file", log, "--log-max-mb", "32", "--log-keep", "5"}, " "), nil
+	return strings.Join([]string{exe, "gui", "--no-open", "--ui", "127.0.0.1:8431",
+		"--log-file", log, "--log-max-mb", "32", "--log-keep", "5"}, " "), nil
 }
 
 // serviceEnv is the environment the task needs: the passphrase, asked for when
@@ -108,7 +111,8 @@ func serviceWindows(ctx context.Context, dir string, action string) error {
 	for name, value := range env {
 		fmt.Fprintf(&script, "set \"%s=%s\"\r\n", name, value)
 	}
-	script.WriteString(line + "\r\n")
+	// Restart on exit: an unattended gateway that died must come back.
+	script.WriteString(":run\r\n" + line + "\r\ntimeout /t 5 /nobreak >nul\r\ngoto run\r\n")
 	scriptPath := filepath.Join(dir, "service.cmd")
 	if err := os.WriteFile(scriptPath, []byte(script.String()), 0o600); err != nil {
 		return err

@@ -34,7 +34,7 @@ func TestServiceInstallWritesALoginScript(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"ALLAIIS_VAULT_PASSPHRASE=passphrase-for-the-task", " up ", "--log-file"} {
+	for _, want := range []string{"ALLAIIS_VAULT_PASSPHRASE=passphrase-for-the-task", " gui ", "--no-open", "--log-file", ":run", "goto run"} {
 		if !strings.Contains(string(script), want) {
 			t.Fatalf("%q missing in %q", want, script)
 		}
