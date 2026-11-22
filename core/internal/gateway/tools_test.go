@@ -416,3 +416,48 @@ func TestToolGuardFlushRepairsUnclosedDSML(t *testing.T) {
 		t.Fatalf("arguments %s", calls[0].Function.Arguments)
 	}
 }
+
+func TestRenderCallListCompactsArguments(t *testing.T) {
+	var call toolCall
+	call.Function.Name = "shell"
+	call.Function.Arguments = `{"command": "ls -la", "timeout": 5}`
+	got := renderCallList("\n\n", []toolCall{call})
+	want := "\n\n" + "\n<<<ALLAIIS_TOOL_CALL>>>" +
+		`{"calls":[{"name":"shell","arguments":{"command":"ls -la","timeout":5}}]}` +
+		"<<<END_TOOL_CALL>>>"
+	if got != want {
+		t.Fatalf("got %q\nwant %q", got, want)
+	}
+}
+
+func TestReasoningReplaySurvivesClientRendering(t *testing.T) {
+	store := newReasoningStore()
+	var call toolCall
+	call.Function.Name = "shell"
+	call.Function.Arguments = `{"command": "ls -la"}`
+	store.save("alias", renderCallList("", []toolCall{call}), "thinking")
+	// A client trims the prose and re-serializes the arguments without spaces.
+	client := "\n<<<ALLAIIS_TOOL_CALL>>>" +
+		`{"calls":[{"name":"shell","arguments":{"command":"ls -la"}}]}` +
+		"<<<END_TOOL_CALL>>>"
+	if got := store.load("alias", client); got != "thinking" {
+		t.Fatalf("load %q", got)
+	}
+}
+
+func TestReasoningStoreFindsBareProse(t *testing.T) {
+	store := newReasoningStore()
+	var call toolCall
+	call.Function.Name = "shell"
+	call.Function.Arguments = `{"command":"ls"}`
+	text := "I will look around.\n\n"
+	block := renderCallList(text, []toolCall{call})
+	store.save("alias", block, "thinking")
+	store.save("alias", text, "thinking")
+	if got := store.load("alias", "I will look around."); got != "thinking" {
+		t.Fatalf("prose load %q", got)
+	}
+	if got := store.load("alias", block); got != "thinking" {
+		t.Fatalf("block load %q", got)
+	}
+}

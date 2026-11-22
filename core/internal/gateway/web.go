@@ -3,6 +3,7 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -294,11 +295,16 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		finish = "length"
 	}
 	if target.Route.ReasoningRoundTrip {
+		// A client replays the assistant turn either as bare prose or as the
+		// rendered call block, so the thinking is stored under both shapes.
+		thinking := reason.reasoningText.String()
 		assistant := reason.text.String()
 		if len(calls) > 0 {
-			assistant = renderCallList(assistant, calls)
+			g.reasoning.save(target.Route.ID, renderCallList(assistant, calls), thinking)
 		}
-		g.reasoning.save(target.Route.ID, assistant, reason.reasoningText.String())
+		if strings.TrimSpace(assistant) != "" {
+			g.reasoning.save(target.Route.ID, assistant, thinking)
+		}
 	}
 	if err != nil && sent {
 		writeStreamError(w, protocol, err)
@@ -797,8 +803,24 @@ func renderCallList(text string, calls []toolCall) string {
 		if i > 0 {
 			block.WriteString(",")
 		}
-		fmt.Fprintf(&block, `{"name":%q,"arguments":%s}`, call.Function.Name, call.Function.Arguments)
+		name, err := json.Marshal(call.Function.Name)
+		if err != nil {
+			name = []byte(`""`)
+		}
+		fmt.Fprintf(&block, `{"name":%s,"arguments":%s}`, name,
+			compactJSON(call.Function.Arguments))
 	}
 	block.WriteString(`]}` + toolClose)
 	return block.String()
+}
+
+// compactJSON drops insignificant spaces so the replayed text matches the
+// canonical form a client rebuilds from the same calls, which keeps the stored
+// thinking findable.
+func compactJSON(raw string) string {
+	var out bytes.Buffer
+	if err := json.Compact(&out, []byte(raw)); err != nil {
+		return raw
+	}
+	return out.String()
 }

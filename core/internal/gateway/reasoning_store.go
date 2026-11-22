@@ -62,6 +62,13 @@ func (s *reasoningStore) save(alias, assistantText, reasoning string) {
 	}
 }
 
+// size reports the number of live entries.
+func (s *reasoningStore) size() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.entries)
+}
+
 func (s *reasoningStore) load(alias, assistantText string) string {
 	if s == nil || assistantText == "" {
 		return ""

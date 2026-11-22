@@ -267,6 +267,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | `min_p` and anonymous-id control | ✓ | `TestMinPFollowsTheCapability`, `TestPayloadMinPAndAnonUserID` | — | — |
 | Video attachment cap | ✓ | `TestAttachmentCountsSplitByMIME`, `TestVideoLimitRejectsBeforeUpload` | — | — |
 | Thinking counted in the usage estimate | ✓ | `TestReasoningCountsTowardTheCap` | — | — |
+| Replay key matches a re-rendered turn | ✓ | `TestRenderCallListCompactsArguments`, `TestReasoningReplaySurvivesClientRendering`, `TestReasoningStoreFindsBareProse` | live OpenCode run: replay hit on every turn that had thinking | — |
 | Whitespace-tolerant reasoning key | ✓ | `TestReasoningKeyIgnoresSurroundingSpace` | live OpenCode run: replay hit on every turn that had thinking | — |
 | Encrypted reasoning round-trip | ✓ | `TestReasoningIsReplayedWithFollowUps`, `TestNonStreamRepliesCarryReasoning` | live: `reasoning_content` then the replayed thinking on a free thinking model | — |
 | Sampling, penalties and replacement hints | ✓ | `TestSamplingAndPenaltiesFollowCapabilities`, `TestUnknownModelMentionsTheReplacement` | — | — |

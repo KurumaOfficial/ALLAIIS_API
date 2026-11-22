@@ -257,6 +257,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | `min_p` и контроль anonymous-id | ✓ | `TestMinPFollowsTheCapability`, `TestPayloadMinPAndAnonUserID` | — | — |
 | Лимит видео-вложений | ✓ | `TestAttachmentCountsSplitByMIME`, `TestVideoLimitRejectsBeforeUpload` | — | — |
 | Мышление в оценке usage | ✓ | `TestReasoningCountsTowardTheCap` | — | — |
+| Ключ повтора совпадает с пересобранным турном, и с текстом, и с блоком | ✓ | `TestRenderCallListCompactsArguments`, `TestReasoningReplaySurvivesClientRendering`, `TestReasoningStoreFindsBareProse` | живой прогон OpenCode: ответ подставляется на каждом шаге с размышлением | — |
 | Ключ reasoning без учёта пробелов | ✓ | `TestReasoningKeyIgnoresSurroundingSpace` | живой прогон OpenCode: повтор срабатывает на каждом ходе с мышлением | — |
 | Round-trip зашифрованного reasoning | ✓ | `TestReasoningIsReplayedWithFollowUps`, `TestNonStreamRepliesCarryReasoning` | вживую: `reasoning_content`, затем повтор мышления на бесплатной думающей модели | — |
 | Сэмплинг, штрафы и подсказка замены | ✓ | `TestSamplingAndPenaltiesFollowCapabilities`, `TestUnknownModelMentionsTheReplacement` | — | — |
