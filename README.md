@@ -121,6 +121,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | --- | --- |
 | `GET /healthz` | Local liveness probe |
 | `OPTIONS /v1/*` | CORS preflight without a key |
+| `GET /metrics` | Prometheus counters, no key, loopback |
 | `GET /v1/models` | Aliases available under the configured privacy policy |
 | `POST /v1/chat/completions` | Chat Completions with native JSON or SSE |
 | `POST /v1/responses` | Foreground Responses creation with native JSON or SSE, also on web routes |
@@ -263,6 +264,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Venice web quota probe and catalog | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Venice web Pro session | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
+| Prometheus metrics | ✓ | `TestMetricsExposition`, `TestMetricsNeedsNoKey` | `/metrics` on the live gateway | — |
 | Request IDs and CORS | ✓ | `TestRequestIDIsEchoedAndStamped`, `TestErrorBodyCarriesRequestID`, `TestPreflightAndCORSHeaders` | — | — |
 | Cache invalidation on credential change | ✓ | `TestForgetDropsTokenAndAttestationCaches`, `TestReplacingAKeyClearsItsCooldown` | — | — |
 | Catalog cache with bypass | ✓ | `TestCatalogCacheServesAndBypasses` | panel cached and bypassed results | — |

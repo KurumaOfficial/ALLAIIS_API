@@ -92,6 +92,7 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 	mux.HandleFunc("POST /v1/chat/completions", g.completion(config.Chat, "/chat/completions"))
 	mux.HandleFunc("POST /v1/responses", g.completion(config.Responses, "/responses"))
 	mux.HandleFunc("POST /v1/messages", g.completion(config.Messages, "/messages"))
+	mux.HandleFunc("GET /metrics", g.metricsPage)
 	g.mux = g.instrument(mux)
 	return g
 }
@@ -189,6 +190,11 @@ func (g *Gateway) ResetCredential(ctx context.Context, provider config.Provider,
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) { g.mux.ServeHTTP(w, r) }
 
 func (g *Gateway) table() *table { return g.live.Load() }
+
+func (g *Gateway) metricsPage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.Write([]byte(g.metrics.prometheus(len(g.table().routes.Models(config.Public)))))
+}
 
 // ClearCooldown lifts a stored and in-memory cooldown.
 func (g *Gateway) ClearCooldown(ctx context.Context, provider config.Provider, providerID, label string) error {
@@ -360,7 +366,7 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 	w = recorder
 	model, provider, stream, chars, calls := "", "", false, 0, 0
 	defer func() {
-		g.recordCompletion(recorder, start, stream, func() (string, string) { return model, provider }, chars, calls)
+		g.recordCompletion(recorder, start, protocol, stream, func() (string, string) { return model, provider }, chars, calls)
 	}()
 	minimum, ok := g.privacy(r)
 	if !ok {

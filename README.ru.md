@@ -121,6 +121,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | --- | --- |
 | `GET /healthz` | Проверка доступности локального шлюза |
 | `OPTIONS /v1/*` | CORS-preflight без ключа |
+| `GET /metrics` | Счётчики Prometheus, без ключа, loopback |
 | `GET /v1/models` | Алиасы, доступные по настроенной политике приватности |
 | `POST /v1/chat/completions` | Chat Completions с нативным JSON или SSE |
 | `POST /v1/responses` | Создание Responses в синхронном режиме с JSON или SSE |
@@ -253,6 +254,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Проба квоты и каталог Venice web | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Гостевой и Pro алиасы рядом | ✓ | `TestProviderAliasesAndPinnedCredentials` | гость + Pro в одном прогоне | — |
+| Метрики Prometheus | ✓ | `TestMetricsExposition`, `TestMetricsNeedsNoKey` | `/metrics` на живом гейтвее | — |
 | Request ID и CORS | ✓ | `TestRequestIDIsEchoedAndStamped`, `TestErrorBodyCarriesRequestID`, `TestPreflightAndCORSHeaders` | — | — |
 | Инвалидация кеша при смене ключа | ✓ | `TestForgetDropsTokenAndAttestationCaches`, `TestReplacingAKeyClearsItsCooldown` | — | — |
 | Кеш каталога с обходом | ✓ | `TestCatalogCacheServesAndBypasses` | кеш и обход в панели | — |

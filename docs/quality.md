@@ -63,6 +63,13 @@ branch on `code` instead of matching prose. `Retry-After` accompanies `429`.
 so `Access-Control-Allow-Origin: *` is safe. A browser page can therefore call the
 loopback gateway directly.
 
+## Metrics
+
+`GET /metrics` serves Prometheus text without a key: `allaiis_requests_total`
+per alias, protocol and status, duration and character sums, the served-model
+gauge and `allaiis_up`. Cardinality follows the configured aliases. Scrape it
+from a loopback collector.
+
 ## Graceful shutdown
 
 `SIGINT`/`SIGTERM` stop accepting connections and give in-flight requests ten

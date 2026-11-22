@@ -408,3 +408,42 @@ func TestPreflightAndCORSHeaders(t *testing.T) {
 		t.Fatalf("cors headers missing: %v", response.Header())
 	}
 }
+
+func TestMetricsExposition(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"content":"hello"}}]}`)
+	}))
+	t.Cleanup(upstream.Close)
+	store, cfg := setup(t, upstream.URL)
+	handler := newGateway(t, cfg, store)
+
+	completion := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"demo","messages":[{"role":"user","content":"hi"}]}`))
+	completion.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	handler.ServeHTTP(httptest.NewRecorder(), completion)
+
+	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusOK || !strings.Contains(result.Header().Get("Content-Type"), "text/plain") {
+		t.Fatalf("metrics: %d %s", result.Code, result.Header().Get("Content-Type"))
+	}
+	body := result.Body.String()
+	if !strings.Contains(body, `allaiis_requests_total{model="demo",protocol="chat",status="200"} 1`) {
+		t.Fatalf("series missing: %s", body)
+	}
+	if !strings.Contains(body, "allaiis_models_served 3") || !strings.Contains(body, "allaiis_up 1") {
+		t.Fatalf("gauges missing: %s", body)
+	}
+}
+
+func TestMetricsNeedsNoKey(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if result.Code != http.StatusOK {
+		t.Fatalf("metrics behind auth: %d", result.Code)
+	}
+}
