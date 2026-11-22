@@ -174,7 +174,8 @@ usage_estimate`, and estimated token counts.
 
 | Provider ID | API key variable | Reference |
 | --- | --- | --- |
-| `openai` | `OPENAI_API_KEY` | [OpenAI](https://platform.openai.com/docs/api-reference/chat) || `deepseek` | `DEEPSEEK_API_KEY` | [DeepSeek](https://api-docs.deepseek.com/) |
+| `openai` | `OPENAI_API_KEY` | [OpenAI](https://platform.openai.com/docs/api-reference/chat) |
+| `deepseek` | `DEEPSEEK_API_KEY` | [DeepSeek](https://api-docs.deepseek.com/) |
 | `zai` | `ZAI_API_KEY` | [Z.ai](https://docs.z.ai/api-reference/llm/chat-completion) |
 | `venice` | `VENICE_API_KEY` | [Venice](https://docs.venice.ai/api-reference/endpoint/chat/completions) |
 | `venice-web` | web session | [Venice web](docs/venice-web.md) |
@@ -343,7 +344,9 @@ gofmt -l core    # must print nothing
 ```
 
 CI runs those on Linux, macOS and Windows, plus `-race` on Linux
-(`.github/workflows/ci.yml`).
+(`.github/workflows/ci.yml`). A docs check also compares the shape of each
+bilingual pair (headings, tables, lists, code blocks), so one language cannot
+quietly lose a row.
 
 [Roadmap](ROADMAP.md) · [Related projects](docs/related-projects.md)
 

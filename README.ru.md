@@ -251,6 +251,10 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Возможность | Реализовано | Офлайн-тест | Live-тест | Блокер |
 | --- | :---: | --- | :---: | --- |
 | Маршрутизация, приватность и пауза после 429 | ✓ | `TestRoutingAndProviderCooldown` | — | — |
+| Кулдаун привязан к метке ключа | ✓ | `TestCooldownIsScopedToThePinnedLabel`, `TestCooldownOnUnpinnedPoolCoolsEveryLabel` | гость работал, пока Pro остывал | — |
+| Снятие кулдауна из панели | ✓ | `TestClearCooldownEndpoint` | — | — |
+| Классификация `insufficientBalance` | ✓ | `TestErrorClassification` | 402 от исчерпанного Pro-плана стал `insufficient_balance` | — |
+| Проба квоты в панели | ✓ | `TestErrorClassification` | `web quota` на трёх метках, свои времена сброса | — |
 | Нативные Responses и Messages | ✓ | `TestNativeProtocols` | — | — |
 | SSE и отмена при отключении клиента | ✓ | `TestStreamFlushAndCancel` | — | — |
 | Закрытая веб-интеграция Venice | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | JSON и SSE | — |
@@ -310,6 +314,7 @@ Go-тестах. Он использует синтетические данны
 | A1. Закрытый транспорт Venice | ✓ | `TestWebCompletionStreams`, `TestChatStreamsAndAuthenticates` | JSON и SSE | вход в Pro вручную |
 | A2. Фикстуры SSE, обрыва, ошибок и отказа в доступе | ✓ | `TestSSEFixtures` | — | — |
 | A3. Форматы инструментов и повтор при ошибке | ✓ | `TestToolFixtureCorpus`, `TestToolParserRecovery`, `TestToolsCancelAndRetry`, `TestReasoningBudgetCancelsAndReturnsStreamError` | — | — |
+| A3b. Веб-конверт инструментов и ремонт | ✓ | `TestToolGuardRejectsBadBlocks`, `TestWebToolRepairRetry` | ответ `tool_calls` | — |
 | A4–A5. Нормализация истории и удаление NUL в тестовом обработчике | ✓ | `TestToolPolicyHistoryAndNUL`, `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A6. Оценка usage в тестовых ответах JSON и SSE | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A7. Преобразование 413 переполнения и обрезка | ✓ | `TestContextOverflowTrimsOrReturns400` | — | — |
@@ -333,7 +338,9 @@ gofmt -l core    # ничего печатать не должен
 ```
 
 CI гоняет это на Linux, macOS и Windows, плюс `-race` на Linux
-(`.github/workflows/ci.yml`).
+(`.github/workflows/ci.yml`). Проверка документации ещё и сверяет форму каждой
+двуязычной пары (заголовки, таблицы, списки, блоки кода), чтобы один язык не мог
+тихо потерять строку.
 
 [Дорожная карта](ROADMAP.md) · [Связанные проекты](docs/related-projects.md)
 
