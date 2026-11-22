@@ -280,6 +280,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Empty-reply retry and lead-in handling | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
 | Linear guard scan and oversized-block cap | ✓ | `TestGuardScansForwardThroughLongProse`, `TestGuardRejectsOversizedUnclosedBlock` | 5/5 agent runs after the change | — |
 | Default response cap and `length` finish | ✓ | `TestDefaultResponseCapWhenClientOmitsTokens`, `TestReplyNearTheTokenCapReportsLength` | 9/9 agent runs without truncation | — |
+| Unclosed DSML block parsed at stream end | ✓ | `TestToolGuardFlushRepairsUnclosedDSML`, `TestToolEnvelopePutsNamesFirst` | 52-step task: tests green, `execute` discovery fell from 25 to 7 | — |
 | Mixed tool dialects and `arguments` wrapper | ✓ | `TestToolGuardAcceptsMixedDialect`, `TestInvokeArgumentsWrapperIsFlattened` | two coding tasks: bug fixed, tests green | — |
 | DeepSeek DSML tool dialect and rising call indexes | ✓ | `TestToolGuardParsesDeepSeekDSML`, `TestStreamedToolCallIndexesKeepRising`, `TestWebToolCallStreamDSML`, `TestToolGuardFlushRepairsTruncatedBlock`, `TestWhitespaceAssistantTextKeepsToolCalls` | OpenCode agent loop on `deepseek-v4-1-flash-uncensored`: 9 tool calls, 5 steps, 16 s | — |
 | Stream usage behind `stream_options.include_usage` | ✓ | `TestChatStreamUsageOnlyWhenRequested` | OpenCode reads non-zero tokens | — |

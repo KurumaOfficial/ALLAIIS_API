@@ -257,7 +257,9 @@ What the gateway guarantees to an OpenAI-compatible client:
   `<invoke>` XML all become normal `tool_calls`, including a DSML envelope whose
   inner tags lost the prefix, and a lone `arguments` object is unwrapped;
 - a tool block cut off at the end of a stream is repaired instead of being
-  silently dropped.
+  silently dropped, including a DSML block whose closing tags never arrived;
+- the tool names are repeated at the top of the system prompt, so a model does
+  not spend turns searching for them.
 
 Measured on a free model, 2026-11-22: five of five streams returned 200 and
 `[DONE]`, three of them in parallel; time to first content ran 2.5–7.4 s

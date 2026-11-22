@@ -389,3 +389,30 @@ func TestInvokeArgumentsWrapperIsFlattened(t *testing.T) {
 		t.Fatalf("wrapper: %+v %v", calls, err)
 	}
 }
+
+func TestToolEnvelopePutsNamesFirst(t *testing.T) {
+	guard := guardFor("read_file", "shell")
+	_ = guard
+	tools := make([]toolSpec, 2)
+	tools[0].Function.Name = "read_file"
+	tools[1].Function.Name = "shell"
+	envelope := toolEnvelope("base", tools)
+	if !strings.HasPrefix(envelope, "[Tool calls available: read_file, shell.") {
+		t.Fatalf("header %q", envelope[:60])
+	}
+}
+
+func TestToolGuardFlushRepairsUnclosedDSML(t *testing.T) {
+	guard := guardFor("execute")
+	if _, _, err := guard.Write("<|DSML|calls>\n<|DSML|invoke name=\"execute\">\n<|DSML|parameter name=\"arguments\">" +
+		`{"code":"go test"}` + toolClose); err != nil {
+		t.Fatal(err)
+	}
+	tail, calls, err := guard.Flush()
+	if err != nil || len(calls) != 1 || strings.TrimSpace(tail) != "" {
+		t.Fatalf("flush %q %+v %v", tail, calls, err)
+	}
+	if calls[0].Function.Arguments != `{"code":"go test"}` {
+		t.Fatalf("arguments %s", calls[0].Function.Arguments)
+	}
+}

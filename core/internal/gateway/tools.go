@@ -64,11 +64,12 @@ func toolEnvelope(system string, tools []toolSpec) string {
 		}
 		spec.WriteString("- " + tool.Function.Name + ": " + tool.Function.Description + "\n  arguments schema: " + parameters + "\n")
 	}
-	return system + "\n\n## Tools\n" +
+	header := "[Tool calls available: " + names.String() + ". Use them directly, do not search for them.]\n\n"
+	return header + system + "\n\n## Tools\n" +
 		"To call a tool, output ONLY a block that starts with " + toolOpen + " and ends with " + toolClose +
 		", containing valid JSON of the shape {\"calls\":[{\"name\":\"...\",\"arguments\":{...}}]}." +
 		" Call at least one of: " + names.String() + ". Do not wrap the block in Markdown.\n" +
-		"Claude-style XML is also accepted:\n" +
+		"Prefer the tool's exact name and a JSON argument object. Claude-style XML is also accepted:\n" +
 		"<invoke name=\"tool\"><parameter name=\"argument\">value</parameter></invoke>\n" + spec.String()
 }
 
@@ -159,7 +160,7 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 				continue
 			}
 			if dsmlStart := dsmlIndexFrom(current, from); dsmlStart >= 0 {
-				head, calls, used, complete, err := consumeDSML(current[dsmlStart:])
+				head, calls, used, complete, err := consumeDSML(current[dsmlStart:], false)
 				if err != nil {
 					g.buf.Reset()
 					g.buf.WriteString(current[dsmlStart:])
@@ -263,7 +264,8 @@ func (g *toolGuard) Flush() (string, []toolCall, error) {
 	start := strings.Index(current, toolOpen)
 	if start < 0 {
 		if dsmlStart := dsmlIndex(current); dsmlStart >= 0 {
-			head, calls, _, _, err := consumeDSML(current[dsmlStart:])
+			fragment := trimPartialClose(current[dsmlStart:], toolClose)
+			head, calls, _, _, err := consumeDSML(fragment, true)
 			if err == nil && len(calls) > 0 && !g.knownCalls(calls) {
 				err = errNoToolBlock
 			}
@@ -357,7 +359,7 @@ func dsmlTailKeep(current string) int {
 }
 
 // consumeDSML parses one calls envelope, or a run of bare invokes, into calls.
-func consumeDSML(fragment string) (head string, calls []toolCall, used int, complete bool, err error) {
+func consumeDSML(fragment string, final bool) (head string, calls []toolCall, used int, complete bool, err error) {
 	offset := 0
 	envelope := false
 	if loc := dsmlCalls.FindStringIndex(fragment); loc != nil && loc[0] == 0 {
@@ -375,9 +377,12 @@ func consumeDSML(fragment string) (head string, calls []toolCall, used int, comp
 		body := fragment[offset+match[1]:]
 		from, to := dsmlCloseAt(body, "invoke")
 		if from < 0 {
-			return prose.String(), calls, start, false, nil
+			if !final {
+				return prose.String(), calls, start, false, nil
+			}
+			from, to = len(body), len(body)
 		}
-		values, consumed, paramErr := dsmlValues(body[:from])
+		values, consumed, paramErr := dsmlValues(body[:from], final)
 		if paramErr != nil {
 			return prose.String(), nil, start, true, paramErr
 		}
@@ -394,6 +399,8 @@ func consumeDSML(fragment string) (head string, calls []toolCall, used int, comp
 			offset += to
 		} else if len(calls) == 0 {
 			return prose.String(), calls, offset, false, nil
+		} else if final {
+			offset = len(fragment)
 		}
 	}
 	return prose.String(), calls, offset, true, nil
@@ -445,7 +452,7 @@ func lastCloseAt(body, want string) (start, end int) {
 }
 
 // dsmlValues reads parameter elements; string="true" keeps the body verbatim.
-func dsmlValues(body string) (map[string]any, int, error) {
+func dsmlValues(body string, final bool) (map[string]any, int, error) {
 	values := map[string]any{}
 	for {
 		match := dsmlParam.FindStringSubmatchIndex(body)
@@ -461,8 +468,14 @@ func dsmlValues(body string) (map[string]any, int, error) {
 			segment = body[:next[0]]
 		}
 		from, to := lastCloseAt(segment, "parameter")
-		if key == "" || from < 0 {
+		if key == "" {
 			return nil, 0, errNoToolBlock
+		}
+		if from < 0 {
+			if !final {
+				return nil, 0, errNoToolBlock
+			}
+			from, to = len(body), len(body)
 		}
 		value := body[:from]
 		if strings.Contains(name, `string="true"`) {
