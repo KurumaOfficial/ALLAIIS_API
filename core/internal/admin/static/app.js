@@ -8,6 +8,8 @@ let view = 'overview'
 let logCursor = 0
 let keyVisible = false
 const quotas = {}
+// The probe result outlives one render, so a low session stays visible.
+const lowQuota = {}
 let pickedModel = null
 
 async function api (path, options = {}) {
@@ -131,12 +133,20 @@ function render () {
       line.append(box)
     }
     if (provider.web) {
+      if (lowQuota[provider.id]) {
+        const low = document.createElement('span')
+        low.className = 'badge bad'
+        low.textContent = 'quota low'
+        low.title = 'A quota probe found little or nothing left'
+        line.append(low)
+      }
       const quota = document.createElement('button')
       quota.className = 'ghost'
       quota.textContent = 'Quota'
       quota.onclick = async () => {
         try {
           const result = await api('/api/web/quota', { method: 'POST', body: JSON.stringify({ provider: provider.id }) })
+          lowQuota[provider.id] = result.labels.some(row => row.low)
           quotas[provider.id] = result.labels.map(row => row.label + ': ' +
             (row.error ? row.error : (row.low ? 'LOW, ' : '') + (row.chat_remaining ?? '?') + ' chat left' +
               (row.reset_at ? ', resets ' + new Date(row.reset_at).toLocaleString() : '') +
