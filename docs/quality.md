@@ -75,9 +75,10 @@ gauge and `allaiis_up`. The tool parser adds `allaiis_tool_unwrap_total`,
 `allaiis_tool_unknown_total`, so reshaping is visible without the log, plus the
 `allaiis_tool_name_ttl_seconds` and `allaiis_tool_name_expired` gauges, so a
 scrape can tell "no unknown names" from "names aged out unseen"; a rising
-unknown count means the model keeps naming tools outside the catalog; when the
-gateway reports names past retention they are counted in the detail instead of
-listed.
+unknown count means the model keeps naming tools outside the catalog and the probe
+sweep carries one tool call so a parser regression surfaces as a failed row; when
+the gateway reports names past retention they are counted in the detail instead
+of listed.
 The four tool counters continue across a restart: they and their name set live
 in `tool-names.json` in the data directory, written at most every three seconds
 through a temporary file and read at startup, so a doctor warning is not wiped by

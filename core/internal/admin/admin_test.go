@@ -3,7 +3,9 @@
 package admin
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -32,8 +34,13 @@ func setup(t *testing.T) *fixture {
 	t.Helper()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		io := `{"choices":[{"message":{"content":"pong"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`
-		w.Write([]byte(io))
+		body, _ := io.ReadAll(r.Body)
+		// The tool probe sends a tool list; answer it with a tool call.
+		if bytes.Contains(body, []byte(`"tools"`)) {
+			w.Write([]byte(`{"choices":[{"message":{"tool_calls":[{"function":{"name":"list_files","arguments":"{\"path\":\".\"}"}}]}}]}`))
+			return
+		}
+		w.Write([]byte(`{"choices":[{"message":{"content":"pong"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`))
 	}))
 	t.Cleanup(upstream.Close)
 	gate := httptest.NewServer(http.NotFoundHandler())
@@ -261,14 +268,20 @@ func TestSmokeProbesEveryAvailableAlias(t *testing.T) {
 		Results []struct {
 			Alias  string `json:"alias"`
 			Status int    `json:"status"`
+			OK     bool   `json:"ok"`
 			Text   string `json:"text"`
 		} `json:"results"`
 	}
 	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
 		t.Fatal(err)
 	}
-	if reply.Passed != 1 || reply.Failed != 0 || reply.Results[0].Text != "pong" {
+	if reply.Passed != 2 || reply.Failed != 0 || reply.Results[0].Text != "pong" {
 		t.Fatalf("unexpected smoke reply: %+v", reply)
+	}
+	// The sweep carries one tool probe so a parser regression cannot hide.
+	tooled := reply.Results[len(reply.Results)-1]
+	if !tooled.OK || !strings.Contains(tooled.Text, "list_files") {
+		t.Fatalf("tool probe missing: %+v", reply.Results)
 	}
 }
 
@@ -426,5 +439,26 @@ func TestAddModelStoresCapabilities(t *testing.T) {
 		route.MaxResponse != 8000 || route.MaxImages != 4 ||
 		route.Temperature == nil || *route.Temperature != 0.4 || route.TopP == nil || *route.TopP != 0.8 {
 		t.Fatalf("capabilities lost: %+v", route)
+	}
+}
+
+func TestToolCallTextReadsEachProtocol(t *testing.T) {
+	cases := []struct {
+		name     string
+		raw      string
+		protocol config.Protocol
+		want     string
+	}{
+		{"chat", `{"choices":[{"message":{"tool_calls":[{"function":{"name":"list_files","arguments":"{}"}}]}}]}`, config.Chat, "list_files {}"},
+		{"messages", `{"content":[{"type":"text","text":"hi"},{"type":"tool_use","name":"list_files","input":{}}]}`, config.Messages, "list_files {}"},
+		{"responses", `{"output":[{"type":"function_call","name":"list_files","arguments":"{}"}]}`, config.Responses, "list_files {}"},
+		{"prose only", `{"choices":[{"message":{"content":"Sure, the files are..."}}]}`, config.Chat, ""},
+		{"garbage", `not json`, config.Chat, ""},
+	}
+	for _, c := range cases {
+		got, ok := toolCallText([]byte(c.raw), c.protocol)
+		if got != c.want || ok != (c.want != "") {
+			t.Fatalf("%s: got %q/%v, want %q", c.name, got, ok, c.want)
+		}
 	}
 }

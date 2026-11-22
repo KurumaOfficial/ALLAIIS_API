@@ -337,8 +337,9 @@ func (s *Server) smokeRun(ctx context.Context, alias string) ([]probeResult, int
 	models := append([]config.Route{}, cfg.Models...)
 	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
 
-	results := make([]probeResult, 0, len(models))
+	results := make([]probeResult, 0, len(models)+1)
 	passed, failed := 0, 0
+	var toolRoute config.Route
 	for _, route := range models {
 		if route.Disabled || (alias != "" && route.ID != alias) {
 			continue
@@ -370,12 +371,145 @@ func (s *Server) smokeRun(ctx context.Context, alias string) ([]probeResult, int
 		result.OK = result.Status == http.StatusOK && result.Text != ""
 		if result.OK {
 			passed++
+			if toolRoute.ID == "" {
+				toolRoute = route
+			}
 		} else {
 			failed++
 		}
 		results = append(results, result)
 	}
+	// One alias carries the tool probe, so a parser regression surfaces in the
+	// scheduled sweep without paying for a tool call on every alias.
+	if toolRoute.ID != "" {
+		tool := s.toolProbe(ctx, cfg, toolRoute)
+		results = append(results, tool)
+		if tool.OK {
+			passed++
+		} else {
+			failed++
+		}
+	}
 	return results, passed, failed
+}
+
+// toolProbe asks a healthy alias to call a tool and reports whether a tool call
+// came back. The name collides with no catalog tool, so the guard must deliver
+// it rather than drop it.
+func (s *Server) toolProbe(ctx context.Context, cfg config.Config, route config.Route) probeResult {
+	result := probeResult{Alias: route.ID + " (tools)", Protocol: string(route.Protocol)}
+	if result.Protocol == "" {
+		result.Protocol = "chat"
+	}
+	payload, err := json.Marshal(map[string]any{
+		"model": route.ID, "max_tokens": 128, "stream": false,
+		"messages": []any{map[string]any{
+			"role":    "user",
+			"content": "Call the tool list_files once with path . and nothing else. Do not answer in prose.",
+		}},
+		"tools": []any{map[string]any{"type": "function", "function": map[string]any{
+			"name":        "list_files",
+			"description": "List the files in a directory",
+			"parameters": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"path": map[string]any{"type": "string"}},
+				"required":   []string{"path"},
+			},
+		}}},
+	})
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	ctx, cancel := context.WithTimeout(ctx, 150*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+cfg.Listen+"/v1/chat/completions", bytes.NewReader(payload))
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	request.Header.Set("Authorization", "Bearer "+s.options.Store.ClientKey())
+	request.Header.Set("Content-Type", "application/json")
+	start := time.Now()
+	response, err := (&http.Client{Timeout: 150 * time.Second}).Do(request)
+	result.Millis = time.Since(start).Milliseconds()
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	defer response.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	result.Status = response.StatusCode
+	if response.StatusCode != http.StatusOK {
+		result.Error = failureText(raw)
+		return result
+	}
+	result.Text, result.OK = toolCallText(raw, route.Protocol)
+	if !result.OK && result.Text == "" {
+		result.Error = "answered without a tool call"
+	}
+	return result
+}
+
+// toolCallText reports whether the reply holds a tool call and what it is.
+func toolCallText(raw []byte, protocol config.Protocol) (string, bool) {
+	switch protocol {
+	case config.Messages:
+		var reply struct {
+			Content []struct {
+				Type  string          `json:"type"`
+				Name  string          `json:"name"`
+				Input json.RawMessage `json:"input"`
+			} `json:"content"`
+		}
+		if json.Unmarshal(raw, &reply) != nil {
+			return "", false
+		}
+		for _, block := range reply.Content {
+			if block.Type == "tool_use" {
+				return block.Name + " " + string(block.Input), true
+			}
+		}
+		return "", false
+	case config.Responses:
+		var reply struct {
+			Output []struct {
+				Type      string `json:"type"`
+				Name      string `json:"name"`
+				Arguments string `json:"arguments"`
+			} `json:"output"`
+		}
+		if json.Unmarshal(raw, &reply) != nil {
+			return "", false
+		}
+		for _, item := range reply.Output {
+			if item.Type == "function_call" {
+				return item.Name + " " + item.Arguments, true
+			}
+		}
+		return "", false
+	default:
+		var reply struct {
+			Choices []struct {
+				Message struct {
+					ToolCalls []struct {
+						Function struct {
+							Name      string `json:"name"`
+							Arguments string `json:"arguments"`
+						} `json:"function"`
+					} `json:"tool_calls"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		if json.Unmarshal(raw, &reply) != nil || len(reply.Choices) == 0 {
+			return "", false
+		}
+		calls := reply.Choices[0].Message.ToolCalls
+		if len(calls) == 0 {
+			return "", false
+		}
+		return calls[0].Function.Name + " " + calls[0].Function.Arguments, true
+	}
 }
 
 func findRoute(cfg config.Config, alias string) (config.Route, bool) {

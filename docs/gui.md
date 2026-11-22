@@ -95,6 +95,11 @@ Any failure also triggers a delivery, so a webhook can page on the first broken
 route instead of waiting for a user report. The sweep is off by default and
 runs sequentially.
 
+Each sweep also carries one tool probe: the first alias that passed is asked to
+call a `list_files` tool and the row passes only when a tool call comes back with
+that name, so a parser regression pages too. Only that one alias pays for the
+extra request; its row is named `<alias> (tools)`.
+
 ## Diagnostics
 
 **Run checks** inspects the config, the vault, the listener, alias-to-credential
