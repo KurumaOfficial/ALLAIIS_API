@@ -276,6 +276,11 @@ opencode run --auto --agent venice "..." < TASK.md
 An eight-function task then ran 44 steps, 73 tool calls, zero errors, zero leaked
 markers, 91 passing subtests, and finished with a summary.
 
+A twelve-function task of the same shape ran 85 steps and 125 subtests, all
+twelve delivered. Its four tool errors were client-side anchor mistakes (a read
+offset past the end, an `oldString` that matched twice) and every one recovered
+on the next step: a longer task costs turns, not correctness.
+
 The alias decides whether the request goes to a key API or to the web
 transport. Keep the real model limits and capabilities in the OpenCode entry:
 without them OpenCode assumes a 200k window and may truncate a long turn.
