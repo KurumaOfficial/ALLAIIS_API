@@ -63,6 +63,15 @@ function render () {
   const reshaped = (state.usage.tool_unwrap || 0) + (state.usage.tool_fold || 0) + (state.usage.tool_suffix || 0)
   $('ov-tools').textContent = reshaped.toLocaleString()
   $('ov-tools-unknown').textContent = (state.usage.tool_unknown || 0) + ' unknown names'
+  // The sum alone does not say what was reshaped; name each kind so a spike in
+  // one of them is visible without reading the log.
+  const mix = [
+    ['unwrap', state.usage.tool_unwrap || 0],
+    ['fold', state.usage.tool_fold || 0],
+    ['trailing word', state.usage.tool_suffix || 0],
+  ]
+  $('ov-tools-mix').textContent = mix.map(([kind, count]) => kind + ' ' + count).join(' · ')
+  $('ov-tools-mix').hidden = !reshaped
   $('ov-tools-reset').hidden = !reshaped && !(state.usage.tool_unknown || 0)
   const seconds = state.usage.tool_ttl_seconds || 0
   // Floor for the unit it lands in: 90 s is 1m, not a rounded-up 2m.

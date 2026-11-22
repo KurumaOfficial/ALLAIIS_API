@@ -79,7 +79,9 @@ listed.
 The four tool counters continue across a restart: they and their name set live
 in `tool-names.json` in the data directory, written at most every three seconds
 through a temporary file and read at startup, so a doctor warning is not wiped by
-a restart. The panel's **Reset** button on the Tool reshaping card (or
+a restart. The card also breaks the sum into its kinds (unwrap, fold, trailing word), so a
+spike in one of them is visible without reading the log. The panel's **Reset**
+button on the Tool reshaping card (or
 `POST /api/tools/reset`, or `allaiis tools reset`) zeroes both and deletes the
 file; `allaiis tools reset --expired`, or the same endpoint with `{"expired": true}`,
 drops only the names past retention, which keeps the fresh evidence, which is how a fixed tool list stops carrying old blame. The counters and names also travel as JSON on `GET /tool-names` (name, count,
