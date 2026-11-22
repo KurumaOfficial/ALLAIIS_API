@@ -228,7 +228,7 @@ func responsesUsage(usage map[string]any) map[string]any {
 	}
 }
 
-func (s *responsesShape) reply(content, reasoning string, calls []toolCall, usage map[string]any) {
+func (s *responsesShape) reply(content, reasoning string, calls []toolCall, usage map[string]any, finish string) {
 	output := make([]any, 0, 2+len(calls))
 	if reasoning != "" {
 		output = append(output, map[string]any{
@@ -248,8 +248,12 @@ func (s *responsesShape) reply(content, reasoning string, calls []toolCall, usag
 			"name": call.Function.Name, "arguments": call.Function.Arguments,
 		})
 	}
+	status := "completed"
+	if finish == "length" {
+		status = "incomplete"
+	}
 	writeJSON(s.w, http.StatusOK, map[string]any{
-		"id": s.id, "object": "response", "created_at": s.created, "status": "completed",
+		"id": s.id, "object": "response", "created_at": s.created, "status": status,
 		"model": s.model, "output": output,
 		"usage": map[string]any{
 			"input_tokens": usage["prompt_tokens"], "output_tokens": usage["completion_tokens"],

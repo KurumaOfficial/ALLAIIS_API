@@ -71,9 +71,9 @@ func toolEnvelope(system string, tools []toolSpec) string {
 
 // toolGuard splits a text stream into visible text and parsed tool blocks.
 type toolGuard struct {
-	tools []toolSpec
-	buf   strings.Builder
-	last  *toolCall
+	tools  []toolSpec
+	buf    strings.Builder
+	recent []string
 }
 
 // unique drops a call that repeats the previous one, which happens when a model
@@ -81,12 +81,21 @@ type toolGuard struct {
 func (g *toolGuard) unique(calls []toolCall) []toolCall {
 	kept := make([]toolCall, 0, len(calls))
 	for _, call := range calls {
-		if g.last != nil && call.Function.Name == g.last.Function.Name &&
-			call.Function.Arguments == g.last.Function.Arguments {
+		key := call.Function.Name + "\x00" + call.Function.Arguments
+		seen := false
+		for _, old := range g.recent {
+			if old == key {
+				seen = true
+				break
+			}
+		}
+		if seen {
 			continue
 		}
-		copy := call
-		g.last = &copy
+		if len(g.recent) == 8 {
+			g.recent = g.recent[1:]
+		}
+		g.recent = append(g.recent, key)
 		kept = append(kept, call)
 	}
 	return kept
@@ -97,7 +106,7 @@ func (g *toolGuard) add(tools []toolSpec) { g.tools = tools }
 // reset drops buffered and dedupe state before a retry.
 func (g *toolGuard) reset() {
 	g.buf.Reset()
-	g.last = nil
+	g.recent = nil
 }
 
 // known reports whether name was offered in this request.
@@ -362,6 +371,22 @@ func dsmlCloseAt(body, want string) (start, end int) {
 	return -1, -1
 }
 
+// lastCloseAt finds the last closing tag with the wanted name.
+func lastCloseAt(body, want string) (start, end int) {
+	from, to := -1, -1
+	for offset := 0; offset < len(body); {
+		loc := dsmlEnd.FindStringSubmatchIndex(body[offset:])
+		if loc == nil {
+			break
+		}
+		if body[offset+loc[2]:offset+loc[3]] == want {
+			from, to = offset+loc[0], offset+loc[1]
+		}
+		offset += loc[1]
+	}
+	return from, to
+}
+
 // dsmlValues reads parameter elements; string="true" keeps the body verbatim.
 func dsmlValues(body string) (map[string]any, int, error) {
 	values := map[string]any{}
@@ -374,7 +399,11 @@ func dsmlValues(body string) (map[string]any, int, error) {
 		name := body[match[0]:match[1]]
 		body = body[match[1]:]
 		key := parameterName(tag)
-		from, to := dsmlCloseAt(body, "parameter")
+		segment := body
+		if next := dsmlParam.FindStringIndex(body); next != nil {
+			segment = body[:next[0]]
+		}
+		from, to := lastCloseAt(segment, "parameter")
 		if key == "" || from < 0 {
 			return nil, 0, errNoToolBlock
 		}

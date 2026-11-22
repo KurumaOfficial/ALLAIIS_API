@@ -45,16 +45,18 @@ func (s *chatShape) end(reason string, usage map[string]any) {
 	fmt.Fprint(s.w, "data: [DONE]\n\n")
 }
 
-func (s *chatShape) reply(content, reasoning string, calls []toolCall, usage map[string]any) {
+func (s *chatShape) reply(content, reasoning string, calls []toolCall, usage map[string]any, finish string) {
 	message := map[string]any{"role": "assistant", "content": content}
 	if reasoning != "" {
 		message["reasoning_content"] = reasoning
 	}
-	finish := "stop"
 	if len(calls) > 0 {
 		message["content"] = nil
 		message["tool_calls"] = calls
 		finish = "tool_calls"
+	}
+	if finish == "" {
+		finish = "stop"
 	}
 	writeJSON(s.w, http.StatusOK, map[string]any{
 		"id": s.id, "object": "chat.completion", "created": s.created, "model": s.model,

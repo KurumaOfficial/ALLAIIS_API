@@ -210,3 +210,36 @@ func TestWhitespaceAssistantTextKeepsToolCalls(t *testing.T) {
 		t.Fatalf("tool call lost: %q", assistant)
 	}
 }
+
+func TestDefaultResponseCapWhenClientOmitsTokens(t *testing.T) {
+	var seen map[string]any
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
+		seen = body
+		writeFrames(w, "ok")
+	})
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","messages":[{"role":"user","content":"hi"}]}`
+	if result := complete(handler, store.ClientKey(), "", payload); result.Code != http.StatusOK {
+		t.Fatalf("status %d %s", result.Code, result.Body)
+	}
+	if seen["maxTokens"] != float64(8192) {
+		t.Fatalf("default cap %v", seen["maxTokens"])
+	}
+	payload = `{"model":"` + webModel + `","max_tokens":100,"messages":[{"role":"user","content":"hi"}]}`
+	if result := complete(handler, store.ClientKey(), "", payload); result.Code != http.StatusOK {
+		t.Fatalf("status %d %s", result.Code, result.Body)
+	}
+	if seen["maxTokens"] != float64(100) {
+		t.Fatalf("explicit cap %v", seen["maxTokens"])
+	}
+}
+
+func TestReplyNearTheTokenCapReportsLength(t *testing.T) {
+	server := venueWithToolBodies(t, strings.Repeat("word ", 40))
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`
+	result := complete(handler, store.ClientKey(), "", payload)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"finish_reason":"length"`) {
+		t.Fatalf("finish %d %s", result.Code, result.Body)
+	}
+}

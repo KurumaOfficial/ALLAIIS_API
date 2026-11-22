@@ -33,7 +33,7 @@ type webShape interface {
 	text(string)
 	calls([]toolCall)
 	end(reason string, usage map[string]any)
-	reply(content, reasoning string, calls []toolCall, usage map[string]any)
+	reply(content, reasoning string, calls []toolCall, usage map[string]any, finish string)
 }
 
 // webCompletion serves a route whose provider has no documented API.
@@ -56,7 +56,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	case config.Messages:
 		request, reason, tools, err = messagesRequest(payload, target.Route.UpstreamModel)
 		if err == nil && stream && request.MaxTokens <= 0 {
-			request.MaxTokens = 4096
+			request.MaxTokens = defaultResponse
 		}
 	case config.Responses:
 		request, reason, tools, err = responsesRequest(payload, target.Route.UpstreamModel)
@@ -287,6 +287,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	if len(calls) > 0 {
 		finish = "tool_calls"
+	} else if request.MaxTokens > 0 && reason.chars() >= request.MaxTokens*3 {
+		// Venice sends no finish reason; a reply near the cap was cut.
+		finish = "length"
 	}
 	if target.Route.ReasoningRoundTrip {
 		assistant := reason.text.String()
@@ -318,7 +321,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		}
 		shape.end(finish, report)
 	} else {
-		shape.reply(reason.text.String(), reason.reasoningText.String(), calls, usage)
+		shape.reply(reason.text.String(), reason.reasoningText.String(), calls, usage, finish)
 	}
 	if protocol == config.Responses {
 		reply := reason.text.String()
@@ -342,6 +345,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 }
 
 const (
+	defaultResponse   = 8192
 	defaultImageLimit = 10
 	defaultToolLimit  = 64
 	defaultInactivity = 2 * time.Minute
@@ -423,6 +427,9 @@ func applyCapabilities(request *webprov.Request, route config.Route) error {
 		request.MinP = nil
 	}
 	request.IncludeAnonUserID = route.AnonUserID
+	if request.MaxTokens <= 0 {
+		request.MaxTokens = defaultResponse
+	}
 	if route.MaxResponse > 0 && request.MaxTokens > route.MaxResponse {
 		request.MaxTokens = route.MaxResponse
 	}

@@ -3,6 +3,7 @@
 package gateway
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -276,5 +277,39 @@ func TestToolGuardKeepsInlineMarkerAsText(t *testing.T) {
 	tail, calls, err := guard.Flush()
 	if err != nil || len(calls) != 0 || !strings.Contains(tail, "<|DSML|calls>") {
 		t.Fatalf("inline marker %q %+v %v", tail, calls, err)
+	}
+}
+
+func TestToolGuardDropsRepeatedNonAdjacentCall(t *testing.T) {
+	guard := guardFor("read_file")
+	var calls []toolCall
+	for _, name := range []string{"a.txt", "b.txt", "a.txt"} {
+		_, parsed, err := guard.Write(`<invoke name="read_file"><parameter name="path">` + name + `</parameter></invoke>`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls = append(calls, parsed...)
+	}
+	if len(calls) != 2 || calls[0].Function.Arguments != `{"path":"a.txt"}` ||
+		calls[1].Function.Arguments != `{"path":"b.txt"}` {
+		t.Fatalf("calls %+v", calls)
+	}
+}
+
+func TestDSMLValueKeepsLiteralCloseTag(t *testing.T) {
+	guard := guardFor("execute")
+	fragment := `<|DSML|calls><|DSML|invoke name="execute"><|DSML|parameter name="code" string="true">` +
+		`const s = "</|DSML| parameter>";` +
+		`</|DSML| parameter></|DSML| invoke></|DSML| calls>`
+	_, calls, err := guard.Write(fragment)
+	if err != nil || len(calls) != 1 {
+		t.Fatalf("calls %+v %v", calls, err)
+	}
+	var decoded map[string]string
+	if err := json.Unmarshal([]byte(calls[0].Function.Arguments), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["code"] != `const s = "</|DSML| parameter>";` {
+		t.Fatalf("arguments %q", decoded["code"])
 	}
 }

@@ -182,8 +182,11 @@ func (s *anthropicShape) end(reason string, usage map[string]any) {
 	s.hello()
 	s.close()
 	stop := "end_turn"
-	if reason == "tool_calls" {
+	if reason == "tool_calls" || len(reason) == 0 {
 		stop = "tool_use"
+	}
+	if reason == "length" {
+		stop = "max_tokens"
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"type": "message_delta", "delta": map[string]any{"stop_reason": stop, "stop_sequence": nil},
@@ -231,8 +234,15 @@ func anthropicToolCalls(raw json.RawMessage) []toolCall {
 	return calls
 }
 
-func (s *anthropicShape) reply(content, reasoning string, calls []toolCall, usage map[string]any) {
+func (s *anthropicShape) reply(content, reasoning string, calls []toolCall, usage map[string]any, finish string) {
 	blocks := make([]any, 0, 2+len(calls))
+	stop := "end_turn"
+	if finish == "length" {
+		stop = "max_tokens"
+	}
+	if finish == "tool_calls" || len(calls) > 0 {
+		stop = "tool_use"
+	}
 	if reasoning != "" {
 		blocks = append(blocks, map[string]any{"type": "thinking", "thinking": reasoning, "signature": ""})
 	}
@@ -244,10 +254,6 @@ func (s *anthropicShape) reply(content, reasoning string, calls []toolCall, usag
 			"type": "tool_use", "id": call.ID, "name": call.Function.Name,
 			"input": json.RawMessage(call.Function.Arguments),
 		})
-	}
-	stop := "end_turn"
-	if len(calls) > 0 {
-		stop = "tool_use"
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"id": s.id, "type": "message", "role": "assistant", "model": s.model,

@@ -263,6 +263,14 @@ Measured on a free model, 2026-11-22: five of five streams returned 200 and
 sequentially and 2.5–14.4 s under three-way load; content then arrived at
 2.0–2.4 k characters per second. The lead-in dominates perceived speed.
 
+An omitted `max_tokens` becomes 8192 (clamped by the model's `max_response`):
+Venice's own default cuts a long answer mid-word. When the estimate reaches the
+cap the reply is reported as `finish_reason: length` (`stop_reason: max_tokens`
+on Messages, `status: incomplete` on Responses) so a client can continue.
+
+A call that repeats one of the last eight calls with the same arguments is
+dropped, so a model echoing its own block does not run a side effect twice.
+
 Usage is estimated from characters, not tokenized, and flagged
 `"estimated": true`; `X-ALLAIIS-Emulated-Features: tools,usage_estimate`
 declares both on every tool request. Messages aliases are exported under a
