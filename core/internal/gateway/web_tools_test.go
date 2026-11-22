@@ -63,8 +63,38 @@ func TestWebToolCallStream(t *testing.T) {
 	text := result.Body.String()
 	if result.Code != http.StatusOK || !strings.Contains(text, `"tool_calls"`) ||
 		!strings.Contains(text, `"name":"read_file"`) || !strings.Contains(text, `"finish_reason":"tool_calls"`) ||
-		!strings.Contains(text, `"content":"Reading"`) || strings.Contains(text, "ALLAIIS_TOOL_CALL") {
+		!strings.Contains(text, `"content":"Reading`) || strings.Contains(text, "ALLAIIS_TOOL_CALL") {
 		t.Fatalf("unexpected stream: %d %s", result.Code, text)
+	}
+}
+
+func TestWebToolHistoryReplaysAssistantCalls(t *testing.T) {
+	var checked atomic.Bool
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
+		messages := body["prompt"].([]any)
+		roles := make([]string, 0, len(messages))
+		for _, raw := range messages {
+			roles = append(roles, raw.(map[string]any)["role"].(string))
+		}
+		if strings.Join(roles, ",") != "system,user,assistant,user" {
+			t.Fatalf("history not replayed: %v", roles)
+		}
+		assistant := messages[2].(map[string]any)
+		if !strings.Contains(assistant["content"].(string), "<<<ALLAIIS_TOOL_CALL>>>") {
+			t.Errorf("assistant call not rendered: %v", assistant)
+		}
+		checked.Store(true)
+		writeFrames(w, "Go 1.26.2")
+	})
+	handler, store := webGateway(t, server.URL)
+	body := `{"model":"` + webModel + `","messages":[` +
+		`{"role":"user","content":"read go.mod"},` +
+		`{"role":"assistant","content":null,"tool_calls":[{"id":"call_1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"go.mod\"}"}}]},` +
+		`{"role":"tool","tool_call_id":"call_1","content":"go 1.26.2"}]` +
+		`,"tools":[{"type":"function","function":{"name":"read_file","description":"read","parameters":{"type":"object"}}}]}`
+	result := complete(handler, store.ClientKey(), "", body)
+	if result.Code != http.StatusOK || !checked.Load() || !strings.Contains(result.Body.String(), "1.26.2") {
+		t.Fatalf("got %d %s", result.Code, result.Body.String())
 	}
 }
 

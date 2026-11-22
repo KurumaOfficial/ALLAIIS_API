@@ -65,6 +65,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	guard.add(tools)
 
 	var startStream func()
+	firstSeen, held := false, ""
 	emit := func(event webprov.Event) error {
 		if event.ServingModel != "" {
 			w.Header().Set("X-ALLAIIS-Upstream-Model", event.ServingModel)
@@ -95,6 +96,20 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 						writeToolChunks(w, id, target.Route.ID, created, parsed, false)
 					}
 				}
+			}
+			// Venice opens the stream with a literal "processing" status chunk.
+			if !firstSeen {
+				firstSeen = true
+				held = text
+				return nil
+			}
+			if held != "" {
+				if held == "processing" {
+					text = strings.TrimPrefix(text, " ")
+				} else {
+					text = held + text
+				}
+				held = ""
 			}
 			if text == "" {
 				return nil
@@ -134,6 +149,14 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			continue
 		}
 		break
+	}
+	if held != "" {
+		reason.append(held)
+		if stream {
+			startStream()
+			writeChunk(w, id, target.Route.ID, created, map[string]any{"content": held})
+		}
+		held = ""
 	}
 	if len(tools) > 0 {
 		if tail, parsed, parseErr := guard.Flush(); parseErr == nil {
@@ -309,8 +332,9 @@ func randomID() string {
 func webRequest(payload []byte, model string) (webprov.Request, *webReason, []toolSpec, error) {
 	var input struct {
 		Messages []struct {
-			Role    string          `json:"role"`
-			Content json.RawMessage `json:"content"`
+			Role      string          `json:"role"`
+			Content   json.RawMessage `json:"content"`
+			ToolCalls json.RawMessage `json:"tool_calls"`
 		} `json:"messages"`
 		Temperature *float64 `json:"temperature"`
 		TopP        *float64 `json:"top_p"`
@@ -344,8 +368,11 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 			role := "user"
 			reason.turns = append(reason.turns, webprov.Message{Role: role, Content: text})
 		case "assistant":
-			if len(messageToolCalls(message.Content)) > 0 {
-				text = renderToolCalls(text, message.Content)
+			if text == "" {
+				text = renderToolCalls(text, message.ToolCalls)
+			}
+			if text == "" {
+				text = "(empty)"
 			}
 			reason.turns = append(reason.turns, webprov.Message{Role: "assistant", Content: text})
 		default:
@@ -386,6 +413,10 @@ func messageText(raw json.RawMessage) string {
 }
 
 func messageToolCalls(raw json.RawMessage) []toolCall {
+	var list []toolCall
+	if json.Unmarshal(raw, &list) == nil {
+		return list
+	}
 	var holder struct {
 		ToolCalls []toolCall `json:"tool_calls"`
 	}

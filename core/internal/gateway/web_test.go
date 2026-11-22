@@ -85,7 +85,7 @@ func TestWebCompletionStreams(t *testing.T) {
 	body := result.Body.String()
 	if result.Code != http.StatusOK || result.Header().Get("X-ALLAIIS-Transport-Tier") != "tier_c3" ||
 		result.Header().Get("X-ALLAIIS-Emulated-Features") != "usage_estimate" ||
-		!strings.Contains(body, `"content":"Hello"`) || !strings.Contains(body, `"finish_reason":"stop"`) ||
+		!strings.Contains(body, `"content":"Hello`) || !strings.Contains(body, `"finish_reason":"stop"`) ||
 		!strings.HasSuffix(body, "data: [DONE]\n\n") {
 		t.Fatalf("unexpected stream: %d %s", result.Code, body)
 	}
