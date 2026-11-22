@@ -59,6 +59,9 @@ func main() {
 	}
 }
 
+// flagOutput receives parse errors and usage; tests point it at io.Discard.
+var flagOutput io.Writer = os.Stderr
+
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 || slices.Contains([]string{"help", "-h", "--help"}, args[0]) {
 		fmt.Fprint(os.Stdout, usage)
@@ -97,6 +100,7 @@ func run(ctx context.Context, args []string) error {
 		args = args[1:]
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
+	flags.SetOutput(flagOutput)
 	var sources []string
 	var providerID, label, keyEnv, authPath, listen, ui string
 	var noOpen, asJSON bool

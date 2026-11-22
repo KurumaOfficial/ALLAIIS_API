@@ -5,6 +5,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"io"
 	"testing"
 )
 
@@ -13,6 +14,9 @@ import (
 // reaches exactly that code and stops before the vault.
 func TestCommandsAcceptTheirFlags(t *testing.T) {
 	t.Setenv("ALLAIIS_DATA_DIR", t.TempDir())
+	previous := flagOutput
+	flagOutput = io.Discard
+	t.Cleanup(func() { flagOutput = previous })
 	cases := [][]string{
 		{"gui", "--no-tools", "--help"},
 		{"gui", "--smoke-every", "15m", "--smoke-webhook", "http://127.0.0.1:1/x", "--help"},
