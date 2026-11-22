@@ -34,6 +34,7 @@ type CatalogModel struct {
 	Presence     bool   `json:"presence_penalty,omitempty"`
 	Replacement  string `json:"replacement,omitempty"`
 	Retiring     bool   `json:"retiring,omitempty"`
+	RoundTrip    bool   `json:"reasoning_round_trip,omitempty"`
 	Tools        bool   `json:"function_calling,omitempty"`
 	Temperature  *float64
 	TopP         *float64
@@ -85,6 +86,8 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 				Presence     bool   `json:"supportsPresencePenalty"`
 				Replacement  string `json:"apiDeprecationReplacementModelId"`
 				RetiringDate int64  `json:"retiringSoonDate"`
+				RoundTrip    bool   `json:"supportsEncryptedReasoningRoundTrip"`
+				Forward      bool   `json:"forwardEncryptedReasoning"`
 				Reasoning    bool   `json:"supportsReasoning"`
 				Tools        bool   `json:"supportsFunctionCalling"`
 				Settings     struct {
@@ -117,6 +120,7 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 			LargeContext: model.LargeContext, StrictOrder: model.StrictOrder, InactivityMS: model.InactivityMS,
 			Sampling: model.Sampling, Frequency: model.Frequency, Presence: model.Presence,
 			Replacement: model.Replacement, Retiring: model.RetiringDate > 0,
+			RoundTrip: model.RoundTrip || model.Forward,
 			Reasoning: model.Reasoning, Tools: model.Tools,
 			Temperature: model.Settings.Temperature, TopP: model.Settings.TopP,
 		})

@@ -42,6 +42,7 @@ type Model struct {
 	Presence     bool   `json:"presence_penalty,omitempty"`
 	Replacement  string `json:"replacement,omitempty"`
 	Retiring     bool   `json:"retiring,omitempty"`
+	RoundTrip    bool   `json:"reasoning_round_trip,omitempty"`
 	Context      int    `json:"max_context,omitempty"`
 	Response     int    `json:"max_response,omitempty"`
 	ProOnly      bool   `json:"pro_only,omitempty"`

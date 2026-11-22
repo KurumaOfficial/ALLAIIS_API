@@ -254,6 +254,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Проба квоты и каталог Venice web | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Гостевой и Pro алиасы рядом | ✓ | `TestProviderAliasesAndPinnedCredentials` | гость + Pro в одном прогоне | — |
+| Round-trip зашифрованного reasoning | ✓ | `TestReasoningIsReplayedWithFollowUps`, `TestReasoningIsDroppedWithoutTheCapability` | только фикстуры; премиум без баланса | — |
 | Сэмплинг, штрафы и подсказка замены | ✓ | `TestSamplingAndPenaltiesFollowCapabilities`, `TestUnknownModelMentionsTheReplacement` | — | — |
 | Большой контекст, строгий порядок и watchdog стрима | ✓ | `TestLargeContextReachesThePayload`, `TestStrictOrderMergesConsecutiveTurns`, `TestStalledStreamMapsToUpstreamTimeout` | дамп payload и ответ 504 | — |
 | Reasoning effort, web-флаг и лимит тулов | ✓ | `TestReasoningEffortAndWebSearchReachThePayload`, `TestMessagesThinkingBudgetBecomesEffort`, `TestToolLimitRejects` | дамп payload на бесплатной модели | — |

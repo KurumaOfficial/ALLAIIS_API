@@ -42,14 +42,15 @@ type table struct {
 }
 
 type Gateway struct {
-	live    atomic.Pointer[table]
-	client  *http.Client
-	web     *webprov.Client
-	key     atomic.Pointer[[32]byte]
-	minimum atomic.Value
-	metrics *metrics
-	reload  *reloadState
-	mux     http.Handler
+	live      atomic.Pointer[table]
+	client    *http.Client
+	web       *webprov.Client
+	key       atomic.Pointer[[32]byte]
+	minimum   atomic.Value
+	metrics   *metrics
+	reasoning *reasoningStore
+	reload    *reloadState
+	mux       http.Handler
 }
 
 // reloadState carries what a hot reload needs to reread the configuration.
@@ -71,8 +72,9 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 	transport.Proxy = nil
 	transport.ResponseHeaderTimeout = 90 * time.Second
 	g := &Gateway{
-		web:     web,
-		metrics: newMetrics(),
+		web:       web,
+		metrics:   newMetrics(),
+		reasoning: newReasoningStore(),
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   10 * time.Minute,

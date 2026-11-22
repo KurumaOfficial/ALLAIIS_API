@@ -77,10 +77,16 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		}
 		request.Messages = reason.messages(reason.system)
 	}
+	if target.Route.ReasoningRoundTrip {
+		g.attachReasoning(target.Route.ID, reason.turns)
+		request.Messages = reason.messages(reason.system)
+	}
 	if err := applyCapabilities(&request, target.Route); err != nil {
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return 0, 0
 	}
+	// Capabilities decide whether thinking is requested and surfaced.
+	reason.reasoning = request.Reasoning
 	if limit := toolLimit(target.Route); len(tools) > limit {
 		writeError(w, protocol, http.StatusBadRequest, "too_many_tools",
 			fmt.Sprintf("This model accepts at most %d tool(s).", limit))
@@ -137,6 +143,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		}
 		switch event.Kind {
 		case "reasoning":
+			if target.Route.ReasoningRoundTrip {
+				reason.reasoningText.WriteString(event.Content)
+			}
 			if !reason.reasoning {
 				return nil
 			}
@@ -214,6 +223,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		if errors.Is(err, errToolRepair) && attempts < 2 && !sent {
 			request.Messages = repairMessages(reason.messages(envelope), reason.text.String())
 			reason.text.Reset()
+			reason.reasoningText.Reset()
 			guard.reset()
 			firstSeen, held = false, ""
 			continue
@@ -221,6 +231,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		// A 200 with no content at all is worth one more try, like a bad block.
 		empty := reason.text.Len() == 0 && len(calls) == 0 && (held == "" || held == "processing")
 		if err == nil && empty && attempts < 2 && !sent {
+			reason.reasoningText.Reset()
 			guard.reset()
 			firstSeen, held = false, ""
 			continue
@@ -256,6 +267,13 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	if len(calls) > 0 {
 		finish = "tool_calls"
+	}
+	if target.Route.ReasoningRoundTrip {
+		assistant := reason.text.String()
+		if len(calls) > 0 {
+			assistant = renderCallList(assistant, calls)
+		}
+		g.reasoning.save(target.Route.ID, assistant, reason.reasoningText.String())
 	}
 	if err != nil && sent {
 		writeStreamError(w, protocol, err)
@@ -386,6 +404,15 @@ func applyCapabilities(request *webprov.Request, route config.Route) error {
 	return nil
 }
 
+// attachReasoning adds stored thinking to replayed assistant turns.
+func (g *Gateway) attachReasoning(alias string, turns []webprov.Message) {
+	for index := range turns {
+		if turns[index].Role == "assistant" && turns[index].Reasoning == "" {
+			turns[index].Reasoning = g.reasoning.load(alias, turns[index].Content)
+		}
+	}
+}
+
 // checkContext rejects a prompt that cannot fit before spending a request.
 func checkContext(system string, messages []webprov.Message, tools []toolSpec, route config.Route) error {
 	if route.MaxContext <= 0 {
@@ -475,6 +502,7 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 // webReason accumulates the reply and keeps the request history for a repair.
 type webReason struct {
 	text           strings.Builder
+	reasoningText  strings.Builder
 	system         string
 	turns          []webprov.Message
 	reasoning      bool

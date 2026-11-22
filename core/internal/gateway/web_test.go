@@ -593,3 +593,92 @@ func TestUnknownModelMentionsTheReplacement(t *testing.T) {
 		t.Fatalf("got %d %s", result.Code, result.Body)
 	}
 }
+
+func roundTripGateway(t *testing.T, roundTrip bool, reply func(http.ResponseWriter, map[string]any, int)) (http.Handler, string) {
+	t.Helper()
+	calls := 0
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		calls++
+		reply(w, body, calls)
+	})
+	store, cfg := setup(t, server.URL)
+	cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+	thinking := true
+	cfg.Models = []config.Route{{
+		ID: "thinker", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer,
+		Reasoning: &thinking, ReasoningRoundTrip: roundTrip,
+	}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "web", Endpoint: server.URL, Label: "one",
+		Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	return gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web), store.ClientKey()
+}
+
+func TestReasoningIsReplayedWithFollowUps(t *testing.T) {
+	var replayed any = "missing"
+	handler, key := roundTripGateway(t, true, func(w http.ResponseWriter, body map[string]any, call int) {
+		if call == 2 {
+			messages := body["prompt"].([]any)
+			replayed = messages[1].(map[string]any)["reasoning"]
+		}
+		if call == 1 {
+			fmt.Fprint(w, "{\"kind\":\"reasoning\",\"content\":\"because\"}\n")
+			fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"answer\"}\n")
+			return
+		}
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"again\"}\n")
+	})
+	first := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"thinker","stream":true,"messages":[{"role":"user","content":"hi"}]}`))
+	first.Header.Set("Authorization", "Bearer "+key)
+	firstResult := httptest.NewRecorder()
+	handler.ServeHTTP(firstResult, first)
+	if !strings.Contains(firstResult.Body.String(), `"reasoning_content":"because"`) {
+		t.Fatalf("reasoning not emitted: %s", firstResult.Body)
+	}
+	second := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"thinker","messages":[`+
+			`{"role":"user","content":"hi"},{"role":"assistant","content":"answer"},`+
+			`{"role":"user","content":"next"}]}`))
+	second.Header.Set("Authorization", "Bearer "+key)
+	secondResult := httptest.NewRecorder()
+	handler.ServeHTTP(secondResult, second)
+	if replayed != "because" {
+		t.Fatalf("reasoning not replayed: %v (%s)", replayed, secondResult.Body)
+	}
+}
+
+func TestReasoningIsDroppedWithoutTheCapability(t *testing.T) {
+	var replayed any = "missing"
+	handler, key := roundTripGateway(t, false, func(w http.ResponseWriter, body map[string]any, call int) {
+		if call == 2 {
+			messages := body["prompt"].([]any)
+			replayed = messages[1].(map[string]any)["reasoning"]
+		}
+		if call == 1 {
+			fmt.Fprint(w, "{\"kind\":\"reasoning\",\"content\":\"because\"}\n")
+		}
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"answer\"}\n")
+	})
+	for call := 0; call < 2; call++ {
+		body := `{"model":"thinker","messages":[{"role":"user","content":"hi"}]}`
+		if call == 1 {
+			body = `{"model":"thinker","messages":[{"role":"user","content":"hi"},` +
+				`{"role":"assistant","content":"answer"},{"role":"user","content":"next"}]}`
+		}
+		request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+		request.Header.Set("Authorization", "Bearer "+key)
+		handler.ServeHTTP(httptest.NewRecorder(), request)
+	}
+	if replayed != nil {
+		t.Fatalf("reasoning replayed without the capability: %v", replayed)
+	}
+}

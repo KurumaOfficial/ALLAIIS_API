@@ -175,6 +175,9 @@ func agentBody(req Request) ([]byte, []agentPart) {
 		entry := map[string]any{
 			"role": role, "type": "message", "status": "completed", "content": content,
 		}
+		if message.Reasoning != "" {
+			entry["reasoning"] = message.Reasoning
+		}
 		if len(message.Images) > 0 {
 			entry["id"] = messageID
 		}

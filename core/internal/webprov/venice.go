@@ -141,9 +141,10 @@ func (c Credential) clerkCookie(name string) string {
 
 // Message is one turn sent upstream, optionally with images.
 type Message struct {
-	Role    string  `json:"role"`
-	Content string  `json:"content"`
-	Images  []Image `json:"-"`
+	Role      string  `json:"role"`
+	Content   string  `json:"content"`
+	Reasoning string  `json:"reasoning,omitempty"`
+	Images    []Image `json:"-"`
 }
 
 // Request is a provider-neutral chat request.
@@ -294,7 +295,15 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 		}
 		if response.StatusCode == http.StatusOK {
 			delivered := false
-			streamErr := decodeEvents(stall.wrap(response.Body), func(event Event) error {
+			var stream io.Reader = response.Body
+			if os.Getenv("ALLAIIS_WEB_DEBUG") != "" {
+				if file, err := os.OpenFile(os.TempDir()+"/venice-chat-frames.ndjson",
+					os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
+					defer file.Close()
+					stream = io.TeeReader(stream, file)
+				}
+			}
+			streamErr := decodeEvents(stall.wrap(stream), func(event Event) error {
 				delivered = true
 				return emit(event)
 			})
@@ -397,7 +406,7 @@ func venicePayload(cred Credential, req Request, userID string) map[string]any {
 		"enableLargeContextChat":    false,
 		"isCharacter":               false,
 		"clientProcessingTime":      0,
-		"stripThinkingResponse":     true,
+		"stripThinkingResponse":     !req.Reasoning,
 		"includeExternalWebResults": false,
 		"includeVeniceReasoning":    req.Reasoning,
 	}
@@ -459,12 +468,14 @@ func decodeEvents(body io.Reader, emit func(Event) error) error {
 		}
 		event := Event{Kind: frame.Kind, ServingModel: frame.ServingModel}
 		switch {
-		case frame.Content != "":
-			event.Kind, event.Content = "content", frame.Content
+		case frame.Kind == "reasoning" || frame.Kind == "thinking":
+			event.Kind, event.Content = "reasoning", firstNonEmpty(frame.ReasoningContent, frame.Content)
 		case frame.ReasoningContent != "":
 			event.Kind, event.Content = "reasoning", frame.ReasoningContent
 		case frame.Kind == "meta" || frame.Kind == "done":
 			event.Kind = "meta"
+		case frame.Content != "":
+			event.Kind, event.Content = "content", frame.Content
 		default:
 			event.Kind = frame.Kind
 		}
@@ -510,6 +521,15 @@ func ErrInsufficientBalance() error { return errInsufficientBalance }
 
 // ErrUnknownModel reports that the model ID is not offered to this session.
 func ErrUnknownModel() error { return errUnknownModel }
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
 
 func firstLine(text string) string {
 	text = strings.TrimSpace(text)

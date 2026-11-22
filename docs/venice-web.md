@@ -142,6 +142,7 @@ an alias created from the panel stores them:
 | `no_sampling` | models that ignore sampling get neither `temperature` nor `top_p` |
 | `frequency_penalty`, `presence_penalty` | forwarded only when the model supports them |
 | `replacement` | an upstream ID returned with `model_not_found` as a hint |
+| `reasoning_round_trip` | keeps the thinking of the last reply (2 h, 512 entries, in memory) and replays it on the assistant turn of a follow-up, for models that require it |
 
 The CLI sets the same fields with `--reasoning true|false`, `--max-context`,
 `--max-response`, `--max-images`, `--max-tools`, `--web-search`, `--large-context`,

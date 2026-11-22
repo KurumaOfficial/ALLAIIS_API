@@ -45,7 +45,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 	providerID := flags.String("provider", "", "provider ID")
 	var match, model, name, label, privacy, protocol, reasoning string
 	var maxContext, maxResponse, maxImages, maxTools, inactivity int
-	var webSearch, largeContext, strictOrder bool
+	var webSearch, largeContext, strictOrder, roundTrip bool
 	var all, withKeys bool
 	switch command {
 	case "discover":
@@ -68,6 +68,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 		flags.BoolVar(&largeContext, "large-context", false, "ask for the extended-context mode")
 		flags.BoolVar(&strictOrder, "strict-order", false, "merge consecutive turns for strict models")
 		flags.IntVar(&inactivity, "inactivity-ms", 0, "abort a stream that stays silent this long")
+		flags.BoolVar(&roundTrip, "reasoning-round-trip", false, "replay stored thinking with follow-ups")
 	default:
 		return fmt.Errorf("unknown models command %q", command)
 	}
@@ -100,7 +101,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 			Privacy: config.Privacy(privacy), CredentialLabel: label, Protocol: config.Protocol(protocol),
 			Reasoning: thinking, MaxContext: maxContext, MaxResponse: maxResponse, MaxImages: maxImages,
 			MaxTools: maxTools, WebSearch: webSearch, LargeContext: largeContext,
-			StrictOrder: strictOrder, InactivityMS: inactivity,
+			StrictOrder: strictOrder, InactivityMS: inactivity, ReasoningRoundTrip: roundTrip,
 		}
 		added, err := config.AddModel(ctx, path, route)
 		if err != nil {
