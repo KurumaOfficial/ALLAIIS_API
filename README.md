@@ -308,6 +308,9 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Diagnostics (`doctor`, panel) | ✓ | `TestDiagnosticsFlagsMissingCredential`, `TestDiagnoseReportsToolNames`, `TestDiagnosePrefersTheLiveGateway`, `TestFetchLiveStatsReadsTheEndpoint` | CLI run on the live vault and live gateway counters | — |
 | Unknown tool-name record and retention | ✓ | `TestToolNameStateSurvivesARestart`, `TestLiveUnknownNamesSkipsExpired`, `TestDropExpiredToolNamesKeepsTheFresh`, `TestToolNamesEndpoint`, `TestToolsShowMarksExpiredNames` | record survives a restart, expiry marker and drop | — |
 | Web image and file input | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | colour from a PNG, owner from a .txt | — |
+| Start at logon (`service`) | ✓ | `TestServiceInstallWritesALoginScript` | launcher started gateway and panel, restarted after a kill | — |
+| Rotated log file | ✓ | `TestRotatingFileKeepsTheCap`, `TestRotatingFileCreatesTheDirectory` | gateway wrote and rotated the log | — |
+| Backup and restore with hashes | ✓ | `TestBackupAndRestoreRoundTrip`, `TestRestoreRejectsATamperedFile` | vault, config and record saved and restored | — |
 | Configurable request size cap | ✓ | `TestRequestCapComesFromTheConfig`, `TestMaxRequestDefaultsAndParses`, `TestMaxRequestRange` | 9 MiB body answered `request_too_large` with the limit | — |
 
 ### Offline compatibility
