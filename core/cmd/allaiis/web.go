@@ -144,7 +144,7 @@ func webQuota(ctx context.Context, store *vault.Store, provider config.Provider,
 			results[entry.Label] = err.Error()
 			continue
 		}
-		results[entry.Label] = limits
+		results[entry.Label] = map[string]any{"principal": client.Principal(ctx, cred), "limits": limits}
 	}
 	if len(results) == 0 {
 		return errors.New("label was not found for this provider")
