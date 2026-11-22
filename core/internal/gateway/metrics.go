@@ -100,12 +100,13 @@ func (m *metrics) summary() map[string]any {
 	return map[string]any{
 		"total": m.total, "errors": m.errors, "chars": m.chars,
 		"models": models, "recent": recent,
-		"tool_unwrap":   toolCounters.unwrap.Load(),
-		"tool_fold":     toolCounters.fold.Load(),
-		"tool_suffix":   toolCounters.suffix.Load(),
-		"tool_unknown":  toolCounters.unknown.Load(),
-		"tool_ttl_days": toolNameTTL.Load(),
-		"tool_expired":  expiredToolNames(),
+		"tool_unwrap":      toolCounters.unwrap.Load(),
+		"tool_fold":        toolCounters.fold.Load(),
+		"tool_suffix":      toolCounters.suffix.Load(),
+		"tool_unknown":     toolCounters.unknown.Load(),
+		"tool_ttl_seconds": toolNameTTL.Load(),
+		"tool_ttl_days":    toolNameTTL.Load() / 86400,
+		"tool_expired":     expiredToolNames(),
 	}
 }
 

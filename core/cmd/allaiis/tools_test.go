@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
 
 func writeRecord(t *testing.T, dir, body string) {
@@ -91,18 +93,20 @@ func TestToolsResetWithoutARecord(t *testing.T) {
 
 func TestAgeRendering(t *testing.T) {
 	now := time.UnixMilli(1_800_000_000_000)
+	day := 24 * time.Hour
 	cases := []struct {
 		stamp int64
-		ttl   int
+		ttl   time.Duration
 		want  string
 	}{
-		{0, 30, "unknown"},
-		{now.UnixMilli() - 30_000, 30, "just now"},
-		{now.UnixMilli() - 5*60_000, 30, "5m"},
-		{now.UnixMilli() - 3*3_600_000, 30, "3h"},
-		{now.UnixMilli() - 9*24*3_600_000, 30, "9d"},
-		{now.UnixMilli() - 40*24*3_600_000, 30, expiredLabel},
+		{0, 30 * day, "unknown"},
+		{now.UnixMilli() - 30_000, 30 * day, "just now"},
+		{now.UnixMilli() - 5*60_000, 30 * day, "5m"},
+		{now.UnixMilli() - 3*3_600_000, 30 * day, "3h"},
+		{now.UnixMilli() - 9*24*3_600_000, 30 * day, "9d"},
+		{now.UnixMilli() - 40*24*3_600_000, 30 * day, expiredLabel},
 		{now.UnixMilli() - 40*24*3_600_000, 0, "40d"},
+		{now.UnixMilli() - 90_000, 60 * time.Second, expiredLabel},
 	}
 	for _, item := range cases {
 		if got := age(now, item.stamp, item.ttl); got != item.want {
@@ -155,7 +159,7 @@ func TestToolsResetDropsOnlyExpired(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := resetToolNames(&out, path, 30, true); err != nil {
+	if err := resetToolNames(&out, path, 30*24*time.Hour, true); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(path)
@@ -181,7 +185,7 @@ func TestToolsResetExpiredWithoutExpiredNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := resetToolNames(&out, path, 30, true); err != nil {
+	if err := resetToolNames(&out, path, 30*24*time.Hour, true); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "No expired names") {
@@ -205,5 +209,38 @@ func TestToolsResetExpiredWithRetentionOff(t *testing.T) {
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("file removed: %v", err)
+	}
+}
+
+func TestRetentionTTLFromEnv(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(path, []byte(`{"listen":"127.0.0.1:8420","models":[],"tool_name_ttl_days":30}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(TTLEnv, "45s")
+	if got := RetentionTTL(path); got != 45*time.Second {
+		t.Fatalf("override ignored: %v", got)
+	}
+	t.Setenv(TTLEnv, "nonsense")
+	if got := RetentionTTL(path); got != 30*24*time.Hour {
+		t.Fatalf("bad override not ignored: %v", got)
+	}
+	t.Setenv(TTLEnv, "0s")
+	if got := RetentionTTL(path); got != 0 {
+		t.Fatalf("zero override lost: %v", got)
+	}
+}
+
+func TestRetentionTTLPrefersTheEnvForARunningGateway(t *testing.T) {
+	cfg := config.Default()
+	cfg.ToolNameTTLDays = 30
+	t.Setenv(TTLEnv, "2m")
+	if got := retentionTTL(cfg, "unused"); got != 2*time.Minute {
+		t.Fatalf("override ignored: %v", got)
+	}
+	os.Unsetenv(TTLEnv)
+	if got := retentionTTL(cfg, "unused"); got != 30*24*time.Hour {
+		t.Fatalf("config value lost: %v", got)
 	}
 }

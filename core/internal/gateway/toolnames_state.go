@@ -23,14 +23,31 @@ type toolNameState struct {
 	Seen     map[string]int64 `json:"seen,omitempty"`
 }
 
-// toolNameTTL is the retention in days; zero keeps names forever. A name the
-// model stopped inventing should not be blamed a year later.
+// toolNameTTL is the retention in seconds; zero keeps names forever. It is in
+// seconds so a demo can use minutes. A name the model stopped inventing should
+// not be blamed a year later.
 var toolNameTTL atomic.Int64
 
 // WithToolNameTTL sets the retention in days for unknown names.
 func (g *Gateway) WithToolNameTTL(days int) *Gateway {
-	toolNameTTL.Store(int64(days))
+	toolNameTTL.Store(int64(days) * 86400)
 	return g
+}
+
+// WithToolNameTTLFor sets the retention from a duration, rounded down to whole
+// seconds. Non-positive durations keep names forever.
+func (g *Gateway) WithToolNameTTLFor(ttl time.Duration) *Gateway {
+	if ttl <= 0 {
+		toolNameTTL.Store(0)
+		return g
+	}
+	toolNameTTL.Store(int64(ttl / time.Second))
+	return g
+}
+
+// retention is the configured TTL as a duration, zero when names are kept.
+func retention() time.Duration {
+	return time.Duration(toolNameTTL.Load()) * time.Second
 }
 
 var toolNameFile struct {
@@ -61,11 +78,11 @@ func (g *Gateway) WithStateDir(ctx context.Context, dir string) *Gateway {
 // expiredToolNames counts the names past retention without dropping them, for the
 // panel button that drops them.
 func expiredToolNames() int {
-	days := toolNameTTL.Load()
-	if days <= 0 {
+	ttl := retention()
+	if ttl <= 0 {
 		return 0
 	}
-	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	cutoff := time.Now().Add(-ttl)
 	unknownNames.mu.Lock()
 	defer unknownNames.mu.Unlock()
 	count := 0
@@ -80,11 +97,11 @@ func expiredToolNames() int {
 // dropExpiredNames forgets names older than the retention. The caller holds the
 // lock.
 func dropExpiredNames(now time.Time) int {
-	days := toolNameTTL.Load()
-	if days <= 0 || len(unknownNames.seen) == 0 {
+	ttl := retention()
+	if ttl <= 0 || len(unknownNames.seen) == 0 {
 		return 0
 	}
-	cutoff := now.Add(-time.Duration(days) * 24 * time.Hour)
+	cutoff := now.Add(-ttl)
 	dropped := 0
 	for name, seen := range unknownNames.seen {
 		if seen.Before(cutoff) {

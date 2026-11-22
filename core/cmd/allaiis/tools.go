@@ -40,29 +40,55 @@ func runTools(dataDir, configPath string, args []string) error {
 	switch args[0] {
 	case "show":
 		asJSON := len(args) > 1 && args[1] == "--json"
-		return showToolNames(os.Stdout, path, retentionDays(configPath), asJSON)
+		return showToolNames(os.Stdout, path, RetentionTTL(configPath), asJSON)
 	case "reset":
 		expiredOnly := len(args) > 1 && args[1] == "--expired"
-		return resetToolNames(os.Stdout, path, retentionDays(configPath), expiredOnly)
+		return resetToolNames(os.Stdout, path, RetentionTTL(configPath), expiredOnly)
 	default:
 		return fmt.Errorf("unknown tools command %q", args[0])
 	}
 }
 
-// retentionDays reads the configured retention, or zero when the config cannot
-// be read: without it nothing is called expired.
-func retentionDays(configPath string) int {
+// TTLEnv overrides the configured retention with a Go duration such as 90s.
+const TTLEnv = "ALLAIIS_TOOL_NAME_TTL"
+
+// envTTL parses the retention override.
+func envTTL() (time.Duration, bool) {
+	raw := os.Getenv(TTLEnv)
+	if raw == "" {
+		return 0, false
+	}
+	ttl, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, false
+	}
+	return ttl, true
+}
+
+// retentionTTL prefers the override over a loaded config.
+func retentionTTL(cfg config.Config, configPath string) time.Duration {
+	if ttl, ok := envTTL(); ok {
+		return ttl
+	}
+	return time.Duration(cfg.ToolNameTTLDays) * 24 * time.Hour
+}
+
+// RetentionTTL is the retention for a config on disk; zero keeps names.
+func RetentionTTL(configPath string) time.Duration {
+	if ttl, ok := envTTL(); ok {
+		return ttl
+	}
 	cfg, err := config.Load(configPath)
 	if err != nil || cfg.ToolNameTTLDays < 0 {
 		return 0
 	}
-	return cfg.ToolNameTTLDays
+	return time.Duration(cfg.ToolNameTTLDays) * 24 * time.Hour
 }
 
 // showToolNames prints the record, or says there is none. A gateway that is not
 // running never prunes the file, so the command applies the retention itself
 // and marks what would go.
-func showToolNames(out io.Writer, path string, ttlDays int, asJSON bool) error {
+func showToolNames(out io.Writer, path string, ttl time.Duration, asJSON bool) error {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintln(out, "No tool name record yet.")
@@ -99,7 +125,7 @@ func showToolNames(out io.Writer, path string, ttlDays int, asJSON bool) error {
 	now := time.Now()
 	expired := 0
 	for _, name := range names {
-		shown := age(now, record.Seen[name], ttlDays)
+		shown := age(now, record.Seen[name], ttl)
 		if shown == expiredLabel {
 			expired++
 		}
@@ -117,12 +143,12 @@ func showToolNames(out io.Writer, path string, ttlDays int, asJSON bool) error {
 const expiredLabel = "expired"
 
 // age renders how long ago a name was last seen, or that it is past retention.
-func age(now time.Time, stamp int64, ttlDays int) string {
+func age(now time.Time, stamp int64, ttl time.Duration) string {
 	if stamp == 0 {
 		return "unknown"
 	}
 	span := now.Sub(time.UnixMilli(stamp))
-	if ttlDays > 0 && span > time.Duration(ttlDays)*24*time.Hour {
+	if ttl > 0 && span > ttl {
 		return expiredLabel
 	}
 	switch {
@@ -138,7 +164,7 @@ func age(now time.Time, stamp int64, ttlDays int) string {
 
 // resetToolNames removes the record, or only the names past retention. A running
 // gateway notices either change through the watch.
-func resetToolNames(out io.Writer, path string, ttlDays int, expiredOnly bool) error {
+func resetToolNames(out io.Writer, path string, ttl time.Duration, expiredOnly bool) error {
 	os.Remove(path + ".tmp")
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -155,20 +181,20 @@ func resetToolNames(out io.Writer, path string, ttlDays int, expiredOnly bool) e
 		fmt.Fprintln(out, "Record cleared. A running gateway drops it within a few seconds.")
 		return nil
 	}
-	return dropExpiredFromFile(out, path, raw, ttlDays)
+	return dropExpiredFromFile(out, path, raw, ttl)
 }
 
 // dropExpiredFromFile rewrites the record without the names past retention.
-func dropExpiredFromFile(out io.Writer, path string, raw []byte, ttlDays int) error {
+func dropExpiredFromFile(out io.Writer, path string, raw []byte, ttl time.Duration) error {
 	var record toolNameRecord
 	if err := json.Unmarshal(raw, &record); err != nil {
 		return fmt.Errorf("the record is not readable: %w", err)
 	}
-	if ttlDays <= 0 {
-		fmt.Fprintln(out, "Retention is off (tool_name_ttl_days is 0): nothing expires.")
+	if ttl <= 0 {
+		fmt.Fprintln(out, "Retention is off: nothing expires.")
 		return nil
 	}
-	cutoff := time.Now().Add(-time.Duration(ttlDays) * 24 * time.Hour).UnixMilli()
+	cutoff := time.Now().Add(-ttl).UnixMilli()
 	dropped := 0
 	for name := range record.Names {
 		stamp, known := record.Seen[name]

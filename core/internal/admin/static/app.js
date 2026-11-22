@@ -64,8 +64,11 @@ function render () {
   $('ov-tools').textContent = reshaped.toLocaleString()
   $('ov-tools-unknown').textContent = (state.usage.tool_unknown || 0) + ' unknown names'
   $('ov-tools-reset').hidden = !reshaped && !(state.usage.tool_unknown || 0)
-  const ttl = state.usage.tool_ttl_days || 0
-  $('ov-tools-ttl').textContent = ttl > 0 ? 'names kept ' + ttl + 'd' : 'names kept forever'
+  const seconds = state.usage.tool_ttl_seconds || 0
+  const span = seconds >= 86400 ? Math.round(seconds / 86400) + 'd'
+    : seconds >= 3600 ? Math.round(seconds / 3600) + 'h'
+    : Math.round(seconds / 60) + 'm'
+  $('ov-tools-ttl').textContent = seconds > 0 ? 'names kept ' + span : 'names kept forever'
   const expiredCount = state.usage.tool_expired || 0
   $('ov-tools-drop').hidden = expiredCount === 0
   $('ov-tools-drop').textContent = expiredCount ? 'Drop ' + expiredCount + ' expired' : 'Drop expired'

@@ -174,11 +174,11 @@ func noteUnknownName(name string) {
 // LiveUnknownNames lists the unknown names that are still inside retention.
 func LiveUnknownNames(limit int) []string {
 	names := ToolUnknownNames(0)
-	days := toolNameTTL.Load()
-	if days <= 0 {
+	ttl := retention()
+	if ttl <= 0 {
 		return trimNames(names, limit)
 	}
-	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	cutoff := time.Now().Add(-ttl)
 	kept := make([]string, 0, len(names))
 	unknownNames.mu.Lock()
 	for _, name := range names {

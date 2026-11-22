@@ -871,7 +871,7 @@ func TestWatcherFollowsAnOutsideReset(t *testing.T) {
 func setToolNameTTL(t *testing.T, days int) {
 	t.Helper()
 	previous := toolNameTTL.Load()
-	toolNameTTL.Store(int64(days))
+	toolNameTTL.Store(int64(days) * 86400)
 	t.Cleanup(func() { toolNameTTL.Store(previous) })
 }
 
@@ -1009,6 +1009,9 @@ func TestMetricsReportToolRetention(t *testing.T) {
 	if got := summary["tool_ttl_days"]; got != int64(7) {
 		t.Fatalf("retention not reported: %v", got)
 	}
+	if got := summary["tool_ttl_seconds"]; got != int64(7*86400) {
+		t.Fatalf("retention seconds not reported: %v", got)
+	}
 }
 
 func TestDropExpiredToolNamesKeepsTheFresh(t *testing.T) {
@@ -1084,5 +1087,23 @@ func TestExpiredToolNamesWithRetentionOff(t *testing.T) {
 	seedUnknownName("ex_forever", time.Now().Add(-50*24*time.Hour))
 	if got := expiredToolNames(); got != 0 {
 		t.Fatalf("counted %d with retention off", got)
+	}
+}
+
+func TestToolNameTTLForAcceptsMinutes(t *testing.T) {
+	previous := toolNameTTL.Load()
+	t.Cleanup(func() { toolNameTTL.Store(previous) })
+	(&Gateway{}).WithToolNameTTLFor(2 * time.Minute)
+
+	seedUnknownName("mn_old", time.Now().Add(-3*time.Minute))
+	seedUnknownName("mn_fresh", time.Now())
+
+	if got := expiredToolNames(); got < 1 {
+		t.Fatalf("minute retention not applied: %d", got)
+	}
+	for _, name := range LiveUnknownNames(0) {
+		if name == "mn_old" {
+			t.Fatalf("expired name listed: %v", LiveUnknownNames(0))
+		}
 	}
 }
