@@ -1,0 +1,90 @@
+# Запуск у себя
+
+Это схема на одной машине: шлюз стартует вместе с сеансом, пишет ротируемый лог,
+и его можно сохранить. Рассчитано на личный компьютер, не на ферму серверов.
+
+## Перед первым запуском
+
+```powershell
+.\allaiis.exe init
+.\allaiis.exe web chrome
+# войдите во вкладке, затем перехватите сессию:
+.\allaiis.exe web login --label personal
+```
+
+Задайте парольную фразу для текущей оболочки, чтобы фоновая задача стартовала
+без запроса:
+
+```powershell
+$env:ALLAIIS_VAULT_PASSPHRASE = "длинная парольная фраза"
+```
+
+Эту же фразу использует `service install`; она попадает в пусковой скрипт,
+поэтому хранилище защищено правами на файлы — и они у него есть.
+
+## Старт при входе
+
+```powershell
+.\allaiis.exe service install
+.\allaiis.exe service status
+.\allaiis.exe service remove
+```
+
+В Windows это файл `service.cmd` в каталоге данных и ярлык в пользовательской
+папке «Автозагрузка» — без прав администратора, поэтому не планировщик задач. В
+Linux и macOS пишется unit-файл и печатаются две оставшиеся команды root
+(`systemctl enable --now …`, `launchctl load …`).
+
+## Логи
+
+`service.cmd` запускает `up --log-file <данные>/logs/gateway.log --log-max-mb 32
+--log-keep 5`. Файл ротируется на 32 МиБ, пять старых остаются. Те же флаги
+работают при ручном запуске:
+
+```powershell
+.\allaiis.exe up --log-file .\logs\gateway.log
+```
+
+## Сохранение и восстановление
+
+```powershell
+.\allaiis.exe backup D:\allaiis-backup
+.\allaiis.exe backup restore D:\allaiis-backup --force
+```
+
+Хранилище и так зашифровано; в копию добавляется манифест с SHA-256 по каждому
+файлу, и `restore` отказывается принимать файл, чей хэш изменился. Перед
+восстановлением остановите шлюз.
+
+## Обновление
+
+```powershell
+.\allaiis.exe service remove
+go build -o allaiis.exe ./core/cmd/allaiis
+.\allaiis.exe doctor
+.\allaiis.exe service install
+```
+
+Пересборка не трогает хранилище и конфиг. `doctor` запускается до того, как новый
+двоичный файл снова попадёт в автозагрузку, а задача ставится уже с новым путём.
+
+## Когда что-то сломалось
+
+- `allaiis doctor` — локальные проверки, без квоты провайдера.
+- `allaiis web quota` — остаток счётчиков сессии и время сброса.
+- панель на `http://127.0.0.1:8431/` — квоты, пробы, логи, алиасы.
+- `allaiis smoke --json` — полный обход через временный гейтвей.
+
+`403` с `cloudflare_challenge` значит, что attestation протухла: запустите
+`allaiis web chrome` и снова `web login` для этой метки.
+
+## Перевод клиента на наш API
+
+```powershell
+.\allaiis.exe export opencode
+```
+
+Команда печатает блок провайдера для конфига OpenCode с локальным ключом. Гейтвей
+отдаёт формы OpenAI, Responses и Anthropic Messages на одном порту, поэтому любому
+клиенту, который говорит на одной из них, нужны только базовый URL
+`http://127.0.0.1:8420/v1` и ключ из `allaiis key`.

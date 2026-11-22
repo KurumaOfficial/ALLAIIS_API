@@ -10,7 +10,7 @@
 
 <p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
 
-[Quick start](#quick-start) · [API](#api) · [Providers](#providers) · [Status](#status) · [Integration blockers](docs/BLOCKED.md)
+[Quick start](#quick-start) · [API](#api) · [Providers](#providers) · [Status](#status) · [Run it yourself](docs/runbook.md) · [Integration blockers](docs/BLOCKED.md)
 
 ALLAIIS is a self-hosted Go gateway for AI clients such as OpenCode. Register model aliases, store provider keys in an encrypted local vault, and use one loopback endpoint for native JSON and streaming responses.
 

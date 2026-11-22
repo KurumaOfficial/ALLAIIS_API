@@ -25,6 +25,7 @@ var pairs = [][2]string{
 	{"README.md", "README.ru.md"},
 	{"docs/gui.md", "docs/gui.ru.md"},
 	{"docs/quality.md", "docs/quality.ru.md"},
+	{"docs/runbook.md", "docs/runbook.ru.md"},
 }
 
 type shape struct {

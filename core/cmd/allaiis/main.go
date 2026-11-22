@@ -42,6 +42,8 @@ const usage = `Usage: allaiis <command>
   web quota         Show remaining quota for stored web sessions
   status            Show configured models, key labels, and provider cooldowns
   doctor            Check config, vault, listener, aliases and capture browser
+  backup            Save or restore the vault and config
+  service           Register the gateway to start at logon
   tools             Inspect or clear the tool name record
   smoke             Probe aliases through an in-process gateway
   key               Print the local gateway bearer key
@@ -83,6 +85,12 @@ func run(ctx context.Context, args []string) error {
 	if args[0] == "web" {
 		return runWeb(ctx, dir, configPath, vaultPath, args[1:])
 	}
+	if args[0] == "backup" {
+		return runBackup(ctx, dir, args[1:])
+	}
+	if args[0] == "service" {
+		return runService(ctx, dir, args[1:])
+	}
 	if args[0] == "tools" {
 		origin := "the default config directory"
 		if os.Getenv("ALLAIIS_DATA_DIR") != "" {
@@ -106,7 +114,8 @@ func run(ctx context.Context, args []string) error {
 	var noOpen, asJSON bool
 	var attempts int
 	var timeout, smokeEvery time.Duration
-	var smokeWebhook string
+	var smokeWebhook, logFile string
+	var logMaxMB, logKeep int
 	// Probing tools costs a request per sweep; an operator may switch it off.
 	var noToolProbe bool
 	switch command {
@@ -129,6 +138,11 @@ func run(ctx context.Context, args []string) error {
 	case "account remove":
 		flags.StringVar(&providerID, "provider", "", "configured provider ID")
 		flags.StringVar(&label, "label", "", "credential label within the pool")
+	case "up":
+		flags.StringVar(&logFile, "log-file", "", "append the log here, rotated")
+		flags.IntVar(&logMaxMB, "log-max-mb", 16, "rotate the log file at this size")
+		flags.IntVar(&logKeep, "log-keep", 3, "how many rotated log files to keep")
+		fallthrough
 	case "gui":
 		flags.StringVar(&listen, "listen", "", "gateway address (defaults to the configured one)")
 		flags.StringVar(&ui, "ui", "127.0.0.1:0", "control panel address")
@@ -143,7 +157,7 @@ func run(ctx context.Context, args []string) error {
 		flags.BoolVar(&asJSON, "json", false, "print JSON instead of a table")
 		flags.BoolVar(&noToolProbe, "no-tools", false, "skip the tool parser probe")
 		fallthrough
-	case "init", "key", "status", "doctor", "export opencode", "up":
+	case "init", "key", "status", "doctor", "export opencode":
 	default:
 		return fmt.Errorf("unknown command %q. Run allaiis help", command)
 	}
@@ -160,6 +174,11 @@ func run(ctx context.Context, args []string) error {
 	if (command == "account add" || command == "account remove") && (providerID == "" || label == "") {
 		return errors.New("--provider and --label are required")
 	}
+	closeLog, err := attachLogFile(logFile, logMaxMB, logKeep)
+	if err != nil {
+		return err
+	}
+	defer closeLog()
 	if command == "gui" {
 		return runGUI(ctx, dir, configPath, vaultPath, listen, ui, !noOpen, smokeEvery, smokeWebhook, noToolProbe)
 	}
@@ -258,6 +277,22 @@ func run(ctx context.Context, args []string) error {
 		return serve(ctx, cfg.Listen, live)
 	}
 	return errors.New("unhandled command")
+}
+
+// attachLogFile adds a rotating file next to the terminal, for a gateway that
+// runs for days.
+func attachLogFile(path string, maxMB, keep int) (func(), error) {
+	if path == "" {
+		return func() {}, nil
+	}
+	writer, err := admin.NewRotatingFile(path, int64(maxMB)<<20, keep)
+	if err != nil {
+		return nil, err
+	}
+	stderr := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})
+	file := slog.NewTextHandler(writer, &slog.HandlerOptions{Level: slog.LevelInfo})
+	slog.SetDefault(slog.New(slog.NewMultiHandler(stderr, file)))
+	return func() { writer.Close() }, nil
 }
 
 func readPassphrase() ([]byte, error) {

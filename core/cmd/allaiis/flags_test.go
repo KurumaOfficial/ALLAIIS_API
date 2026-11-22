@@ -21,6 +21,7 @@ func TestCommandsAcceptTheirFlags(t *testing.T) {
 		{"gui", "--no-tools", "--help"},
 		{"gui", "--smoke-every", "15m", "--smoke-webhook", "http://127.0.0.1:1/x", "--help"},
 		{"smoke", "--no-tools", "--json", "--help"},
+		{"up", "--log-file", "x.log", "--log-max-mb", "8", "--help"},
 		{"doctor", "--help"},
 		{"up", "--help"},
 	}
