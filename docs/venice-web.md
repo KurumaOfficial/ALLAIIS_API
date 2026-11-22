@@ -91,6 +91,9 @@ signed in or a guest. `allaiis up` prints every alias it serves.
 - **Pin aliases to a label.** A pool with several captured sessions picks one by
   request hash. Pass `--label` to `models add` so a route always uses the
   intended account.
+- **Vision is open.** Images travel as client-side `File` objects plus a nanoid
+  `media_id`; the bytes are only uploaded when the response stream emits
+  `mediaMaterialization` events, so a plain request cannot attach a new image yet.
 - **Privacy**: routes default to the operator's classification; use
   `--privacy zdr` for Venice Private models. `e2ee-*` ids work when signed in and
   are served over the same plain transport; per-field client-side encryption is
