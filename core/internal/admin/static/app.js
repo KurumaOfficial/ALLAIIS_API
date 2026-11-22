@@ -63,6 +63,7 @@ function render () {
   const reshaped = (state.usage.tool_unwrap || 0) + (state.usage.tool_fold || 0) + (state.usage.tool_suffix || 0)
   $('ov-tools').textContent = reshaped.toLocaleString()
   $('ov-tools-unknown').textContent = (state.usage.tool_unknown || 0) + ' unknown names'
+  $('ov-tools-reset').hidden = !reshaped && !(state.usage.tool_unknown || 0)
   $('base-url').textContent = 'http://' + state.listen + '/v1'
   $('client-key').textContent = keyVisible ? state.client_key : '•'.repeat(32)
   $('fact-data').textContent = state.data_dir
@@ -461,6 +462,10 @@ function bind () {
 
   $('set-privacy-save').onclick = async () => {
     try { await api('/api/settings', { method: 'POST', body: JSON.stringify({ min_privacy: $('set-privacy').value }) }); toast('Privacy floor saved'); refresh() } catch (error) { toast(error.message, true) }
+  }
+
+  $('ov-tools-reset').onclick = async () => {
+    try { await api('/api/tools/reset', { method: 'POST' }); toast('Tool record cleared'); refresh() } catch (error) { toast(error.message, true) }
   }
 
   $('doctor').onclick = async () => {

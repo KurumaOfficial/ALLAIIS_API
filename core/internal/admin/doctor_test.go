@@ -4,8 +4,11 @@ package admin
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 )
 
 func TestToolNameVerdict(t *testing.T) {
@@ -55,5 +58,23 @@ func TestDiagnoseSkipsToolNamesWithoutTraffic(t *testing.T) {
 		if check.Name == "tool names" {
 			t.Fatalf("tool names reported without traffic: %+v", check)
 		}
+	}
+}
+
+func TestToolResetEndpoint(t *testing.T) {
+	f := setup(t)
+	reset := f.call(t, http.MethodPost, "/api/tools/reset", `{}`, "")
+	if reset.Code != http.StatusOK {
+		t.Fatalf("reset: %d %s", reset.Code, reset.Body)
+	}
+	if _, unknown := gateway.ToolNameStats(); unknown != 0 {
+		t.Fatalf("record kept: %d", unknown)
+	}
+}
+
+func TestToolResetNeedsTheToken(t *testing.T) {
+	f := setup(t)
+	if result := f.call(t, http.MethodPost, "/api/tools/reset", `{}`, "wrong"); result.Code != http.StatusUnauthorized {
+		t.Fatalf("reset without a token: %d", result.Code)
 	}
 }

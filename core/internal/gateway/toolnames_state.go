@@ -68,6 +68,28 @@ func loadToolNameState(path string) {
 	unknownNames.mu.Unlock()
 }
 
+// ResetToolNameState forgets the counters, the names and the saved file, so the
+// doctor starts from scratch.
+func (g *Gateway) ResetToolNameState() {
+	toolCounters.fold.Store(0)
+	toolCounters.suffix.Store(0)
+	toolCounters.unknown.Store(0)
+	unknownNames.mu.Lock()
+	unknownNames.count = map[string]int{}
+	unknownNames.mu.Unlock()
+
+	toolNameFile.mu.Lock()
+	defer toolNameFile.mu.Unlock()
+	if toolNameFile.pending != nil {
+		toolNameFile.pending.Stop()
+		toolNameFile.pending = nil
+	}
+	toolNameFile.lastSave = time.Time{}
+	if toolNameFile.path != "" {
+		os.Remove(toolNameFile.path)
+	}
+}
+
 // trimUnknownNames drops the least frequent entries down to limit. The caller
 // holds the lock.
 func trimUnknownNames(limit int) {

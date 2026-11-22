@@ -98,6 +98,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/web/quota", s.guard(s.webQuota))
 	mux.HandleFunc("GET /api/export", s.guard(s.exportConfig))
 	mux.HandleFunc("POST /api/doctor", s.guard(s.doctor))
+	mux.HandleFunc("POST /api/tools/reset", s.guard(s.toolReset))
 	return mux
 }
 

@@ -801,3 +801,36 @@ func TestToolNameStateIgnoresABrokenFile(t *testing.T) {
 	toolNameFile.path = ""
 	toolNameFile.mu.Unlock()
 }
+
+func TestResetToolNameStateClearsEverything(t *testing.T) {
+	dir := t.TempDir()
+	g := (&Gateway{}).WithStateDir(dir)
+
+	guard := guardFor("shell")
+	if _, _, err := guard.Write(`<invoke name="rs_name"><parameter name="command">ls</parameter></invoke>`); err != nil {
+		t.Fatal(err)
+	}
+	toolNameFile.mu.Lock()
+	toolNameFile.lastSave = time.Time{}
+	toolNameFile.mu.Unlock()
+	saveToolNameState()
+	file := filepath.Join(dir, "tool-names.json")
+	if _, err := os.Stat(file); err != nil {
+		t.Fatalf("file not written: %v", err)
+	}
+
+	g.ResetToolNameState()
+
+	if _, unknown := ToolNameStats(); unknown != 0 {
+		t.Fatalf("counters kept: %d", unknown)
+	}
+	if names := ToolUnknownNames(0); len(names) != 0 {
+		t.Fatalf("names kept: %v", names)
+	}
+	if _, err := os.Stat(file); !os.IsNotExist(err) {
+		t.Fatalf("file kept: %v", err)
+	}
+	toolNameFile.mu.Lock()
+	toolNameFile.path = ""
+	toolNameFile.mu.Unlock()
+}

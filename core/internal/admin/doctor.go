@@ -136,6 +136,12 @@ func toolNameVerdict(repaired, unknown int64, names []string) (status, detail st
 	return "ok", fmt.Sprintf("%d call(s) had a name repaired, %d stayed unknown%s", repaired, unknown, listed), true
 }
 
+// toolReset clears the tool name record the doctor reads.
+func (s *Server) toolReset(w http.ResponseWriter, r *http.Request) {
+	s.options.Gateway.ResetToolNameState()
+	writeJSON(w, http.StatusOK, map[string]any{"reset": true})
+}
+
 func (s *Server) doctor(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"checks": s.diagnose(r.Context())})
 }
