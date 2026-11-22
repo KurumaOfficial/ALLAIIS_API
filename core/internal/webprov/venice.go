@@ -40,9 +40,10 @@ const (
 )
 
 var (
-	ErrCloudflare   = errors.New("cloudflare clearance rejected; capture cookies again")
-	ErrUnauthorized = errors.New("venice session expired")
-	ErrRateLimited  = errors.New("venice web rate limit reached")
+	ErrCloudflare     = errors.New("cloudflare clearance rejected; capture cookies again")
+	ErrUnauthorized   = errors.New("venice session expired")
+	ErrRateLimited    = errors.New("venice web rate limit reached")
+	ErrSignInRequired = errors.New("this model needs a signed-in session")
 )
 
 // rateLimitError carries the upstream reset time when one was published.
@@ -265,6 +266,11 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 			return decodeEvents(response.Body, emit)
 		}
 		status := response.StatusCode
+		if status == http.StatusUnauthorized && userID == "anonymous" {
+			io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+			response.Body.Close()
+			return ErrSignInRequired
+		}
 		// A spent or raced attestation token also answers 403. Mint a new one
 		// once before blaming the clearance.
 		if status == http.StatusForbidden && attempt == 1 {

@@ -204,6 +204,9 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 			slog.Warn("could not persist provider cooldown", "provider", target.Route.Provider)
 		}
 		rateLimited(w, protocol, until)
+	case errors.Is(err, webprov.ErrSignInRequired):
+		writeError(w, protocol, http.StatusBadRequest, "sign_in_required",
+			"This model needs a signed-in web session. Log in through `allaiis web chrome` and capture it again.")
 	case errors.Is(err, webprov.ErrUnauthorized):
 		writeError(w, protocol, http.StatusBadGateway, "web_session_expired",
 			"The web session expired. Re-run the capture command for this account.")

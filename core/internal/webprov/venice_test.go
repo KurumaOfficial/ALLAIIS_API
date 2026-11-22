@@ -159,7 +159,7 @@ func TestErrorClassification(t *testing.T) {
 		want   error
 	}{
 		{http.StatusTooManyRequests, "slow down", ErrRateLimited},
-		{http.StatusUnauthorized, "expired", ErrUnauthorized},
+		{http.StatusUnauthorized, "expired", ErrSignInRequired},
 		{http.StatusForbidden, "<html>cloudflare</html>", ErrCloudflare},
 		{http.StatusRequestEntityTooLarge, `{"error":"userPromptTooLong"}`, ErrContextTooLong()},
 	} {
@@ -259,6 +259,29 @@ func TestChatSerialisesAccount(t *testing.T) {
 	group.Wait()
 	if peak.Load() != 1 {
 		t.Fatalf("peak concurrency was %d", peak.Load())
+	}
+}
+
+func TestExpiredSignedSessionIsUnauthorized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/mint"):
+			fmt.Fprint(w, `{"tokens":[{"token":"t"}]}`)
+		case strings.HasSuffix(r.URL.Path, "/tokens"):
+			fmt.Fprint(w, `{"jwt":"eyJhbGciOiJub25lIn0.eyJzdWIiOiJ1c2VyX3giLCJleHAiOjQwNzA5MDg4MDB9.sig"}`)
+		case strings.HasSuffix(r.URL.Path, "/v1/client"):
+			fmt.Fprint(w, `{"response":{"sessions":[{"id":"s","status":"active"}]}}`)
+		default:
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, "expired")
+		}
+	}))
+	t.Cleanup(server.Close)
+	cred := Credential{Clerk: []Cookie{{Name: "__client", Value: "c"}}}
+	err := testClient(server).Chat(context.Background(), cred,
+		Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}}, func(Event) error { return nil })
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("got %v", err)
 	}
 }
 
