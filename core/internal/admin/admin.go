@@ -38,7 +38,6 @@ type Options struct {
 	Store      *vault.Store
 	ConfigPath string
 	DataDir    string
-	Listen     string
 	Passphrase []byte
 	Version    string
 }
@@ -86,6 +85,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/web/chrome", s.guard(s.openChrome))
 	mux.HandleFunc("POST /api/web/login", s.guard(s.webLogin))
 	mux.HandleFunc("GET /api/export", s.guard(s.exportConfig))
+	mux.HandleFunc("POST /api/doctor", s.guard(s.doctor))
 	return mux
 }
 

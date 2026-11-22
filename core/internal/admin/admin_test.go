@@ -65,7 +65,7 @@ func setup(t *testing.T) *fixture {
 	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithReload(path, store)
 	gate.Config.Handler = live
 	panel, err := New(Options{
-		Gateway: live, Store: store, ConfigPath: path, DataDir: dir, Listen: address,
+		Gateway: live, Store: store, ConfigPath: path, DataDir: dir,
 		Passphrase: pass, Version: "test",
 	})
 	if err != nil {
@@ -215,4 +215,32 @@ func TestStateMarksMissingCredential(t *testing.T) {
 		t.Fatalf("expected unavailable alias: %s", state.Body)
 	}
 	time.Sleep(10 * time.Millisecond)
+}
+
+func TestDiagnosticsFlagsMissingCredential(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/models",
+		`{"provider":"fake","upstream_model":"gpt-x","name":"x-alias"}`, "")
+	result := f.call(t, http.MethodPost, "/api/doctor", `{}`, "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("doctor: %d %s", result.Code, result.Body)
+	}
+	var reply struct {
+		Checks []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"checks"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range reply.Checks {
+		if item.Name == "alias credentials" {
+			found = item.Status == "error"
+		}
+	}
+	if !found {
+		t.Fatalf("missing credential not flagged: %s", result.Body)
+	}
 }

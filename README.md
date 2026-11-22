@@ -21,9 +21,10 @@ ALLAIIS is a self-hosted Go gateway for AI clients such as OpenCode. Register mo
 
 `gui` starts the gateway and opens a loopback-only panel where you can add
 credentials, capture a Venice web session, register aliases, browse catalogs,
-send probes and watch the live log. The panel binds `127.0.0.1` with a random
-port and a per-run token; it never leaves the machine. Changes apply to the
-running gateway within seconds through a hot reload — no restart. See
+send probes, run diagnostics and watch the live log. The panel binds `127.0.0.1`
+with a random port and a per-run token; it never leaves the machine. Changes
+apply to the running gateway within seconds through a hot reload — no restart.
+`allaiis doctor` runs the same diagnostics without a browser. See
 [docs/gui.md](docs/gui.md).
 
 ## Quick start
@@ -261,6 +262,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Hot config reload and watcher | ✓ | `TestReloadSwapsAndKeepsPreviousOnError`, `TestWatchReloadsChangedConfig` | changes applied without a restart | — |
 | Gateway key rotation | ✓ | `TestPanelDeleteAndRotate` | — | — |
 | Request metrics and live log | ✓ | `TestPanelProbe` | panel overview counters | — |
+| Diagnostics (`doctor`, panel) | ✓ | `TestDiagnosticsFlagsMissingCredential` | CLI run on the live vault | — |
 | Web image and file input | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | colour from a PNG, owner from a .txt | — |
 
 ### Offline compatibility

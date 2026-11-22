@@ -286,6 +286,22 @@ function bind () {
     try { await api('/api/settings', { method: 'POST', body: JSON.stringify({ min_privacy: $('set-privacy').value }) }); toast('Privacy floor saved'); refresh() } catch (error) { toast(error.message, true) }
   }
 
+  $('doctor').onclick = async () => {
+    const box = $('doctor-out')
+    box.innerHTML = '<p class="muted">Running…</p>'
+    try {
+      const result = await api('/api/doctor', { method: 'POST' })
+      box.replaceChildren()
+      for (const item of result.checks) {
+        const line = document.createElement('div')
+        line.className = 'row'
+        line.innerHTML = '<span class="badge ' + (item.status === 'ok' ? 'ok' : item.status === 'error' ? 'bad' : '') + '">' +
+          item.status + '</span><strong>' + esc(item.name) + '</strong><span class="muted tiny">' + esc(item.detail) + '</span>'
+        box.append(line)
+      }
+    } catch (error) { box.innerHTML = ''; toast(error.message, true) }
+  }
+
   $('reload').onclick = async () => {
     try { await api('/api/reload', { method: 'POST' }); toast('Config reloaded'); refresh() } catch (error) { show('settings-out', error.message) }
   }

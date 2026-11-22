@@ -49,7 +49,7 @@ func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, 
 	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithReload(configPath, store)
 	panel, err := admin.New(admin.Options{
 		Gateway: live, Store: store, ConfigPath: configPath, DataDir: dir,
-		Listen: cfg.Listen, Passphrase: append([]byte{}, passphrase...), Version: version,
+		Passphrase: append([]byte{}, passphrase...), Version: version,
 	})
 	if err != nil {
 		return err

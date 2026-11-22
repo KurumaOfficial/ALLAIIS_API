@@ -20,7 +20,7 @@ port, `--listen 127.0.0.1:9000` overrides the gateway address for this run and
 | Discovery | Browse an upstream catalog with a stored credential and create an alias from a model |
 | Playground | Send a real probe through the running gateway and see status, latency and the upstream model |
 | Logs | Follow the structured log live |
-| Settings | Privacy floor, client snippets, reload, config export, data paths |
+| Settings | Diagnostics, privacy floor, client snippets, reload, config export, data paths |
 
 There is no build step: the page is plain HTML, CSS and JavaScript embedded in
 the binary.
@@ -43,6 +43,13 @@ then pushed into the running gateway with an atomic table swap. The watcher also
 picks up edits made by the CLI or a text editor within a few seconds. A request
 in flight keeps the old snapshot; a failed reload keeps the previous routes and
 logs a warning. Pressing **Reload config from disk** forces the check.
+
+## Diagnostics
+
+**Run checks** inspects the config, the vault, the listener, alias-to-credential
+coverage and the capture browser. It only uses local checks and spends no
+provider quota. The same report is available headless as `allaiis doctor`,
+which also runs before the gateway starts in deployment scripts.
 
 ## Security
 

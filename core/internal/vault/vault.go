@@ -178,7 +178,11 @@ func derive(passphrase, salt []byte) (cipher.AEAD, []byte) {
 
 func (s *Store) Close() error { return s.db.Close() }
 
-func (s *Store) ClientKey() string { return s.clientKey }
+func (s *Store) ClientKey() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.clientKey
+}
 
 // RotateClientKey seals a fresh gateway key and returns it.
 func (s *Store) RotateClientKey(ctx context.Context) (string, error) {

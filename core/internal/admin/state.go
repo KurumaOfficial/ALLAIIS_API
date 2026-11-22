@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -365,8 +364,6 @@ func failureText(raw []byte) string {
 	}
 	return text
 }
-
-var errNoAlias = errors.New("unknown alias")
 
 // aliasFor builds a readable, valid alias from a provider and model name.
 func aliasFor(provider, model string) string {

@@ -146,6 +146,11 @@
 
   <section id="view-settings" class="view" hidden>
     <div class="panel">
+      <div class="panel-head"><h2>Diagnostics</h2><button id="doctor" class="ghost">Run checks</button></div>
+      <p class="muted tiny">Local checks only: config, vault, listener, alias credentials, capture browser.</p>
+      <div id="doctor-out" class="stack"></div>
+    </div>
+    <div class="panel">
       <div class="panel-head"><h2>Privacy floor</h2></div>
       <p class="muted">Requests may raise the floor with <code>X-ALLAIIS-Min-Privacy</code>, never lower it.</p>
       <div class="row"><select id="set-privacy"></select><button id="set-privacy-save" class="primary">Save</button></div>

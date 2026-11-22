@@ -21,6 +21,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/admin"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/importer"
@@ -40,6 +41,7 @@ const usage = `Usage: allaiis <command>
   web login         Capture a logged-in web session into the vault
   web quota         Show remaining quota for stored web sessions
   status            Show configured models, key labels, and provider cooldowns
+  doctor            Check config, vault, listener, aliases and capture browser
   key               Print the local gateway bearer key
   export opencode   Print a custom provider config for OpenCode
   up                Start the loopback gateway
@@ -114,7 +116,7 @@ func run(ctx context.Context, args []string) error {
 		flags.StringVar(&ui, "ui", "127.0.0.1:0", "control panel address")
 		flags.BoolVar(&noOpen, "no-open", false, "do not open a browser")
 		fallthrough
-	case "init", "key", "status", "export opencode", "up":
+	case "init", "key", "status", "doctor", "export opencode", "up":
 	default:
 		return fmt.Errorf("unknown command %q. Run allaiis help", command)
 	}
@@ -198,6 +200,17 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	switch command {
+	case "doctor":
+		checks := admin.Diagnose(ctx, store, configPath)
+		if err := writeJSON(os.Stdout, map[string]any{"checks": checks}); err != nil {
+			return err
+		}
+		for _, item := range checks {
+			if item.Status == "error" {
+				return errors.New("diagnostics found problems")
+			}
+		}
+		return nil
 	case "status":
 		providers, err := routes.Status(ctx)
 		if err != nil {
