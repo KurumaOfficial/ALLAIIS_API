@@ -166,7 +166,13 @@ function render () {
   models.replaceChildren()
   for (const model of state.models) {
     const row = models.insertRow()
-    row.innerHTML = '<td>' + esc(model.id) + '</td><td>' + esc(model.provider) + '</td><td><span class="badge ' + esc(model.protocol) + '">' + (model.protocol || 'chat') +
+    // A web route and an official one for the same model must be told apart at a
+    // glance: the transport decides the tier and the whole error taxonomy.
+    const route = state.providers.find(provider => provider.id === model.provider)
+    const transport = route?.web
+      ? ' <span class="badge web" title="web transport, tier_c3">web</span>'
+      : ' <span class="badge api" title="official API, tier_a">api</span>'
+    row.innerHTML = '<td>' + esc(model.id) + '</td><td>' + esc(model.provider) + transport + '</td><td><span class="badge ' + esc(model.protocol) + '">' + (model.protocol || 'chat') +
       '</span>' + (model.max_context ? ' <span class="badge">' + Math.round(model.max_context / 1000) + 'K</span>' : '') +
       (model.reasoning ? ' <span class="badge">think</span>' : '') + '</td><td>' + esc(model.privacy) + '</td><td>' + (model.label ? esc(model.label) : '<span class="muted">pool</span>') +
       '</td><td class="wrap muted">' + esc(model.upstream_model) + '</td><td></td>'

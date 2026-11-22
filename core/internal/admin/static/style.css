@@ -84,6 +84,8 @@ td input[type="checkbox"] { width: auto; margin-right: 8px; vertical-align: midd
 .badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; background: #202a39; color: var(--muted); }
 .badge.messages { background: #2a2338; color: #cda8ff; }
 .badge.responses { background: #12303a; color: #74d6f0; }
+.badge.web { background: #1c2a3a; color: #8fb6e8; }
+.badge.api { background: #1c2620; color: #8fc8a2; }
 .badge.ok { background: #12301c; color: var(--ok); }
 .badge.bad { background: #34161a; color: var(--bad); }
 

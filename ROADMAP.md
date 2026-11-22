@@ -32,8 +32,6 @@ key gives clients access to the routes the operator has configured.
 ## Next
 
 - Document the login walkthrough on each OS.
-- Add tier labels to the catalog page and a `--transport` column so web and
-  official routes for one model are visibly distinct.
 - Larger attachment handling: chunked bodies and multiple files per turn.
 - Panel: chart usage over time (per-alias probe history is already kept and
   drawn as a streak).
