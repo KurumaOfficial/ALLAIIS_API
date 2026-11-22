@@ -195,6 +195,17 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 			calls[i].Function.Name = match
 		}
 	}
+	for i := range calls {
+		// "shell command" names the tool and repeats what the argument carries.
+		name := calls[i].Function.Name
+		if g.known(name) {
+			continue
+		}
+		head, _, _ := strings.Cut(name, " ")
+		if head != name && g.known(head) {
+			calls[i].Function.Name = head
+		}
+	}
 	return calls
 }
 
@@ -571,30 +582,94 @@ func dsmlValues(body string, final bool) (map[string]any, int, error) {
 	}
 }
 
-// unwrapArguments flattens a lone "arguments" member, which some dialects use as
-// a wrapper for the real argument object. The wrapper value is usually an object,
-// but a model that stringifies it must be unwrapped too.
+// argumentWrappers are the member names a model uses for the real argument
+// object when it adds a level of nesting the schema does not have. A model can
+// stack them (arguments, then input), so unwrapping repeats a few times.
+var argumentWrappers = []string{"arguments", "input", "params", "parameters", "args"}
+
+// maxArgumentDepth bounds the unwrap so a self-referencing wrapper cannot spin.
+const maxArgumentDepth = 4
+
+// unwrapArguments flattens lone wrapper members so the tool sees the argument
+// object it declared. The wrapper value is usually an object, but a model that
+// stringifies it must be unwrapped too.
 func unwrapArguments(values map[string]any) any {
-	if len(values) != 1 {
-		return values
-	}
-	inner, ok := values["arguments"]
-	if !ok {
-		return values
-	}
-	switch inner := inner.(type) {
-	case map[string]any, []any:
-		return inner
-	case string:
-		var decoded any
-		if json.Unmarshal([]byte(inner), &decoded) == nil {
-			switch decoded.(type) {
-			case map[string]any, []any:
-				return decoded
+	var current any = values
+	for range maxArgumentDepth {
+		object, ok := current.(map[string]any)
+		if !ok || len(object) != 1 {
+			return current
+		}
+		var inner any
+		found := false
+		for _, name := range argumentWrappers {
+			if value, ok := object[name]; ok {
+				inner, found = value, true
+				break
 			}
 		}
+		if !found {
+			return current
+		}
+		// A stringified object unwraps when it decodes, or when it is a run of
+		// name=value pairs. Anything else, including a lone real string argument,
+		// stays as it is.
+		if text, ok := inner.(string); ok {
+			var decoded any
+			if json.Unmarshal([]byte(text), &decoded) != nil {
+				pairs := keyValueArguments(text)
+				if pairs == nil {
+					return current
+				}
+				decoded = pairs
+			}
+			inner = decoded
+		}
+		switch inner.(type) {
+		case map[string]any, []any:
+			current = inner
+		default:
+			return current
+		}
 	}
-	return values
+	return current
+}
+
+// keyValueArguments parses "command=ls timeout=5", but only when every token is
+// a simple name=value pair, so ordinary prose stays a string.
+func keyValueArguments(text string) map[string]any {
+	fields := strings.Fields(text)
+	if len(fields) == 0 {
+		return nil
+	}
+	object := make(map[string]any, len(fields))
+	for _, field := range fields {
+		name, value, ok := strings.Cut(field, "=")
+		if !ok || !argumentName(name) {
+			return nil
+		}
+		object[name] = value
+	}
+	return object
+}
+
+// argumentName reports whether name is a bare identifier a schema could declare.
+func argumentName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r == '_':
+		case (r >= '0' && r <= '9') || r == '-' || r == '.':
+			if i == 0 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // buildCallFromValues marshals typed arguments into a tool call.
@@ -1009,21 +1084,17 @@ func (g *toolGuard) parse(block string) ([]toolCall, error) {
 	block = strings.TrimPrefix(block, "```")
 	block = strings.TrimSuffix(block, "```")
 
-	type candidate struct {
-		Name      string          `json:"name"`
-		Arguments json.RawMessage `json:"arguments"`
-	}
-	decode := func(text string) ([]candidate, bool) {
+	decode := func(text string) ([]map[string]any, bool) {
 		var envelope struct {
-			Calls []candidate `json:"calls"`
+			Calls []map[string]any `json:"calls"`
 		}
 		if json.Unmarshal([]byte(text), &envelope) == nil && len(envelope.Calls) > 0 {
 			return envelope.Calls, true
 		}
 		// A lone call object without the envelope is common enough to accept.
-		var one candidate
-		if json.Unmarshal([]byte(text), &one) == nil && one.Name != "" {
-			return []candidate{one}, true
+		var one map[string]any
+		if json.Unmarshal([]byte(text), &one) == nil && one["name"] != nil {
+			return []map[string]any{one}, true
 		}
 		return nil, false
 	}
@@ -1038,20 +1109,22 @@ func (g *toolGuard) parse(block string) ([]toolCall, error) {
 	for _, item := range candidates {
 		// The name is not checked against the advertised tools: a closed block is
 		// final, and the client reports an unknown name better than a failed turn.
-		if item.Name == "" {
+		name, _ := item["name"].(string)
+		if name == "" {
 			return nil, errNoToolBlock
 		}
-		arguments := string(item.Arguments)
-		if arguments == "" || arguments == "null" {
-			arguments = "{}"
+		// Everything but the name is the argument map; unwrapArguments then
+		// flattens a lone wrapper such as "input" or "params".
+		values := make(map[string]any, len(item))
+		for key, value := range item {
+			if key != "name" {
+				values[key] = value
+			}
 		}
-		var object map[string]any
-		if json.Unmarshal([]byte(arguments), &object) != nil {
-			return nil, errNoToolBlock
+		call, err := buildCallFromValues(name, values)
+		if err != nil {
+			return nil, err
 		}
-		call := toolCall{ID: "call_" + randomID(), Type: "function"}
-		call.Function.Name = item.Name
-		call.Function.Arguments = arguments
 		calls = append(calls, call)
 	}
 	return calls, nil

@@ -563,3 +563,97 @@ func TestToolGuardKeepsAnAmbiguousName(t *testing.T) {
 		t.Fatalf("ambiguous: %+v %v", calls, err)
 	}
 }
+
+func TestToolGuardUnwrapsArgumentWrappers(t *testing.T) {
+	for _, key := range []string{"arguments", "input", "params", "parameters", "args"} {
+		guard := guardFor("shell")
+		block := `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"shell","` + key + `":{"command":"ls"}}]}` + toolClose
+		_, calls, err := guard.Write(block)
+		if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"command":"ls"}` {
+			t.Fatalf("%s: %+v %v", key, calls, err)
+		}
+	}
+}
+
+func TestToolGuardUnwrapsAStringifiedWrapper(t *testing.T) {
+	guard := guardFor("shell")
+	_, calls, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"shell","input":"{\"command\":\"ls\"}"}]}` + toolClose)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"command":"ls"}` {
+		t.Fatalf("stringified: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardKeepsARealArgumentNamedInput(t *testing.T) {
+	// Two members stay as they are even if one of them is called input.
+	guard := guardFor("write")
+	_, calls, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"write","input":"x","path":"a"}]}` + toolClose)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"input":"x","path":"a"}` {
+		t.Fatalf("real input: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardDropsATrailingNameWord(t *testing.T) {
+	guard := guardFor("shell")
+	_, calls, err := guard.Write(`<invoke name="shell command"><parameter name="command">ls</parameter></invoke>`)
+	if err != nil || len(calls) != 1 || calls[0].Function.Name != "shell" {
+		t.Fatalf("suffix: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardKeepsAnUnknownSuffixedName(t *testing.T) {
+	guard := guardFor("shell")
+	_, calls, err := guard.Write(`<invoke name="bash command"><parameter name="command">ls</parameter></invoke>`)
+	if err != nil || len(calls) != 1 || calls[0].Function.Name != "bash command" {
+		t.Fatalf("unknown suffix: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardUnwrapsStackedWrappers(t *testing.T) {
+	guard := guardFor("shell")
+	block := `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"shell","arguments":{"input":{"command":"ls"}}}]}` + toolClose
+	_, calls, err := guard.Write(block)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"command":"ls"}` {
+		t.Fatalf("stacked: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardKeepsALoneStringArgument(t *testing.T) {
+	// "input" is a real argument here, not a wrapper: the string is not JSON.
+	guard := guardFor("write")
+	_, calls, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"write","input":"hello"}]}` + toolClose)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"input":"hello"}` {
+		t.Fatalf("lone string: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardStopsUnwrappingWhenEmpty(t *testing.T) {
+	guard := guardFor("ping")
+	_, calls, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"ping","input":{"arguments":{}}}]}` + toolClose)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{}` {
+		t.Fatalf("empty inner: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardUnwrapsKeyValueWrapper(t *testing.T) {
+	guard := guardFor("shell")
+	_, calls, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"shell","input":"command=ls"}]}` + toolClose)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"command":"ls"}` {
+		t.Fatalf("key=value: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardKeepsProseInAWrapper(t *testing.T) {
+	guard := guardFor("shell")
+	_, calls, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"shell","input":"SELECT * FROM t WHERE a=1"}]}` + toolClose)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"input":"SELECT * FROM t WHERE a=1"}` {
+		t.Fatalf("prose: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardUnwrapsSeveralKeyValuePairs(t *testing.T) {
+	guard := guardFor("shell")
+	_, calls, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"shell","args":"command=ls timeout=5"}]}` + toolClose)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"command":"ls","timeout":"5"}` {
+		t.Fatalf("pairs: %+v %v", calls, err)
+	}
+}

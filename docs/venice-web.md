@@ -307,7 +307,12 @@ What the gateway guarantees to an OpenAI-compatible client:
 - a call written as a bare object without the `calls` envelope is accepted, and
   missing arguments default to `{}` instead of failing the turn;
 - a name that differs from exactly one tool only by case or separators is folded
-  onto it (`Read-File` becomes `read_file`); an ambiguous fold is left alone.
+  onto it (`Read-File` becomes `read_file`); an ambiguous fold is left alone;
+- a single wrapper member named `arguments`, `input`, `params`, `parameters` or
+  `args` is unwrapped, including stacked wrappers, a stringified object and a run
+  of `name=value` pairs; prose stays a string;
+- a trailing word after the tool name is dropped (`shell command` becomes
+  `shell`) only when the leading word is an exact tool name.
 
 Measured on a free model, 2026-11-22: five of five streams returned 200 and
 `[DONE]`, three of them in parallel; time to first content ran 2.5–7.4 s
