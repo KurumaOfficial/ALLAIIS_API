@@ -89,6 +89,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/reload", s.guard(s.reloadConfig))
 	mux.HandleFunc("GET /api/discover", s.guard(s.discover))
 	mux.HandleFunc("POST /api/probe", s.guard(s.probe))
+	mux.HandleFunc("POST /api/probe/tools", s.guard(s.probeTools))
 	mux.HandleFunc("POST /api/smoke", s.guard(s.smoke))
 	mux.HandleFunc("GET /api/smoke/history", s.guard(s.smokeHistory))
 	mux.HandleFunc("GET /api/logs", s.guard(s.logsPage))

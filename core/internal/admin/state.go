@@ -301,6 +301,31 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// probeTools runs the parser check on one alias on demand.
+func (s *Server) probeTools(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Model string `json:"model"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	cfg, err := s.loadConfig()
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	route, ok := findRoute(cfg, input.Model)
+	if !ok {
+		fail(w, http.StatusBadRequest, "unknown alias")
+		return
+	}
+	if route.Disabled {
+		fail(w, http.StatusBadRequest, "that alias is muted")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.toolProbe(r.Context(), cfg, route))
+}
+
 // smoke runs every alias that has a credential, sequentially.
 func (s *Server) smoke(w http.ResponseWriter, r *http.Request) {
 	var input struct {

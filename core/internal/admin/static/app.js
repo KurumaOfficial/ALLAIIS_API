@@ -462,6 +462,17 @@ function bind () {
     } catch (error) { list.innerHTML = ''; toast(error.message, true) }
   }
 
+  $('probe-tools').onclick = async () => {
+    const model = $('probe-model').value
+    if (!model) return toast('Add an alias with a key first', true)
+    show('probe-out', 'Asking ' + model + ' to call a tool:')
+    try {
+      const result = await api('/api/probe/tools', { method: 'POST', body: JSON.stringify({ model }) })
+      show('probe-out', (result.ok ? 'tool call ok' : 'FAILED') + ' - HTTP ' + result.status + ' in ' + result.millis + ' ms\n\n' +
+        (result.text || result.error || '(empty)'))
+    } catch (error) { show('probe-out', error.message) }
+  }
+
   $('probe-run').onclick = async () => {
     const model = $('probe-model').value
     if (!model) return toast('Add an alias with a key first', true)

@@ -504,3 +504,20 @@ func TestToolProbeFailsOverToAnotherAlias(t *testing.T) {
 		t.Fatalf("tool row did not fail over: %+v", reply.Results)
 	}
 }
+
+func TestProbeToolsEndpoint(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")
+	f.call(t, http.MethodPost, "/api/models",
+		`{"provider":"fake","upstream_model":"gpt-x","name":"x-alias","label":"work"}`, "")
+
+	result := f.call(t, http.MethodPost, "/api/probe/tools", `{"model":"x-alias"}`, "")
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"ok":true`) ||
+		!strings.Contains(result.Body.String(), "list_files") {
+		t.Fatalf("tool probe: %d %s", result.Code, result.Body)
+	}
+
+	if missing := f.call(t, http.MethodPost, "/api/probe/tools", `{"model":"nope"}`, ""); missing.Code != http.StatusBadRequest {
+		t.Fatalf("unknown alias: %d", missing.Code)
+	}
+}

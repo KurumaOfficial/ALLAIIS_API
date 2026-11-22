@@ -68,6 +68,11 @@ is available as `"disabled": true` on a route in `config.json`.
 
 ## Probes and smoke
 
+**Probe tool** next to it asks the chosen alias to call `list_files` and judges the
+answer exactly like the sweep probe (name, argument, one prose retry), so the
+parser can be checked on demand without running a whole sweep. It is marked with
+`X-ALLAIIS-Probe`, so it leaves no trace in the counters.
+
 A single probe answers one alias. **Probe every alias** walks all aliases that
 have a credential, one at a time, and shows a pass/fail row per alias — the
 fastest way to see which route degraded after a provider change. The headless
