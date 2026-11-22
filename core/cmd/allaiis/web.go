@@ -34,6 +34,7 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 	var providerID, label, cookie, url, chrome string
 	switch command {
 	case "chrome":
+		flags.StringVar(&providerID, "provider", "venice-web", "web provider ID")
 		flags.StringVar(&url, "url", "https://venice.ai/chat", "page to open")
 		flags.StringVar(&chrome, "chrome", "", "Chrome executable (auto-detected by default)")
 	case "login":
@@ -99,9 +100,16 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 	if cred.DistinctID == "" {
 		cred.DistinctID = webprov.NewDistinctID()
 	}
-	limits, err := webprov.New(60*time.Second).Probe(ctx, cred)
+	client := webprov.New(60 * time.Second)
+	limits, err := client.Probe(ctx, cred)
 	if err != nil {
 		return fmt.Errorf("validate the captured session: %w", err)
+	}
+	if client.Principal(ctx, cred) == "anonymous" {
+		fmt.Fprintln(os.Stdout, "Captured a guest session: only the small free quota applies.")
+		fmt.Fprintln(os.Stdout, "Sign in at https://venice.ai in the capture Chrome, then run this again for your plan quota.")
+	} else {
+		fmt.Fprintln(os.Stdout, "Captured a signed-in session.")
 	}
 	if _, err := store.Import(ctx, []vault.Entry{{
 		Provider: providerID, Endpoint: provider.BaseURL, Label: label, Key: cred.Encode(),

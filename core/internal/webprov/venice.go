@@ -45,6 +45,37 @@ var (
 	ErrRateLimited  = errors.New("venice web rate limit reached")
 )
 
+// rateLimitError carries the upstream reset time when one was published.
+type rateLimitError struct {
+	until time.Time
+}
+
+func (e rateLimitError) Error() string        { return ErrRateLimited.Error() }
+func (e rateLimitError) Is(target error) bool { return target == ErrRateLimited }
+
+// RateLimitReset reports the upstream reset instant for a rate-limit error.
+func RateLimitReset(err error) (time.Time, bool) {
+	var limited rateLimitError
+	if errors.As(err, &limited) && !limited.until.IsZero() {
+		return limited.until, true
+	}
+	return time.Time{}, false
+}
+
+// RateLimitUntil extracts the published reset instant, if any.
+func RateLimitUntil(response *http.Response, now time.Time) time.Time {
+	value := strings.TrimSpace(response.Header.Get("x-ratelimit-resets"))
+	millis, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || millis <= 0 {
+		return time.Time{}
+	}
+	until := time.UnixMilli(millis)
+	if !until.After(now) {
+		return time.Time{}
+	}
+	return until
+}
+
 // Cookie is one browser cookie bound to a host.
 type Cookie struct {
 	Name  string `json:"name"`
@@ -136,7 +167,7 @@ type Client struct {
 	clerk     string
 	now       func() time.Time
 	mu        sync.Mutex
-	tokens    map[string]cached // session JWTs by credential hash
+	tokens    map[string]cached   // session JWTs by credential hash
 	attesting map[string][]cached // client attestation token pool by user key
 }
 
@@ -310,7 +341,7 @@ func (c *Client) statusError(response *http.Response) error {
 	text := string(body)
 	switch {
 	case response.StatusCode == http.StatusTooManyRequests:
-		return fmt.Errorf("%w: %s", ErrRateLimited, firstLine(text))
+		return rateLimitError{until: RateLimitUntil(response, time.Now())}
 	case response.StatusCode == http.StatusUnauthorized:
 		return fmt.Errorf("%w: %s", ErrUnauthorized, firstLine(text))
 	case response.StatusCode == http.StatusForbidden:
@@ -570,6 +601,15 @@ func jwtPayload(token string) map[string]any {
 	return payload
 }
 
+// Principal reports the session subject, or "anonymous" for a guest cookie.
+func (c *Client) Principal(ctx context.Context, cred Credential) string {
+	user, err := c.user(ctx, cred)
+	if err != nil {
+		return "anonymous"
+	}
+	return user
+}
+
 // Probe lists the remaining chat quota without spending a message.
 func (c *Client) Probe(ctx context.Context, cred Credential) (map[string]any, error) {
 	userID, err := c.user(ctx, cred)
@@ -600,4 +640,3 @@ func (c *Client) Probe(ctx context.Context, cred Credential) (map[string]any, er
 	}
 	return limits, nil
 }
-

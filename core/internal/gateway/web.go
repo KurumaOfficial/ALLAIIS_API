@@ -195,6 +195,9 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 	switch {
 	case errors.Is(err, webprov.ErrRateLimited):
 		until := time.Now().Add(10 * time.Minute)
+		if reset, ok := webprov.RateLimitReset(err); ok {
+			until = reset
+		}
 		persist, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if setErr := g.router.SetCooldown(persist, target, until); setErr != nil {

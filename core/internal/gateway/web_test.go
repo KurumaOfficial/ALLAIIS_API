@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -119,6 +120,7 @@ func TestWebCompletionErrorsAndCooldown(t *testing.T) {
 	var limited atomic.Bool
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		if limited.Load() {
+			w.Header().Set("x-ratelimit-resets", fmt.Sprint(time.Now().Add(3*time.Minute).UnixMilli()))
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
 		}
@@ -135,6 +137,9 @@ func TestWebCompletionErrorsAndCooldown(t *testing.T) {
 	rate := complete(handler, store.ClientKey(), "s", request)
 	if rate.Code != http.StatusTooManyRequests || rate.Header().Get("Retry-After") == "" {
 		t.Fatalf("429 mapped to %d", rate.Code)
+	}
+	if seconds, _ := strconv.Atoi(rate.Header().Get("Retry-After")); seconds < 120 {
+		t.Fatalf("published reset was ignored, Retry-After=%q", rate.Header().Get("Retry-After"))
 	}
 	blocked := complete(handler, store.ClientKey(), "other", request)
 	if blocked.Code != http.StatusTooManyRequests {
