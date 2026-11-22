@@ -1107,3 +1107,33 @@ func TestToolNameTTLForAcceptsMinutes(t *testing.T) {
 		}
 	}
 }
+
+func TestToolNamesEndpoint(t *testing.T) {
+	g := &Gateway{}
+	seedUnknownName("tx_bash", time.Now())
+	seedUnknownName("tx_grep", time.Now())
+	unknownNames.mu.Lock()
+	unknownNames.count["tx_bash"] = 2
+	unknownNames.mu.Unlock()
+
+	result := httptest.NewRecorder()
+	g.toolNamesPage(result, httptest.NewRequest(http.MethodGet, "/tool-names", nil))
+	if result.Code != http.StatusOK {
+		t.Fatalf("tool-names: %d", result.Code)
+	}
+	var body struct {
+		Names []struct {
+			Name  string `json:"name"`
+			Count int    `json:"count"`
+		} `json:"names"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Names) < 2 {
+		t.Fatalf("names missing: %s", result.Body)
+	}
+	if body.Names[0].Name != "tx_bash" || body.Names[0].Count != 2 {
+		t.Fatalf("order or count wrong: %+v", body.Names)
+	}
+}
