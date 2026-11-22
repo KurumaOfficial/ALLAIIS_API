@@ -117,6 +117,9 @@ func showToolNames(out io.Writer, path, dir, origin string, ttl time.Duration, s
 	repaired := record.Folded + record.Suffixed
 	fmt.Fprintf(out, "Repaired names: %d (folded %d, trailing word %d)\n", repaired, record.Folded, record.Suffixed)
 	fmt.Fprintf(out, "Unknown names: %d\n", record.Unknown)
+	if ttl <= 0 {
+		retentionOff(out)
+	}
 	if len(record.Names) == 0 {
 		return nil
 	}
@@ -180,6 +183,13 @@ func retentionText(ttl time.Duration, source string) string {
 	return span + " from " + source
 }
 
+// retentionOff explains an off retention and how to switch it on. "Off" alone
+// reads as breakage on a config with tool_name_ttl_days unset or 0.
+func retentionOff(out io.Writer) {
+	fmt.Fprintln(out, "Nothing expires while retention is off.")
+	fmt.Fprintf(out, "Set tool_name_ttl_days in the config (0 keeps names forever) or %s, e.g. %s=30d, to turn it on.\n", TTLEnv, TTLEnv)
+}
+
 // age renders how long ago a name was last seen, or that it is past retention.
 func age(now time.Time, stamp int64, ttl time.Duration) string {
 	if stamp == 0 {
@@ -239,10 +249,7 @@ func dropExpiredFromFile(out io.Writer, path string, raw []byte, ttl time.Durati
 		return fmt.Errorf("the record is not readable: %w", err)
 	}
 	if ttl <= 0 {
-		// "Off" with no reason reads as breakage, so say how to switch it on.
-		// The header already stated the retention, so keep this to the hint.
-		fmt.Fprintln(out, "Nothing expires while retention is off.")
-		fmt.Fprintf(out, "Set tool_name_ttl_days in the config (0 keeps names forever) or %s, e.g. %s=30d, to turn it on.\n", TTLEnv, TTLEnv)
+		retentionOff(out)
 		return nil
 	}
 	cutoff := time.Now().Add(-ttl).UnixMilli()

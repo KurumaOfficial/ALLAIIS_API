@@ -294,3 +294,16 @@ func TestRetentionText(t *testing.T) {
 		}
 	}
 }
+
+func TestToolsShowExplainsAnOffRetention(t *testing.T) {
+	dir := t.TempDir()
+	writeRecord(t, dir, `{"unknown":1,"names":{"kept":1}}`)
+	var out bytes.Buffer
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), dir, "test", 0, "config", false); err != nil {
+		t.Fatal(err)
+	}
+	// The view is read-only, but an off retention must not look like breakage.
+	if !strings.Contains(out.String(), TTLEnv+"=30d") {
+		t.Fatalf("hint missing: %q", out.String())
+	}
+}
