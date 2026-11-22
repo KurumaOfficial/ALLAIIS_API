@@ -136,9 +136,13 @@ an alias created from the panel stores them:
 | `temperature`, `top_p` | used only when the client did not send its own |
 | `max_tools` | tool count is checked before the envelope is built (`too_many_tools`) |
 | `web_search` | sets the provider's web tool for every turn |
+| `large_context` | asks for the extended-context mode when the model is eligible (`enableLargeContextChat`) |
+| `strict_order` | merges consecutive same-role turns for models that require strict order |
+| `inactivity_ms` | aborts a stream that stays silent that long; clamped to 1 s – 10 min, default 2 min |
 
 The CLI sets the same fields with `--reasoning true|false`, `--max-context`,
-`--max-response`, `--max-images`, `--max-tools` and `--web-search`. The catalog also tags `pro_only` and
+`--max-response`, `--max-images`, `--max-tools`, `--web-search`, `--large-context`,
+`--strict-order` and `--inactivity-ms`. The catalog also tags `pro_only` and
 `uses_credits`, which the panel shows so a paid model is not picked by accident.
 
 ### Thinking depth

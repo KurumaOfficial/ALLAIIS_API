@@ -46,6 +46,7 @@ results, and its checkbox forces a refetch.
 | `402 insufficientBalance` | no retry, no cooldown; surface `insufficient_balance` |
 | Prompt over the model context | rejected before sending when the alias carries `max_context` |
 | Too many attachments | rejected before upload when the alias carries `max_images` |
+| Silent stream | aborted after the alias inactivity window (default 2 min), answered `upstream_timeout` |
 | Request body | 8 MiB cap, 90 s response-header timeout, 10 min whole call |
 
 A retry happens only while the client has seen nothing, so streaming clients

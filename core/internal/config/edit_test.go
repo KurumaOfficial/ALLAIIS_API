@@ -189,6 +189,8 @@ func TestCapabilityValidation(t *testing.T) {
 		{`,"max_context":-1}`, false},
 		{`,"max_response":2000000}`, false},
 		{`,"max_images":51}`, false},
+		{`,"inactivity_ms":120000}`, true},
+		{`,"inactivity_ms":100}`, false},
 		{`,"temperature":2.5}`, false},
 		{`,"top_p":1.2}`, false},
 	} {

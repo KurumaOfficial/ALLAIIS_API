@@ -28,16 +28,19 @@ type Model struct {
 	Type    string   `json:"type,omitempty"`
 	Methods []string `json:"supported_generation_methods,omitempty"`
 	// Capabilities are filled when the source publishes them.
-	Reasoning bool `json:"reasoning,omitempty"`
-	Tools     bool `json:"function_calling,omitempty"`
-	Vision    bool `json:"vision,omitempty"`
-	MaxImages int  `json:"max_images,omitempty"`
-	MaxTools  int  `json:"max_tools,omitempty"`
-	WebSearch bool `json:"web_search,omitempty"`
-	Context   int  `json:"max_context,omitempty"`
-	Response  int  `json:"max_response,omitempty"`
-	ProOnly   bool `json:"pro_only,omitempty"`
-	Credits   bool `json:"uses_credits,omitempty"`
+	Reasoning    bool `json:"reasoning,omitempty"`
+	Tools        bool `json:"function_calling,omitempty"`
+	Vision       bool `json:"vision,omitempty"`
+	MaxImages    int  `json:"max_images,omitempty"`
+	MaxTools     int  `json:"max_tools,omitempty"`
+	WebSearch    bool `json:"web_search,omitempty"`
+	LargeContext bool `json:"large_context,omitempty"`
+	StrictOrder  bool `json:"strict_order,omitempty"`
+	Inactivity   int  `json:"inactivity_ms,omitempty"`
+	Context      int  `json:"max_context,omitempty"`
+	Response     int  `json:"max_response,omitempty"`
+	ProOnly      bool `json:"pro_only,omitempty"`
+	Credits      bool `json:"uses_credits,omitempty"`
 	// Sampling defaults the provider recommends for this model.
 	Temperature *float64 `json:"temperature,omitempty"`
 	TopP        *float64 `json:"top_p,omitempty"`

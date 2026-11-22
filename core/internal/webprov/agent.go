@@ -38,6 +38,8 @@ func (c *Client) ChatImages(ctx context.Context, cred Credential, req Request, e
 		return err
 	}
 	defer release()
+	readCtx, stall := newStallGuard(ctx, req.Inactivity)
+	defer stall.stop()
 	userID, signedIn, mintErr := c.resolveUser(ctx, cred)
 	body, parts := agentBody(req)
 	var buffer bytes.Buffer
@@ -73,7 +75,7 @@ func (c *Client) ChatImages(ctx context.Context, cred Credential, req Request, e
 		if err != nil {
 			return err
 		}
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/inference/chat/agents/venice", bytes.NewReader(buffer.Bytes()))
+		httpReq, err := http.NewRequestWithContext(readCtx, http.MethodPost, c.base+"/inference/chat/agents/venice", bytes.NewReader(buffer.Bytes()))
 		if err != nil {
 			return err
 		}
@@ -88,6 +90,9 @@ func (c *Client) ChatImages(ctx context.Context, cred Credential, req Request, e
 		}
 		response, err := c.http.Do(httpReq)
 		if err != nil {
+			if stall.stalled() {
+				err = errStreamStalled
+			}
 			if attempt == 1 && ctx.Err() == nil {
 				c.invalidateAttestation(userID)
 				continue
@@ -96,11 +101,14 @@ func (c *Client) ChatImages(ctx context.Context, cred Credential, req Request, e
 		}
 		if response.StatusCode == http.StatusOK {
 			delivered := false
-			streamErr := decodeAgentStream(response.Body, func(event Event) error {
+			streamErr := decodeAgentStream(stall.wrap(response.Body), func(event Event) error {
 				delivered = true
 				return emit(event)
 			})
 			response.Body.Close()
+			if streamErr != nil && stall.stalled() {
+				streamErr = errStreamStalled
+			}
 			if streamErr != nil && attempt == 1 && ctx.Err() == nil && !delivered {
 				continue
 			}
@@ -193,6 +201,9 @@ func agentBody(req Request) ([]byte, []agentPart) {
 	}
 	if req.WebSearch {
 		payload["webEnabled"] = true
+	}
+	if req.LargeContext {
+		payload["enableLargeContextChat"] = true
 	}
 	body, _ := json.Marshal(payload)
 	return body, parts

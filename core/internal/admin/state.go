@@ -44,6 +44,9 @@ type modelView struct {
 	MaxImages     int             `json:"max_images,omitempty"`
 	MaxTools      int             `json:"max_tools,omitempty"`
 	WebSearch     bool            `json:"web_search,omitempty"`
+	LargeContext  bool            `json:"large_context,omitempty"`
+	StrictOrder   bool            `json:"strict_order,omitempty"`
+	InactivityMS  int             `json:"inactivity_ms,omitempty"`
 }
 
 type stateView struct {
@@ -117,6 +120,7 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 			Disabled: route.Disabled, Reasoning: route.Reasoning, MaxContext: route.MaxContext,
 			MaxResponse: route.MaxResponse, MaxImages: route.MaxImages,
 			MaxTools: route.MaxTools, WebSearch: route.WebSearch,
+			LargeContext: route.LargeContext, StrictOrder: route.StrictOrder, InactivityMS: route.InactivityMS,
 		}
 		for _, provider := range view.Providers {
 			if provider.ID != route.Provider {
@@ -219,6 +223,7 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 				MaxImages: model.MaxImages, Context: model.ContextLimit, Response: model.MaxResponse,
 				ProOnly: model.ProOnly, Credits: model.UsesCredits,
 				MaxTools: model.MaxTools, WebSearch: model.WebSearch,
+				LargeContext: model.LargeContext, StrictOrder: model.StrictOrder, Inactivity: model.InactivityMS,
 				Temperature: model.Temperature, TopP: model.TopP,
 			})
 			if len(result) >= 500 {

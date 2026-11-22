@@ -99,6 +99,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		envelope = toolEnvelope(reason.system, tools)
 		request.Messages = reason.messages(envelope)
 	}
+	if target.Route.StrictOrder {
+		request.Messages = mergeSameRole(request.Messages)
+	}
 	if err := checkContext(reason.system, request.Messages, tools, target.Route); err != nil {
 		writeError(w, protocol, http.StatusBadRequest, "context_length_exceeded", err.Error())
 		return 0, 0
@@ -299,7 +302,43 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 const (
 	defaultImageLimit = 10
 	defaultToolLimit  = 64
+	defaultInactivity = 2 * time.Minute
+	maxInactivity     = 10 * time.Minute
 )
+
+// inactivity clamps the model's suggested stream watchdog.
+func inactivity(route config.Route) time.Duration {
+	window := defaultInactivity
+	if route.InactivityMS > 0 {
+		window = time.Duration(route.InactivityMS) * time.Millisecond
+	}
+	if window < time.Second {
+		window = time.Second
+	}
+	if window > maxInactivity {
+		window = maxInactivity
+	}
+	return window
+}
+
+// mergeSameRole joins consecutive turns of one role for strict models.
+func mergeSameRole(messages []webprov.Message) []webprov.Message {
+	if len(messages) < 2 {
+		return messages
+	}
+	merged := make([]webprov.Message, 0, len(messages))
+	merged = append(merged, messages[0])
+	for _, message := range messages[1:] {
+		last := &merged[len(merged)-1]
+		if message.Role == last.Role && message.Role != "system" {
+			last.Content = strings.Join([]string{last.Content, message.Content}, "\n\n")
+			last.Images = append(last.Images, message.Images...)
+			continue
+		}
+		merged = append(merged, message)
+	}
+	return merged
+}
 
 func imageLimit(route config.Route) int {
 	if route.MaxImages > 0 {
@@ -317,6 +356,8 @@ func toolLimit(route config.Route) int {
 
 // applyCapabilities shapes the request with the discovered model limits.
 func applyCapabilities(request *webprov.Request, route config.Route) error {
+	request.LargeContext = route.LargeContext
+	request.Inactivity = inactivity(route)
 	if route.Reasoning != nil {
 		request.Reasoning = *route.Reasoning
 	}
@@ -406,6 +447,9 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 	case errors.Is(err, webprov.ErrInsufficientBalance()):
 		writeError(w, protocol, http.StatusPaymentRequired, "insufficient_balance",
 			"This session has no messages left. Check the reset time with `allaiis web quota` or use another label.")
+	case errors.Is(err, webprov.ErrStreamStalled()):
+		writeError(w, protocol, http.StatusGatewayTimeout, "upstream_timeout",
+			"The provider stopped sending for too long. Retry, or raise the alias inactivity window.")
 	case errors.Is(err, webprov.ErrContextTooLong()):
 		writeError(w, protocol, http.StatusBadRequest, "context_length_exceeded",
 			"The prompt exceeds the model context window.")

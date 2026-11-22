@@ -442,3 +442,83 @@ func TestToolLimitRejects(t *testing.T) {
 		t.Fatalf("got %d %s", result.Code, result.Body)
 	}
 }
+
+func TestStrictOrderMergesConsecutiveTurns(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		messages := body["prompt"].([]any)
+		roles := make([]string, 0, len(messages))
+		for _, raw := range messages {
+			roles = append(roles, raw.(map[string]any)["role"].(string))
+		}
+		if strings.Join(roles, ",") != "user,assistant,user" {
+			t.Fatalf("turns not merged: %v", roles)
+		}
+		last := messages[len(messages)-1].(map[string]any)["content"].(string)
+		if !strings.Contains(last, "second") || !strings.Contains(last, "and more") {
+			t.Fatalf("merged content lost: %q", last)
+		}
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
+	})
+	store, cfg := setup(t, server.URL)
+	cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+	cfg.Models = []config.Route{{
+		ID: "strict", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer, StrictOrder: true,
+	}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "web", Endpoint: server.URL, Label: "one",
+		Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	body := `{"model":"strict","messages":[` +
+		`{"role":"user","content":"first"},` +
+		`{"role":"assistant","content":"reply"},` +
+		`{"role":"user","content":"second"},` +
+		`{"role":"user","content":"and more"}]}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
+func TestStalledStreamMapsToUpstreamTimeout(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"partial\"}\n")
+		w.(http.Flusher).Flush()
+		time.Sleep(1600 * time.Millisecond)
+	})
+	store, cfg := setup(t, server.URL)
+	cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+	cfg.Models = []config.Route{{
+		ID: "slow", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer, InactivityMS: 1000,
+	}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "web", Endpoint: server.URL, Label: "one",
+		Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"slow","messages":[{"role":"user","content":"hi"}]}`))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusGatewayTimeout || !strings.Contains(result.Body.String(), "upstream_timeout") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}

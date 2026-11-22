@@ -164,6 +164,10 @@ type Request struct {
 	ReasoningEffort string
 	// WebSearch enables the web tool for this turn.
 	WebSearch bool
+	// LargeContext asks for the extended-context mode.
+	LargeContext bool
+	// Inactivity aborts a stream that stays silent this long.
+	Inactivity time.Duration
 }
 
 // Event is one decoded upstream event. Kind is "content", "reasoning" or "meta".
@@ -247,6 +251,8 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 	}
 	defer release()
 
+	readCtx, stall := newStallGuard(ctx, req.Inactivity)
+	defer stall.stop()
 	userID, signedIn, mintErr := c.resolveUser(ctx, cred)
 	body, err := json.Marshal(venicePayload(cred, req, userID))
 	if err != nil {
@@ -260,7 +266,7 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 		if err != nil {
 			return err
 		}
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/inference/chat", strings.NewReader(string(body)))
+		httpReq, err := http.NewRequestWithContext(readCtx, http.MethodPost, c.base+"/inference/chat", strings.NewReader(string(body)))
 		if err != nil {
 			return err
 		}
@@ -274,6 +280,9 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 		}
 		response, err := c.http.Do(httpReq)
 		if err != nil {
+			if stall.stalled() {
+				err = errStreamStalled
+			}
 			if attempt == 1 && ctx.Err() == nil {
 				c.invalidateAttestation(userID)
 				continue
@@ -282,11 +291,14 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 		}
 		if response.StatusCode == http.StatusOK {
 			delivered := false
-			streamErr := decodeEvents(response.Body, func(event Event) error {
+			streamErr := decodeEvents(stall.wrap(response.Body), func(event Event) error {
 				delivered = true
 				return emit(event)
 			})
 			response.Body.Close()
+			if streamErr != nil && stall.stalled() {
+				streamErr = errStreamStalled
+			}
 			// A stream that dies before the first event is worth one retry.
 			if streamErr != nil && attempt == 1 && ctx.Err() == nil && !delivered {
 				continue
@@ -402,6 +414,9 @@ func venicePayload(cred Credential, req Request, userID string) map[string]any {
 	}
 	if req.WebSearch {
 		payload["webEnabled"] = true
+	}
+	if req.LargeContext {
+		payload["enableLargeContextChat"] = true
 	}
 	return payload
 }

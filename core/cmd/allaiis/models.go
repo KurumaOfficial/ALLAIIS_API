@@ -44,8 +44,8 @@ func runModels(ctx context.Context, path string, args []string) error {
 	flags := flag.NewFlagSet("models "+command, flag.ContinueOnError)
 	providerID := flags.String("provider", "", "provider ID")
 	var match, model, name, label, privacy, protocol, reasoning string
-	var maxContext, maxResponse, maxImages, maxTools int
-	var webSearch bool
+	var maxContext, maxResponse, maxImages, maxTools, inactivity int
+	var webSearch, largeContext, strictOrder bool
 	var all, withKeys bool
 	switch command {
 	case "discover":
@@ -65,6 +65,9 @@ func runModels(ctx context.Context, path string, args []string) error {
 		flags.IntVar(&maxImages, "max-images", 0, "maximum attachments per request")
 		flags.IntVar(&maxTools, "max-tools", 0, "maximum tools per request")
 		flags.BoolVar(&webSearch, "web-search", false, "enable the provider's web tool")
+		flags.BoolVar(&largeContext, "large-context", false, "ask for the extended-context mode")
+		flags.BoolVar(&strictOrder, "strict-order", false, "merge consecutive turns for strict models")
+		flags.IntVar(&inactivity, "inactivity-ms", 0, "abort a stream that stays silent this long")
 	default:
 		return fmt.Errorf("unknown models command %q", command)
 	}
@@ -96,7 +99,8 @@ func runModels(ctx context.Context, path string, args []string) error {
 			ID: name + "-" + *providerID, Provider: *providerID, UpstreamModel: model,
 			Privacy: config.Privacy(privacy), CredentialLabel: label, Protocol: config.Protocol(protocol),
 			Reasoning: thinking, MaxContext: maxContext, MaxResponse: maxResponse, MaxImages: maxImages,
-			MaxTools: maxTools, WebSearch: webSearch,
+			MaxTools: maxTools, WebSearch: webSearch, LargeContext: largeContext,
+			StrictOrder: strictOrder, InactivityMS: inactivity,
 		}
 		added, err := config.AddModel(ctx, path, route)
 		if err != nil {

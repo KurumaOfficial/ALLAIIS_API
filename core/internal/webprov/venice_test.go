@@ -542,3 +542,50 @@ func TestAgentStreamClassifiesInsufficientBalance(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestStalledStreamIsReported(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/mint") {
+			fmt.Fprint(w, `{"tokens":[{"token":"attest"}]}`)
+			return
+		}
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"partial\"}\n")
+		w.(http.Flusher).Flush()
+		time.Sleep(400 * time.Millisecond)
+	}))
+	t.Cleanup(server.Close)
+	start := time.Now()
+	err := testClient(server).Chat(context.Background(), Credential{DistinctID: "d"},
+		Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}, Inactivity: 150 * time.Millisecond},
+		func(Event) error { return nil })
+	if !errors.Is(err, errStreamStalled) {
+		t.Fatalf("got %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 350*time.Millisecond {
+		t.Fatalf("watchdog was late: %v", elapsed)
+	}
+}
+
+func TestLargeContextReachesThePayload(t *testing.T) {
+	var large any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/mint") {
+			fmt.Fprint(w, `{"tokens":[{"token":"attest"}]}`)
+			return
+		}
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		large = body["enableLargeContextChat"]
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
+	}))
+	t.Cleanup(server.Close)
+	err := testClient(server).Chat(context.Background(), Credential{DistinctID: "d"},
+		Request{Model: "m", LargeContext: true, Messages: []Message{{Role: "user", Content: "hi"}}},
+		func(Event) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if large != true {
+		t.Fatalf("large context flag %v", large)
+	}
+}

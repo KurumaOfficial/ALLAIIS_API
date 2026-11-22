@@ -26,6 +26,9 @@ type CatalogModel struct {
 	MaxTools     int    `json:"max_tools,omitempty"`
 	Reasoning    bool   `json:"reasoning,omitempty"`
 	WebSearch    bool   `json:"web_search,omitempty"`
+	LargeContext bool   `json:"large_context,omitempty"`
+	StrictOrder  bool   `json:"strict_order,omitempty"`
+	InactivityMS int    `json:"inactivity_ms,omitempty"`
 	Tools        bool   `json:"function_calling,omitempty"`
 	Temperature  *float64
 	TopP         *float64
@@ -59,19 +62,22 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 	var catalog struct {
 		Text struct {
 			Models []struct {
-				ID          string `json:"id"`
-				Friendly    string `json:"friendly_name"`
-				Active      bool   `json:"active"`
-				UsesCredits bool   `json:"usesCredits"`
-				ProOnly     bool   `json:"proOnly"`
-				MaxContext  int    `json:"maxContextLength"`
-				MaxResponse int    `json:"maxResponseTokens"`
-				MaxImages   int    `json:"maxImages"`
-				MaxTools    int    `json:"maxToolCount"`
-				WebSearch   bool   `json:"supportsXSearch"`
-				Reasoning   bool   `json:"supportsReasoning"`
-				Tools       bool   `json:"supportsFunctionCalling"`
-				Settings    struct {
+				ID           string `json:"id"`
+				Friendly     string `json:"friendly_name"`
+				Active       bool   `json:"active"`
+				UsesCredits  bool   `json:"usesCredits"`
+				ProOnly      bool   `json:"proOnly"`
+				MaxContext   int    `json:"maxContextLength"`
+				MaxResponse  int    `json:"maxResponseTokens"`
+				MaxImages    int    `json:"maxImages"`
+				MaxTools     int    `json:"maxToolCount"`
+				WebSearch    bool   `json:"supportsXSearch"`
+				LargeContext bool   `json:"largeContextChatEligible"`
+				StrictOrder  bool   `json:"strictMessageOrderRequired"`
+				InactivityMS int    `json:"streamInactivityTimeoutMs"`
+				Reasoning    bool   `json:"supportsReasoning"`
+				Tools        bool   `json:"supportsFunctionCalling"`
+				Settings     struct {
 					Temperature *float64 `json:"temperature"`
 					TopP        *float64 `json:"topP"`
 				} `json:"settings"`
@@ -98,6 +104,7 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 			ID: model.ID, Name: name, Kind: "text", UsesCredits: model.UsesCredits,
 			ProOnly: model.ProOnly, ContextLimit: model.MaxContext, MaxResponse: model.MaxResponse,
 			MaxImages: model.MaxImages, MaxTools: model.MaxTools, WebSearch: model.WebSearch,
+			LargeContext: model.LargeContext, StrictOrder: model.StrictOrder, InactivityMS: model.InactivityMS,
 			Reasoning: model.Reasoning, Tools: model.Tools,
 			Temperature: model.Settings.Temperature, TopP: model.Settings.TopP,
 		})
