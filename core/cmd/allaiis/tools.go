@@ -239,7 +239,10 @@ func dropExpiredFromFile(out io.Writer, path string, raw []byte, ttl time.Durati
 		return fmt.Errorf("the record is not readable: %w", err)
 	}
 	if ttl <= 0 {
-		fmt.Fprintln(out, "Retention is off: nothing expires.")
+		// "Off" with no reason reads as breakage, so say how to switch it on.
+		// The header already stated the retention, so keep this to the hint.
+		fmt.Fprintln(out, "Nothing expires while retention is off.")
+		fmt.Fprintf(out, "Set tool_name_ttl_days in the config (0 keeps names forever) or %s, e.g. %s=30d, to turn it on.\n", TTLEnv, TTLEnv)
 		return nil
 	}
 	cutoff := time.Now().Add(-ttl).UnixMilli()

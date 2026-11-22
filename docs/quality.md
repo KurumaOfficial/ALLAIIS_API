@@ -85,7 +85,9 @@ file; `allaiis tools reset --expired`, or the same endpoint with `{"expired": tr
 drops only the names past retention, which keeps the fresh evidence, which is how a fixed tool list stops carrying old blame. The counters and names also travel as JSON on `GET /tool-names` (name, count,
 age), so a doctor started in another process reads the running gateway instead
 of its own zeroes. The names are arbitrary strings, so they stay out of the
-Prometheus labels and the exposition keeps a fixed shape.
+Prometheus labels and the exposition keeps a fixed shape. With retention off,
+`allaiis tools reset --expired` says how to switch it on again instead of only
+that nothing expires.
 Both `allaiis tools
 show` and `allaiis tools reset` name the data directory with its origin, the file
 they act on and the retention, and do so before touching anything — the directory

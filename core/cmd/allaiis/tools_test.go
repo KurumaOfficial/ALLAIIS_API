@@ -214,8 +214,12 @@ func TestToolsResetExpiredWithRetentionOff(t *testing.T) {
 	if err := resetToolNames(&out, path, dir, "test", 0, "config", true); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "Retention is off") {
+	if !strings.Contains(out.String(), "retention is off") {
 		t.Fatalf("unexpected output: %q", out.String())
+	}
+	// Off without a way back reads as breakage.
+	if !strings.Contains(out.String(), TTLEnv+"=30d") {
+		t.Fatalf("override hint missing: %q", out.String())
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("file removed: %v", err)
