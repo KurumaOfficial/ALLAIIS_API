@@ -763,3 +763,41 @@ func TestNonStreamRepliesCarryReasoning(t *testing.T) {
 		t.Fatalf("messages reply lost the thinking block: %s", result.Body)
 	}
 }
+
+func TestMinPFollowsTheCapability(t *testing.T) {
+	run := func(supported bool) map[string]any {
+		var seen map[string]any
+		server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+			seen = body
+			fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
+		})
+		store, cfg := setup(t, server.URL)
+		cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+		cfg.Models = []config.Route{{
+			ID: "sampler", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer, MinP: supported,
+		}}
+		if _, err := store.Import(t.Context(), []vault.Entry{{
+			Provider: "web", Endpoint: server.URL, Label: "one",
+			Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		routes, err := router.New(t.Context(), cfg, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+		handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+		request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+			strings.NewReader(`{"model":"sampler","min_p":0.2,"messages":[{"role":"user","content":"hi"}]}`))
+		request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+		handler.ServeHTTP(httptest.NewRecorder(), request)
+		return seen
+	}
+	if body := run(true); body["minP"] != 0.2 {
+		t.Fatalf("minP forwarded wrong: %v", body["minP"])
+	}
+	if body := run(false); body["minP"] != nil {
+		t.Fatalf("minP forwarded without support: %v", body["minP"])
+	}
+}

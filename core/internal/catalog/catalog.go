@@ -45,6 +45,9 @@ type Model struct {
 	RoundTrip    bool   `json:"reasoning_round_trip,omitempty"`
 	Video        bool   `json:"video,omitempty"`
 	MaxVideos    int    `json:"max_videos,omitempty"`
+	MinP         bool   `json:"min_p,omitempty"`
+	AnonUserID   *bool  `json:"anon_user_id,omitempty"`
+	RateLimit    string `json:"rate_limit,omitempty"`
 	Context      int    `json:"max_context,omitempty"`
 	Response     int    `json:"max_response,omitempty"`
 	ProOnly      bool   `json:"pro_only,omitempty"`

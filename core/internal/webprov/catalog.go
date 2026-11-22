@@ -37,6 +37,9 @@ type CatalogModel struct {
 	RoundTrip    bool   `json:"reasoning_round_trip,omitempty"`
 	Video        bool   `json:"video,omitempty"`
 	MaxVideos    int    `json:"max_videos,omitempty"`
+	MinP         bool   `json:"min_p,omitempty"`
+	AnonUserID   *bool  `json:"anon_user_id,omitempty"`
+	RateLimit    string `json:"rate_limit,omitempty"`
 	Tools        bool   `json:"function_calling,omitempty"`
 	Temperature  *float64
 	TopP         *float64
@@ -92,6 +95,9 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 				Forward      bool   `json:"forwardEncryptedReasoning"`
 				Video        bool   `json:"supportsVideoInput"`
 				MaxVideos    int    `json:"maxVideos"`
+				MinP         bool   `json:"supportsMinP"`
+				AnonUserID   *bool  `json:"includeAnonUserId"`
+				RateLimit    string `json:"apiRateLimitSize"`
 				Reasoning    bool   `json:"supportsReasoning"`
 				Tools        bool   `json:"supportsFunctionCalling"`
 				Settings     struct {
@@ -126,6 +132,7 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 			Replacement: model.Replacement, Retiring: model.RetiringDate > 0,
 			RoundTrip: model.RoundTrip || model.Forward,
 			Video:     model.Video, MaxVideos: model.MaxVideos,
+			MinP: model.MinP, AnonUserID: model.AnonUserID, RateLimit: model.RateLimit,
 			Reasoning: model.Reasoning, Tools: model.Tools,
 			Temperature: model.Settings.Temperature, TopP: model.Settings.TopP,
 		})

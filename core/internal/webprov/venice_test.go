@@ -598,3 +598,23 @@ func TestAttachmentCountsSplitByMIME(t *testing.T) {
 		t.Fatalf("counts %d/%d/%d", request.ImageCount(), request.VideoCount(), request.Images())
 	}
 }
+
+func TestPayloadMinPAndAnonUserID(t *testing.T) {
+	minP := 0.2
+	payload := venicePayload(Credential{}, Request{Model: "m", MinP: &minP}, "anonymous")
+	if payload["minP"] != 0.2 {
+		t.Fatalf("minP %v", payload["minP"])
+	}
+	if payload["userId"] != "anonymous" {
+		t.Fatalf("anonymous id dropped by default: %v", payload["userId"])
+	}
+	off := false
+	payload = venicePayload(Credential{}, Request{Model: "m", IncludeAnonUserID: &off}, "anonymous")
+	if _, ok := payload["userId"]; ok {
+		t.Fatal("anonymous id kept against the capability")
+	}
+	payload = venicePayload(Credential{}, Request{Model: "m", IncludeAnonUserID: &off}, "user_1")
+	if payload["userId"] != "user_1" {
+		t.Fatalf("signed-in id dropped: %v", payload["userId"])
+	}
+}

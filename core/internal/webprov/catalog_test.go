@@ -23,6 +23,7 @@ func TestCatalogCarriesCapabilities(t *testing.T) {
 			 "supportsReasoning":true,"supportsFunctionCalling":true,
 			 "supportsSamplingParams":false,"supportsFrequencyPenalty":true,"supportsPresencePenalty":true,
 			 "apiDeprecationReplacementModelId":"thinker-2","retiringSoonDate":1790000000,
+			 "supportsMinP":true,"includeAnonUserId":false,"apiRateLimitSize":"anthropic",
 			 "settings":{"temperature":0.4,"topP":0.8}},
 			{"id":"retired","active":false}
 		]}}`)
@@ -36,6 +37,9 @@ func TestCatalogCarriesCapabilities(t *testing.T) {
 		t.Fatalf("models %d", len(models))
 	}
 	model := models[0]
+	if !model.MinP || model.AnonUserID == nil || *model.AnonUserID || model.RateLimit != "anthropic" {
+		t.Fatalf("min_p/anon id lost: %+v", model)
+	}
 	if model.Sampling || !model.Frequency || !model.Presence || !model.Retiring ||
 		model.Replacement != "thinker-2" {
 		t.Fatalf("new capabilities lost: %+v", model)

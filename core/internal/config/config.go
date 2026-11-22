@@ -159,6 +159,8 @@ type Route struct {
 	Replacement        string   `json:"replacement,omitempty"`
 	ReasoningRoundTrip bool     `json:"reasoning_round_trip,omitempty"`
 	MaxVideos          int      `json:"max_videos,omitempty"`
+	MinP               bool     `json:"min_p,omitempty"`
+	AnonUserID         *bool    `json:"anon_user_id,omitempty"`
 	Temperature        *float64 `json:"temperature,omitempty"`
 	TopP               *float64 `json:"top_p,omitempty"`
 }

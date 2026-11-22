@@ -398,6 +398,10 @@ func applyCapabilities(request *webprov.Request, route config.Route) error {
 	if !route.Presence {
 		request.PresencePenalty = nil
 	}
+	if !route.MinP {
+		request.MinP = nil
+	}
+	request.IncludeAnonUserID = route.AnonUserID
 	if route.MaxResponse > 0 && request.MaxTokens > route.MaxResponse {
 		request.MaxTokens = route.MaxResponse
 	}
@@ -562,6 +566,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		} `json:"reasoning"`
 		ReasoningEffort  string     `json:"reasoning_effort"`
 		FrequencyPenalty *float64   `json:"frequency_penalty"`
+		MinP             *float64   `json:"min_p"`
 		PresencePenalty  *float64   `json:"presence_penalty"`
 		Tools            []toolSpec `json:"tools"`
 		ToolChoice       any        `json:"tool_choice"`
@@ -572,7 +577,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	request := webprov.Request{
 		RequestID: randomID(), Model: model,
 		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
-		FrequencyPenalty: input.FrequencyPenalty, PresencePenalty: input.PresencePenalty,
+		FrequencyPenalty: input.FrequencyPenalty, PresencePenalty: input.PresencePenalty, MinP: input.MinP,
 	}
 	request.ReasoningEffort = input.ReasoningEffort
 	if request.ReasoningEffort == "" {

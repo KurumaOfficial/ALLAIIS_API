@@ -45,7 +45,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 	providerID := flags.String("provider", "", "provider ID")
 	var match, model, name, label, privacy, protocol, reasoning string
 	var maxContext, maxResponse, maxImages, maxTools, inactivity, maxVideos int
-	var webSearch, largeContext, strictOrder, roundTrip bool
+	var webSearch, largeContext, strictOrder, roundTrip, minP bool
 	var all, withKeys bool
 	switch command {
 	case "discover":
@@ -70,6 +70,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 		flags.BoolVar(&strictOrder, "strict-order", false, "merge consecutive turns for strict models")
 		flags.IntVar(&inactivity, "inactivity-ms", 0, "abort a stream that stays silent this long")
 		flags.BoolVar(&roundTrip, "reasoning-round-trip", false, "replay stored thinking with follow-ups")
+		flags.BoolVar(&minP, "min-p", false, "forward min_p to models that support it")
 	default:
 		return fmt.Errorf("unknown models command %q", command)
 	}
@@ -103,6 +104,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 			Reasoning: thinking, MaxContext: maxContext, MaxResponse: maxResponse, MaxImages: maxImages,
 			MaxTools: maxTools, WebSearch: webSearch, LargeContext: largeContext,
 			StrictOrder: strictOrder, InactivityMS: inactivity, ReasoningRoundTrip: roundTrip, MaxVideos: maxVideos,
+			MinP: minP,
 		}
 		added, err := config.AddModel(ctx, path, route)
 		if err != nil {

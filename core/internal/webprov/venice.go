@@ -172,6 +172,10 @@ type Request struct {
 	// Penalties are forwarded when the model supports them.
 	FrequencyPenalty *float64
 	PresencePenalty  *float64
+	// MinP is forwarded when the model supports it.
+	MinP *float64
+	// IncludeAnonUserID forces or suppresses the anonymous user id.
+	IncludeAnonUserID *bool
 }
 
 // Event is one decoded upstream event. Kind is "content", "reasoning" or "meta".
@@ -415,7 +419,6 @@ func venicePayload(cred Credential, req Request, userID string) map[string]any {
 		"prompt":                    prompt,
 		"reasoning":                 req.Reasoning,
 		"requestId":                 requestID(cred, req),
-		"userId":                    userID,
 		"simpleMode":                false,
 		"includeVeniceSystemPrompt": false,
 		"webEnabled":                false,
@@ -428,6 +431,12 @@ func venicePayload(cred Credential, req Request, userID string) map[string]any {
 		"stripThinkingResponse":     !req.Reasoning,
 		"includeExternalWebResults": false,
 		"includeVeniceReasoning":    req.Reasoning,
+	}
+	if userID != "anonymous" || req.IncludeAnonUserID == nil || *req.IncludeAnonUserID {
+		payload["userId"] = userID
+	}
+	if req.MinP != nil {
+		payload["minP"] = *req.MinP
 	}
 	if req.Temperature != nil {
 		payload["temperature"] = *req.Temperature
