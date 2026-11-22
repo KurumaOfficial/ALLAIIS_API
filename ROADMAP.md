@@ -14,7 +14,7 @@ key gives clients access to the routes the operator has configured.
 - **Venice web transport (Tier C)**: page-free replay of the web app's own
   inference API with a browser TLS fingerprint, single-use attestation pool,
   Clerk session tokens, NDJSON streaming, quota probe, model discovery, image
-  input through a multipart agent turn, and emulated tool calls with a sentinel
+  and file input through a multipart agent turn, and emulated tool calls with a sentinel
   guard buffer and one repair retry. See
   [docs/venice-web.md](docs/venice-web.md).
 - Upstream model discovery with per-provider results, public catalogs, and
@@ -31,7 +31,7 @@ key gives clients access to the routes the operator has configured.
   each OS.
 - Add tier labels to the catalog page and a `--transport` column so web and
   official routes for one model are visibly distinct.
-- File (non-image) upload for web routes.
+- Larger attachment handling: chunked bodies and multiple files per turn.
 - Add richer catalog metadata for modalities, context windows, and endpoint
   compatibility where providers publish those fields.
 - Add cross-platform CI and reproducible Windows, Linux, and macOS releases,

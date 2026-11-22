@@ -116,3 +116,16 @@ func TestAgentStreamUsesEventLines(t *testing.T) {
 		t.Fatalf("text %q", text.String())
 	}
 }
+
+func TestAgentBodyMarksFiles(t *testing.T) {
+	req := Request{RequestID: "z", Model: "m", Messages: []Message{
+		{Role: "user", Content: "read", Images: []Image{{Data: []byte("pdf"), MIME: "application/pdf", Name: "a.pdf"}}},
+	}}
+	body, parts := agentBody(req)
+	if len(parts) != 1 || parts[0].filename != "a.pdf" {
+		t.Fatalf("parts %+v", parts)
+	}
+	if !strings.Contains(string(body), `"type":"input_file"`) || !strings.Contains(string(body), `"filename":"a.pdf"`) {
+		t.Fatalf("file not marked: %s", body)
+	}
+}

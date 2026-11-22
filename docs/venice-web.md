@@ -3,8 +3,7 @@
 Status: **working live** against `venice.ai`, on a guest session and on a Pro
 session. Verified 2026-11-22: streaming and non-streaming Chat Completions,
 attestation minting, catalog discovery, quota probe, a `read_file` tool call,
-Claude Opus 5.5, an `e2ee-*` model, and image input through the multipart
-transport. Guest requests need no login; Pro models
+Claude Opus 5.5, an `e2ee-*` model, image input, and a text-file attachment. Guest requests need no login; Pro models
 need a captured signed-in session.
 
 Tier: `tier_c3` (`X-ALLAIIS-Transport-Tier: tier_c3`). The gateway talks to the
@@ -92,11 +91,13 @@ signed in or a guest. `allaiis up` prints every alias it serves.
 - **Pin aliases to a label.** A pool with several captured sessions picks one by
   request hash. Pass `--label` to `models add` so a route always uses the
   intended account.
-- **Vision works.** An `image_url` content part with a `data:` URL is re-encoded
-  as a `multipart/form-data` turn to `/api/inference/chat/agents/venice`: the
-  JSON lives in the `request` part and each image in a `media.<id>.1` part, so a
-  message carrying images needs an `id` equal to the media prefix. Text-only
-  turns stay on the cheaper JSON endpoint.
+- **Attachments work.** An `image_url` part with a `data:` URL, or a `file` part
+  with `file_data`, is re-encoded as a `multipart/form-data` turn to
+  `/api/inference/chat/agents/venice`: the JSON lives in the `request` part and
+  each attachment in a `media.<id>.<n>` part, so a message carrying attachments
+  needs an `id` equal to the media prefix. Non-image MIME types become
+  `input_file` with their filename; text-only turns stay on the cheaper JSON
+  endpoint.
 - **Agent endpoint differences.** Image turns run on the agent endpoint, which
   answers with SSE (`response.output_text.delta`) instead of NDJSON, so both
   decoders coexist.

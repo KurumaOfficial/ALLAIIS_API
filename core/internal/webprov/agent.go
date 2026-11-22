@@ -142,9 +142,12 @@ func agentBody(req Request) ([]byte, []agentPart) {
 		messageID := fmt.Sprintf("m%s%d", req.RequestID, index)
 		for position, image := range message.Images {
 			mediaID := fmt.Sprintf("%s.%d", messageID, position+1)
-			content = append(content, map[string]any{
-				"type": "input_image", "media_id": mediaID, "detail": "auto",
-			})
+			attachment := map[string]any{"type": "input_image", "media_id": mediaID, "detail": "auto"}
+			if !strings.HasPrefix(image.MIME, "image/") {
+				attachment["type"] = "input_file"
+				attachment["filename"] = imageName(messageID, position, image)
+			}
+			content = append(content, attachment)
 			parts = append(parts, agentPart{
 				name: "media." + mediaID, mime: image.MIME, data: image.Data,
 				filename: imageName(messageID, position, image),

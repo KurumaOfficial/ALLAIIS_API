@@ -409,6 +409,10 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 		ImageURL *struct {
 			URL string `json:"url"`
 		} `json:"image_url"`
+		File *struct {
+			Name string `json:"filename"`
+			Data string `json:"file_data"`
+		} `json:"file"`
 		URL string `json:"url"`
 	}
 	if json.Unmarshal(raw, &parts) != nil {
@@ -427,6 +431,12 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 		if image, ok := decodeDataURL(url); ok {
 			images = append(images, image)
 		}
+		if part.File != nil {
+			if file, ok := decodeDataURL(part.File.Data); ok {
+				file.Name = part.File.Name
+				images = append(images, file)
+			}
+		}
 	}
 	return joined.String(), images
 }
@@ -441,7 +451,7 @@ func decodeDataURL(raw string) (webprov.Image, bool) {
 		return webprov.Image{}, false
 	}
 	mime := strings.TrimSuffix(header, ";base64")
-	if !strings.HasPrefix(mime, "image/") {
+	if mime == "" {
 		return webprov.Image{}, false
 	}
 	data, err := base64.StdEncoding.DecodeString(payload)
