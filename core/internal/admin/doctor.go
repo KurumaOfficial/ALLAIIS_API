@@ -6,7 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +35,99 @@ var nameStats = func() (repaired, unknown int64, names []string) {
 	repaired, unknown = gateway.ToolNameStats()
 	return repaired, unknown, gateway.LiveUnknownNames(3)
 }
+
+// liveStats mirrors the tool counters of a running gateway, so a doctor started
+// as its own process reports what the gateway saw instead of its own zeroes.
+type liveStats struct {
+	repaired int64
+	unknown  int64
+	names    []string
+	ttl      time.Duration
+}
+
+// fetchLiveStats reads the tool counters from the gateway's metrics. It returns
+// false when the gateway is unreachable or the text does not parse.
+func fetchLiveStats(ctx context.Context, listen string) (liveStats, bool) {
+	client := &http.Client{Timeout: 700 * time.Millisecond}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+listen+"/metrics", nil)
+	if err != nil {
+		return liveStats{}, false
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return liveStats{}, false
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return liveStats{}, false
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return liveStats{}, false
+	}
+
+	stats := liveStats{}
+	counts := map[string]int64{}
+	ages := map[string]int64{}
+	for _, line := range strings.Split(string(body), "\n") {
+		index := strings.LastIndexByte(line, ' ')
+		if index <= 0 {
+			continue
+		}
+		number, convErr := strconv.ParseInt(line[index+1:], 10, 64)
+		if convErr != nil {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "allaiis_tool_name_fold_total"),
+			strings.HasPrefix(line, "allaiis_tool_name_suffix_total"):
+			stats.repaired += number
+		case strings.HasPrefix(line, "allaiis_tool_unknown_total"):
+			stats.unknown = number
+		case strings.HasPrefix(line, "allaiis_tool_ttl_seconds"):
+			stats.ttl = time.Duration(number) * time.Second
+		case strings.HasPrefix(line, "allaiis_tool_unknown_name_total{"):
+			if name, ok := metricName(line); ok {
+				counts[name] = number
+			}
+		case strings.HasPrefix(line, "allaiis_tool_unknown_name_age_seconds{"):
+			if name, ok := metricName(line); ok {
+				ages[name] = number
+			}
+		}
+	}
+	for name, count := range counts {
+		// A name past retention is no longer evidence, matching the doctor's
+		// in-process view.
+		if stats.ttl > 0 {
+			if age, known := ages[name]; known && age > int64(stats.ttl/time.Second) {
+				continue
+			}
+		}
+		stats.names = append(stats.names, name)
+		_ = count
+	}
+	sort.Slice(stats.names, func(i, j int) bool {
+		if counts[stats.names[i]] != counts[stats.names[j]] {
+			return counts[stats.names[i]] > counts[stats.names[j]]
+		}
+		return stats.names[i] < stats.names[j]
+	})
+	return stats, true
+}
+
+// metricName returns the name label of one exposition line.
+func metricName(line string) (string, bool) {
+	start := strings.IndexByte(line, '"')
+	end := strings.LastIndexByte(line, '"')
+	if start < 0 || end <= start {
+		return "", false
+	}
+	return line[start+1 : end], true
+}
+
+// fetchStats is a seam over the live fetch.
+var fetchStats = fetchLiveStats
 
 // Diagnose validates the local setup without spending provider quota.
 func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Check {
@@ -105,7 +201,12 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		add("alias credentials", "ok", "every alias resolves to a credential")
 	}
 
-	if status, detail, ok := toolNameVerdict(nameStats()); ok {
+	repaired, unknown, names := nameStats()
+	if live, ok := fetchStats(ctx, cfg.Listen); ok {
+		// A running gateway knows better than this process does.
+		repaired, unknown, names = live.repaired, live.unknown, live.names
+	}
+	if status, detail, ok := toolNameVerdict(repaired, unknown, firstNames(names, 3)); ok {
 		add("tool names", status, detail)
 	}
 
@@ -150,6 +251,14 @@ func (s *Server) toolReset(w http.ResponseWriter, r *http.Request) {
 	}
 	s.options.Gateway.ResetToolNameState()
 	writeJSON(w, http.StatusOK, map[string]any{"reset": true})
+}
+
+// firstNames keeps the leading names up to limit.
+func firstNames(names []string, limit int) []string {
+	if len(names) > limit {
+		return names[:limit]
+	}
+	return names
 }
 
 func (s *Server) doctor(w http.ResponseWriter, r *http.Request) {

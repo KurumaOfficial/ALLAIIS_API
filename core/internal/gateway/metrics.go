@@ -197,6 +197,25 @@ func (m *metrics) prometheus(models int) string {
 	out.WriteString("# HELP allaiis_tool_unknown_total Calls delivered with a name no tool declares.\n")
 	out.WriteString("# TYPE allaiis_tool_unknown_total counter\n")
 	fmt.Fprintf(&out, "allaiis_tool_unknown_total %d\n", toolCounters.unknown.Load())
+	// The name set is bounded, so one line per name is cheap and lets another
+	// process (the CLI doctor) read what this one remembers.
+	out.WriteString("# HELP allaiis_tool_unknown_name_total Calls per unknown tool name.\n")
+	out.WriteString("# TYPE allaiis_tool_unknown_name_total counter\n")
+	out.WriteString("# HELP allaiis_tool_unknown_name_age_seconds Seconds since the name was last seen.\n")
+	out.WriteString("# TYPE allaiis_tool_unknown_name_age_seconds gauge\n")
+	now := time.Now()
+	unknownNames.mu.Lock()
+	names := make([]string, 0, len(unknownNames.count))
+	for name := range unknownNames.count {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		fmt.Fprintf(&out, "allaiis_tool_unknown_name_total{name=%q} %d\n", name, unknownNames.count[name])
+		fmt.Fprintf(&out, "allaiis_tool_unknown_name_age_seconds{name=%q} %d\n", name,
+			int64(now.Sub(unknownNames.seen[name])/time.Second))
+	}
+	unknownNames.mu.Unlock()
 	out.WriteString("# HELP allaiis_models_served gauge\n")
 	out.WriteString("# TYPE allaiis_models_served gauge\n")
 	fmt.Fprintf(&out, "allaiis_models_served %d\n", models)
