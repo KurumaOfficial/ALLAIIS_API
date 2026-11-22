@@ -245,6 +245,19 @@ export ALLAIIS_API_KEY="$(./allaiis key)"
 opencode run --standalone --model allaiis/venice-deepseek "…"
 ```
 
+OpenCode runs models in **Code Mode** by default: its prompt says the tools can
+only be reached from a JavaScript `execute` sandbox while it still declares them.
+A text-tool transport does not need that layer, and the sandbox costs prompt
+space and turns. Denying `execute` removes Code Mode and lists the tools directly:
+
+```jsonc
+{ "permissions": [ { "action": "execute", "resource": "*", "effect": "deny" } ] }
+```
+
+Measured on the same task: 11 steps with the sandbox versus 11 without, 3 sandbox
+calls against 0, and 25 s against 15 s. An eight-function task finished in 44
+steps with no sandbox call at all.
+
 The alias decides whether the request goes to a key API or to the web
 transport. Keep the real model limits and capabilities in the OpenCode entry:
 without them OpenCode assumes a 200k window and may truncate a long turn.

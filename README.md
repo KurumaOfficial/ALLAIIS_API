@@ -282,6 +282,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Empty-reply retry and lead-in handling | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
 | Linear guard scan and oversized-block cap | ✓ | `TestGuardScansForwardThroughLongProse`, `TestGuardRejectsOversizedUnclosedBlock` | 5/5 agent runs after the change | — |
 | Default response cap and `length` finish | ✓ | `TestDefaultResponseCapWhenClientOmitsTokens`, `TestReplyNearTheTokenCapReportsLength` | 9/9 agent runs without truncation | — |
+| Code Mode off for text tools: no sandbox warm-up | ✓ | `TestToolEnvelopeListsShapesAndCodeMode` | same task 3 → 0 sandbox calls; 8-function task 44 steps, 0 errors, 0 leaks | — |
 | Tool header carries argument shapes and the sandbox route | ✓ | `TestToolEnvelopeListsShapesAndCodeMode`, `TestToolShapeSkipsOptionalOverflow`, `TestInvokeArgumentsStringWrapperIsFlattened` | OpenCode Code Mode run: task done, tests green | — |
 | Unclosed DSML block parsed at stream end | ✓ | `TestToolGuardFlushRepairsUnclosedDSML`, `TestToolEnvelopePutsNamesFirst` | 52-step task: tests green, `execute` discovery fell from 25 to 7 | — |
 | Mixed tool dialects and `arguments` wrapper | ✓ | `TestToolGuardAcceptsMixedDialect`, `TestInvokeArgumentsWrapperIsFlattened` | two coding tasks: bug fixed, tests green | — |
