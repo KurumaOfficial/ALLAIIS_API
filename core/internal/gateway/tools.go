@@ -299,11 +299,6 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 		}
 	}
 	for i := range calls {
-		if missing := g.missingRequired(calls[i]); len(missing) > 0 {
-			// A call short of a required field will be rejected by the client,
-			// so it is worth seeing which field was forgotten.
-			slog.Info("tool call missing arguments", "name", calls[i].Function.Name, "missing", strings.Join(missing, ","))
-		}
 		// "shell command" names the tool and repeats what the argument carries.
 		name := calls[i].Function.Name
 		if g.known(name) {
@@ -325,6 +320,16 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 		saveToolNameState()
 	}
 	return calls
+}
+
+// logMissing notes calls short of a required field. It runs when a call is
+// delivered, so a repaired call does not log.
+func (g *toolGuard) logMissing(calls []toolCall) {
+	for _, call := range calls {
+		if missing := g.missingRequired(call); len(missing) > 0 {
+			slog.Info("tool call missing arguments", "name", call.Function.Name, "missing", strings.Join(missing, ","))
+		}
+	}
 }
 
 // missingRequired lists the declared required fields a call did not fill, which

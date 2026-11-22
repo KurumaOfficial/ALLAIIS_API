@@ -180,6 +180,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 						return nil
 					}
 					calls = append(calls, parsed...)
+					guard.logMissing(parsed)
 					if strings.TrimSpace(text) == "" {
 						text = ""
 					}
@@ -262,6 +263,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	if len(heldCalls) > 0 {
 		// No repair was possible or left; deliver what came.
+		guard.logMissing(heldCalls)
 		calls = append(calls, heldCalls...)
 		if stream {
 			startStream()

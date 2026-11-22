@@ -3,8 +3,10 @@
 package gateway_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -318,5 +320,43 @@ func TestKnownToolWithFilledFieldsIsNotRepaired(t *testing.T) {
 	result := complete(handler, store.ClientKey(), "", toolPayload)
 	if result.Code != http.StatusOK || attempts.Load() != 1 {
 		t.Fatalf("unnecessary repair: %d attempts=%d", result.Code, attempts.Load())
+	}
+}
+
+func TestMissingArgumentsLogsOnlyWhenDelivered(t *testing.T) {
+	var log bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&log, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	// Repaired: the fixed call arrives, so nothing is left to report.
+	var attempts atomic.Int32
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, _ map[string]any) {
+		if attempts.Add(1) == 1 {
+			writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file"}]}<<<END_TOOL_CALL>>>`)
+			return
+		}
+		writeFrames(w, toolBlock("ok.txt"))
+	})
+	handler, store := webGateway(t, server.URL)
+	if result := complete(handler, store.ClientKey(), "", toolPayload); result.Code != http.StatusOK {
+		t.Fatalf("request failed: %d", result.Code)
+	}
+	if strings.Contains(log.String(), "missing arguments") {
+		t.Fatalf("repaired call logged: %s", log.String())
+	}
+
+	// Not repaired: the call is delivered incomplete and must be reported.
+	log.Reset()
+	stuck := venueWithToolBodies(t, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file"}]}<<<END_TOOL_CALL>>>`)
+	handler, store = webGateway(t, stuck.URL)
+	if result := complete(handler, store.ClientKey(), "", toolPayload); result.Code != http.StatusOK {
+		t.Fatalf("request failed: %d", result.Code)
+	}
+	if attempts.Load() != 2 {
+		t.Fatalf("no repair happened: %d", attempts.Load())
+	}
+	if !strings.Contains(log.String(), "missing arguments") || !strings.Contains(log.String(), "missing=path") {
+		t.Fatalf("delivered call not logged: %s", log.String())
 	}
 }
