@@ -305,7 +305,9 @@ What the gateway guarantees to an OpenAI-compatible client:
 - a closed block that names an unknown tool is delivered as a call instead of
   stalling the stream, so the client can report the name to the model;
 - a call written as a bare object without the `calls` envelope is accepted, and
-  missing arguments default to `{}` instead of failing the turn.
+  missing arguments default to `{}` instead of failing the turn;
+- a name that differs from exactly one tool only by case or separators is folded
+  onto it (`Read-File` becomes `read_file`); an ambiguous fold is left alone.
 
 Measured on a free model, 2026-11-22: five of five streams returned 200 and
 `[DONE]`, three of them in parallel; time to first content ran 2.5–7.4 s

@@ -131,6 +131,7 @@ type toolGuard struct {
 // unique drops a call that repeats the previous one, which happens when a model
 // emits a sentinel block and the XML form for the same call.
 func (g *toolGuard) unique(calls []toolCall) []toolCall {
+	calls = g.resolve(calls)
 	kept := make([]toolCall, 0, len(calls))
 	for _, call := range calls {
 		key := call.Function.Name + "\x00" + call.Function.Arguments
@@ -170,6 +171,44 @@ func (g *toolGuard) known(name string) bool {
 		}
 	}
 	return false
+}
+
+// resolve rewrites a name that differs from exactly one advertised tool only by
+// case or separators, so `Read-File` reaches the client as `read_file`.
+func (g *toolGuard) resolve(calls []toolCall) []toolCall {
+	for i := range calls {
+		name := calls[i].Function.Name
+		if g.known(name) {
+			continue
+		}
+		key := nameKey(name)
+		if key == "" {
+			continue
+		}
+		match, count := "", 0
+		for _, tool := range g.tools {
+			if nameKey(tool.Function.Name) == key {
+				match, count = tool.Function.Name, count+1
+			}
+		}
+		if count == 1 {
+			calls[i].Function.Name = match
+		}
+	}
+	return calls
+}
+
+// nameKey folds case and drops the separators models sprinkle into tool names.
+func nameKey(name string) string {
+	var folded strings.Builder
+	for _, r := range strings.ToLower(name) {
+		switch r {
+		case '_', '-', ' ', '.':
+			continue
+		}
+		folded.WriteRune(r)
+	}
+	return folded.String()
 }
 
 func (g *toolGuard) knownCalls(calls []toolCall) bool {

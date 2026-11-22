@@ -545,3 +545,21 @@ func TestToolGuardDefaultsMissingArguments(t *testing.T) {
 		t.Fatalf("no arguments: %+v %v", calls, err)
 	}
 }
+
+func TestToolGuardFoldsNameCaseAndSeparators(t *testing.T) {
+	for _, name := range []string{"Read-File", "READ_FILE", "read file", "ReadFile"} {
+		g := guardFor("read_file")
+		_, calls, err := g.Write(`<invoke name="` + name + `"><parameter name="path">a</parameter></invoke>`)
+		if err != nil || len(calls) != 1 || calls[0].Function.Name != "read_file" {
+			t.Fatalf("%s: %+v %v", name, calls, err)
+		}
+	}
+}
+
+func TestToolGuardKeepsAnAmbiguousName(t *testing.T) {
+	guard := guardFor("ab", "a_b")
+	_, calls, err := guard.Write(`<invoke name="AB"><parameter name="x">1</parameter></invoke>`)
+	if err != nil || len(calls) != 1 || calls[0].Function.Name != "AB" {
+		t.Fatalf("ambiguous: %+v %v", calls, err)
+	}
+}

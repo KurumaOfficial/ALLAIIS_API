@@ -272,7 +272,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Повтор пустого ответа и первый пустой чанк | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
 | Линейный скан guard и лимит блока | ✓ | `TestGuardScansForwardThroughLongProse`, `TestGuardRejectsOversizedUnclosedBlock` | 5/5 прогонов агента после правки | — |
 | Дефолтный лимит ответа и финиш `length` | ✓ | `TestDefaultResponseCapWhenClientOmitsTokens`, `TestReplyNearTheTokenCapReportsLength` | 9/9 прогонов агента без обрыва | — |
-| Закрытый блок с неизвестным инструментом доставляется | ✓ | `TestUnknownToolIsDeliveredWhileStreaming`, `TestToolGuardAcceptsABareCallObject`, `TestToolGuardDefaultsMissingArguments` | две попытки ремонта в прогоне на 12 функций | — |
+| Закрытый блок с неизвестным инструментом доставляется | ✓ | `TestToolGuardFoldsNameCaseAndSeparators`, `TestToolGuardKeepsAnAmbiguousName`, `TestToolGuardAcceptsABareCallObject` | две попытки ремонта в прогоне на 12 функций | — |
 | Плавная деградация на длинной задаче | ✓ | — | 12 функций: 85 шагов, 125 подтестов, 4 восстановленные ошибки инструментов, 0 утечек | — |
 | Code Mode выключен для текстовых тулов: без разминки в песочнице | ✓ | `TestToolEnvelopeListsShapesAndCodeMode` | та же задача: 3 → 0 вызовов песочницы; задача на 8 функций: 44 шага, 91 зелёный подтест, 0 ошибок, 0 утечек | — |
 | Шапка с формой аргументов и сандбокс-маршрутом | ✓ | `TestToolEnvelopeListsShapesAndCodeMode`, `TestToolShapeSkipsOptionalOverflow`, `TestInvokeArgumentsStringWrapperIsFlattened` | прогон OpenCode в Code Mode: задача сделана, тесты зелёные | — |
