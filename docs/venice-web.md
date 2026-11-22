@@ -314,6 +314,12 @@ What the gateway guarantees to an OpenAI-compatible client:
 - a trailing word after the tool name is dropped (`shell command` becomes
   `shell`) only when the leading word is an exact tool name.
 
+The name counters behind those repairs are exported on `/metrics`, and
+`allaiis doctor` (and the panel's Doctor action) warns as `tool names` when the
+unknown count outruns the repaired one: that means the model keeps inventing
+tools the catalog does not declare, so the client's tool list is the thing to
+fix.
+
 Measured on a free model, 2026-11-22: five of five streams returned 200 and
 `[DONE]`, three of them in parallel; time to first content ran 2.5–7.4 s
 sequentially and 2.5–14.4 s under three-way load; content then arrived at

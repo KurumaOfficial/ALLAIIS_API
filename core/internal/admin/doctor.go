@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
 )
 
@@ -23,6 +24,9 @@ type Check struct {
 func (s *Server) diagnose(ctx context.Context) []Check {
 	return Diagnose(ctx, s.options.Store, s.options.ConfigPath)
 }
+
+// nameStats is a seam so a test can supply parser counters.
+var nameStats = gateway.ToolNameStats
 
 // Diagnose validates the local setup without spending provider quota.
 func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Check {
@@ -96,6 +100,10 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		add("alias credentials", "ok", "every alias resolves to a credential")
 	}
 
+	if status, detail, ok := toolNameVerdict(nameStats()); ok {
+		add("tool names", status, detail)
+	}
+
 	if webAliases > 0 {
 		if chromeReachable() {
 			add("capture browser", "ok", "capture browser reachable on 9222")
@@ -104,6 +112,18 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		}
 	}
 	return results
+}
+
+// toolNameVerdict turns the name counters into a cheap diagnostic: a name the
+// parser could not repair means the model invents tools the catalog lacks.
+func toolNameVerdict(repaired, unknown int64) (status, detail string, ok bool) {
+	if repaired+unknown == 0 {
+		return "", "", false
+	}
+	if unknown > repaired {
+		return "warn", fmt.Sprintf("%d call(s) named a tool outside the catalog, only %d were repaired", unknown, repaired), true
+	}
+	return "ok", fmt.Sprintf("%d call(s) had a name repaired, %d stayed unknown", repaired, unknown), true
 }
 
 func (s *Server) doctor(w http.ResponseWriter, r *http.Request) {

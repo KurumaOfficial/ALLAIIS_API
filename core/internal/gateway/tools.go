@@ -132,6 +132,12 @@ var toolCounters struct {
 	unknown atomic.Int64
 }
 
+// ToolNameStats reports how often a tool name was repaired and how often one
+// stayed unknown, which tells the doctor whether the model can see the tools.
+func ToolNameStats() (repaired, unknown int64) {
+	return toolCounters.fold.Load() + toolCounters.suffix.Load(), toolCounters.unknown.Load()
+}
+
 type toolGuard struct {
 	tools   []toolSpec
 	buf     strings.Builder
