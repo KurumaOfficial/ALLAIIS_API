@@ -430,6 +430,8 @@ func (s *Server) toolProbe(ctx context.Context, cfg config.Config, route config.
 	}
 	request.Header.Set("Authorization", "Bearer "+s.options.Store.ClientKey())
 	request.Header.Set("Content-Type", "application/json")
+	// The gateway keeps probe names out of the unknown counters and the record.
+	request.Header.Set("X-ALLAIIS-Probe", "smoke")
 	start := time.Now()
 	response, err := (&http.Client{Timeout: 150 * time.Second}).Do(request)
 	result.Millis = time.Since(start).Milliseconds()

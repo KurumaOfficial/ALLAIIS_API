@@ -1137,3 +1137,31 @@ func TestToolNamesEndpoint(t *testing.T) {
 		t.Fatalf("order or count wrong: %+v", body.Names)
 	}
 }
+
+func TestProbeCallStaysOutOfTheRecord(t *testing.T) {
+	block := `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"probe_only","arguments":{}}]}<<<END_TOOL_CALL>>>`
+
+	guard := guardFor("read_file")
+	guard.probe = true
+	if _, calls, err := guard.Write(block); err != nil || len(calls) != 1 {
+		t.Fatalf("probe call dropped: %+v %v", calls, err)
+	}
+	for _, name := range ToolUnknownNames(0) {
+		if name == "probe_only" {
+			t.Fatalf("probe name recorded: %v", ToolUnknownNames(0))
+		}
+	}
+
+	// The same call without the probe flag is model evidence again.
+	guard = guardFor("read_file")
+	if _, calls, err := guard.Write(block); err != nil || len(calls) != 1 {
+		t.Fatalf("ordinary call dropped: %+v %v", calls, err)
+	}
+	found := false
+	for _, name := range ToolUnknownNames(0) {
+		found = found || name == "probe_only"
+	}
+	if !found {
+		t.Fatalf("unknown name not recorded: %v", ToolUnknownNames(0))
+	}
+}

@@ -29,6 +29,7 @@ import (
 
 const (
 	tierHeader       = "X-ALLAIIS-Transport-Tier"
+	probeHeader      = "X-ALLAIIS-Probe"
 	maxRequest       = 8 << 20
 	maxReply         = 16 << 20
 	anthropicVersion = "2026-10-21"

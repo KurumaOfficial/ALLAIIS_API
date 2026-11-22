@@ -223,6 +223,9 @@ type toolGuard struct {
 	buf     strings.Builder
 	recent  []string
 	scanned int
+	// probe marks a smoke probe, whose unknown name is deliberate and must not
+	// look like the model misnaming a tool.
+	probe bool
 }
 
 // unique drops a call that repeats the previous one, which happens when a model
@@ -308,6 +311,9 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 			continue
 		}
 		// Nothing matched: the name goes to the client as it is.
+		if g.probe {
+			continue
+		}
 		toolCounters.unknown.Add(1)
 		noteUnknownName(name)
 		saveToolNameState()

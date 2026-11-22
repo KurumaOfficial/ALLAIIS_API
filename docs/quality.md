@@ -76,7 +76,8 @@ gauge and `allaiis_up`. The tool parser adds `allaiis_tool_unwrap_total`,
 `allaiis_tool_name_ttl_seconds` and `allaiis_tool_name_expired` gauges, so a
 scrape can tell "no unknown names" from "names aged out unseen"; a rising
 unknown count means the model keeps naming tools outside the catalog and the probe
-sweep carries one tool call so a parser regression surfaces as a failed row; when
+sweep carries one tool call so a parser regression surfaces as a failed row
+(marked `X-ALLAIIS-Probe`, so its own unknown name stays out of these counters); when
 the gateway reports names past retention they are counted in the detail instead
 of listed.
 The four tool counters continue across a restart: they and their name set live

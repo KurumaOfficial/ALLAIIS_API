@@ -133,7 +133,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	finish := "stop"
 	var calls []toolCall
 
-	guard := &toolGuard{}
+	guard := &toolGuard{probe: r.Header.Get(probeHeader) != ""}
 	guard.add(tools)
 
 	shape := newShape(protocol, w, id, target.Route.ID, created)

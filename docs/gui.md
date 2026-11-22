@@ -98,7 +98,9 @@ runs sequentially.
 Each sweep also carries one tool probe: the first alias that passed is asked to
 call a `list_files` tool and the row passes only when a tool call comes back with
 that name, so a parser regression pages too. Only that one alias pays for the
-extra request; its row is named `<alias> (tools)`.
+extra request; its row is named `<alias> (tools)`. The probe call is marked with
+`X-ALLAIIS-Probe: smoke`, so its deliberately unknown `list_files` name does not
+count as a model mistake in the unknown counters or the name record.
 
 ## Diagnostics
 
