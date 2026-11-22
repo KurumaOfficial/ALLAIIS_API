@@ -93,7 +93,8 @@ signed in or a guest. `allaiis up` prints every alias it serves.
 - **Pin aliases to a label.** A pool with several captured sessions picks one by
   request hash. Pass `--label` to `models add` so a route always uses the
   intended account.
-- **Attachments work.** An `image_url` part with a `data:` URL, or a `file` part
+- **Attachments work.** An `image_url` part (a `data:` URL or an http(s) image
+  the gateway downloads, up to 8 MiB), or a `file` part
   with `file_data`, is re-encoded as a `multipart/form-data` turn to
   `/api/inference/chat/agents/venice`: the JSON lives in the `request` part and
   each attachment in a `media.<id>.<n>` part, so a message carrying attachments

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -430,6 +431,8 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 		}
 		if image, ok := decodeDataURL(url); ok {
 			images = append(images, image)
+		} else if image, ok := fetchImage(url); ok {
+			images = append(images, image)
 		}
 		if part.File != nil {
 			if file, ok := decodeDataURL(part.File.Data); ok {
@@ -440,6 +443,37 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 	}
 	return joined.String(), images
 }
+
+// fetchImage downloads an http(s) image and returns its bytes.
+func fetchImage(raw string) (webprov.Image, bool) {
+	if !strings.HasPrefix(raw, "http://") && !strings.HasPrefix(raw, "https://") {
+		return webprov.Image{}, false
+	}
+	request, err := http.NewRequest(http.MethodGet, raw, nil)
+	if err != nil {
+		return webprov.Image{}, false
+	}
+	request.Header.Set("User-Agent", "ALLAIIS/0.1")
+	response, err := imageClient.Do(request)
+	if err != nil {
+		return webprov.Image{}, false
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return webprov.Image{}, false
+	}
+	mime := strings.Split(response.Header.Get("Content-Type"), ";")[0]
+	if !strings.HasPrefix(mime, "image/") {
+		return webprov.Image{}, false
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxRequest))
+	if err != nil || len(data) == 0 {
+		return webprov.Image{}, false
+	}
+	return webprov.Image{Data: data, MIME: mime}, true
+}
+
+var imageClient = &http.Client{Timeout: 20 * time.Second}
 
 // decodeDataURL turns a `data:image/...;base64,...` URL into bytes.
 func decodeDataURL(raw string) (webprov.Image, bool) {

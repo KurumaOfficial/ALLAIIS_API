@@ -3,6 +3,8 @@
 package gateway
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -80,5 +82,28 @@ func TestToolGuardKeepsPlainText(t *testing.T) {
 	safe, _, _ = guard.Write(" more <<<ALLA")
 	if strings.HasSuffix(safe, "<<<") || !strings.Contains(safe, "more") {
 		t.Fatalf("prefix was emitted: %q", safe)
+	}
+}
+
+func TestFetchImage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Write([]byte("abc"))
+	}))
+	defer server.Close()
+	image, ok := fetchImage(server.URL)
+	if !ok || string(image.Data) != "abc" || image.MIME != "image/png" {
+		t.Fatalf("image %+v ok=%v", image, ok)
+	}
+	if _, ok := fetchImage("ftp://example.invalid/x.png"); ok {
+		t.Fatal("non-http URL accepted")
+	}
+	html := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte("<html>"))
+	}))
+	defer html.Close()
+	if _, ok := fetchImage(html.URL); ok {
+		t.Fatal("non-image content type accepted")
 	}
 }
