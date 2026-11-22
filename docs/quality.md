@@ -44,6 +44,8 @@ results, and its checkbox forces a refetch.
 | Empty reply (200, or only `processing`) | one retry, only when nothing was streamed |
 | `429` | no retry; the label cools for the stated reset |
 | `402 insufficientBalance` | no retry, no cooldown; surface `insufficient_balance` |
+| Prompt over the model context | rejected before sending when the alias carries `max_context` |
+| Too many attachments | rejected before upload when the alias carries `max_images` |
 | Request body | 8 MiB cap, 90 s response-header timeout, 10 min whole call |
 
 A retry happens only while the client has seen nothing, so streaming clients

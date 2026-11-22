@@ -27,6 +27,18 @@ type Model struct {
 	Name    string   `json:"name"`
 	Type    string   `json:"type,omitempty"`
 	Methods []string `json:"supported_generation_methods,omitempty"`
+	// Capabilities are filled when the source publishes them.
+	Reasoning bool `json:"reasoning,omitempty"`
+	Tools     bool `json:"function_calling,omitempty"`
+	Vision    bool `json:"vision,omitempty"`
+	MaxImages int  `json:"max_images,omitempty"`
+	Context   int  `json:"max_context,omitempty"`
+	Response  int  `json:"max_response,omitempty"`
+	ProOnly   bool `json:"pro_only,omitempty"`
+	Credits   bool `json:"uses_credits,omitempty"`
+	// Sampling defaults the provider recommends for this model.
+	Temperature *float64 `json:"temperature,omitempty"`
+	TopP        *float64 `json:"top_p,omitempty"`
 }
 
 func List(ctx context.Context, endpoint string, format config.CatalogFormat, key, match string) ([]Model, error) {

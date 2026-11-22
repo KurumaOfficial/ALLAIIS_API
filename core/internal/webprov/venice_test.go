@@ -4,6 +4,7 @@ package webprov
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -409,5 +410,135 @@ func TestSweepDropsExpiredEntriesOnly(t *testing.T) {
 	}
 	if pool := client.attesting["user"]; len(pool) != 1 || pool[0].value != "fresh" {
 		t.Fatalf("attestation pool %+v", pool)
+	}
+}
+
+func testJWT(sub string) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"sub":%q,"exp":4070908800}`, sub)))
+	return header + "." + payload + ".sig"
+}
+
+// signedServer builds a clerk + chat fixture whose mint hands out successive
+// tokens and whose chat answers 401 until the second token arrives.
+func signedServer(t *testing.T, alwaysUnauthorized bool) (*httptest.Server, *atomic.Int32, *atomic.Int32) {
+	var chats, mints atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app/user/client_attestation/mint":
+			fmt.Fprint(w, `{"tokens":[{"token":"attest"}]}`)
+		case "/v1/client":
+			fmt.Fprint(w, `{"response":{"sessions":[{"id":"sess_1","status":"active"}]}}`)
+		case "/v1/client/sessions/sess_1/tokens":
+			number := mints.Add(1)
+			fmt.Fprintf(w, `{"jwt":%q}`, testJWT(fmt.Sprintf("user_%d", number)))
+		case "/inference/chat":
+			chats.Add(1)
+			token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if alwaysUnauthorized || token == testJWT("user_1") {
+				w.WriteHeader(http.StatusUnauthorized)
+				fmt.Fprint(w, `{"error":"expired"}`)
+				return
+			}
+			fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server, &chats, &mints
+}
+
+func signedCredential() Credential {
+	return Credential{
+		DistinctID: "device-1",
+		Venice:     []Cookie{{Name: "cf_clearance", Value: "clear"}},
+		Clerk:      []Cookie{{Name: "__client", Value: "client-cookie"}},
+	}
+}
+
+func TestUnauthorizedSignedSessionRemintsOnce(t *testing.T) {
+	server, chats, mints := signedServer(t, false)
+	var text strings.Builder
+	err := testClient(server).Chat(context.Background(), signedCredential(),
+		Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}},
+		func(event Event) error { text.WriteString(event.Content); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text.String() != "ok" || chats.Load() != 2 || mints.Load() < 2 {
+		t.Fatalf("text=%q chats=%d mints=%d", text.String(), chats.Load(), mints.Load())
+	}
+}
+
+func TestUnauthorizedSignedSessionStopsAfterRetry(t *testing.T) {
+	server, chats, _ := signedServer(t, true)
+	err := testClient(server).Chat(context.Background(), signedCredential(),
+		Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}}, func(Event) error { return nil })
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("got %v", err)
+	}
+	if chats.Load() != 2 {
+		t.Fatalf("chats %d", chats.Load())
+	}
+}
+
+func TestUnauthorizedGuestNeedsSignIn(t *testing.T) {
+	server, chats, _ := signedServer(t, true)
+	cred := Credential{Venice: []Cookie{{Name: "cf_clearance", Value: "clear"}}}
+	err := testClient(server).Chat(context.Background(), cred,
+		Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}}, func(Event) error { return nil })
+	if !errors.Is(err, ErrSignInRequired) {
+		t.Fatalf("got %v", err)
+	}
+	if chats.Load() != 1 {
+		t.Fatalf("guest retried: %d", chats.Load())
+	}
+}
+
+func TestPayloadCarriesTheGatewayRequestID(t *testing.T) {
+	var seen string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/mint") {
+			fmt.Fprint(w, `{"tokens":[{"token":"attest"}]}`)
+			return
+		}
+		var body struct {
+			RequestID string `json:"requestId"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		seen = body.RequestID
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
+	}))
+	t.Cleanup(server.Close)
+	err := testClient(server).Chat(context.Background(), Credential{DistinctID: "d"},
+		Request{RequestID: "req_abc123", Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}},
+		func(Event) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seen != "req_abc123" {
+		t.Fatalf("requestId %q", seen)
+	}
+}
+
+func TestAgentStreamClassifiesInsufficientBalance(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/mint"):
+			fmt.Fprint(w, `{"tokens":[{"token":"attest"}]}`)
+		case strings.HasSuffix(r.URL.Path, "/agents/venice"):
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "event: response.failed\ndata: {\"type\":\"response.failed\",\"response\":{\"error\":{\"message\":\"insufficientBalance\"}}}\n\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+	req := Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi",
+		Images: []Image{{Data: []byte("png"), MIME: "image/png"}}}}}
+	err := testClient(server).Chat(context.Background(), Credential{DistinctID: "d"}, req, func(Event) error { return nil })
+	if !errors.Is(err, ErrInsufficientBalance()) {
+		t.Fatalf("got %v", err)
 	}
 }

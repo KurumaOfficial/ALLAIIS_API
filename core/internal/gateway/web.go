@@ -23,6 +23,8 @@ import (
 
 var errToolRepair = errors.New("tool block needs a repair attempt")
 
+var errTooManyImages = errors.New("too many attachments for this model")
+
 var webDebug = os.Getenv("ALLAIIS_WEB_DEBUG") != ""
 
 // webShape renders a web reply in one inbound protocol.
@@ -75,10 +77,23 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		}
 		request.Messages = reason.messages(reason.system)
 	}
+	if err := applyCapabilities(&request, target.Route); err != nil {
+		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
+		return 0, 0
+	}
+	if limit := imageLimit(target.Route); request.Images() > limit {
+		writeError(w, protocol, http.StatusBadRequest, "too_many_attachments",
+			fmt.Sprintf("This model accepts at most %d attachment(s).", limit))
+		return 0, 0
+	}
 	envelope := ""
 	if len(tools) > 0 {
 		envelope = toolEnvelope(reason.system, tools)
 		request.Messages = reason.messages(envelope)
+	}
+	if err := checkContext(reason.system, request.Messages, tools, target.Route); err != nil {
+		writeError(w, protocol, http.StatusBadRequest, "context_length_exceeded", err.Error())
+		return 0, 0
 	}
 	emulated := "usage_estimate"
 	if len(tools) > 0 {
@@ -193,7 +208,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			continue
 		}
 		// A 200 with no content at all is worth one more try, like a bad block.
-		if err == nil && reason.text.Len() == 0 && len(calls) == 0 && attempts < 2 && !sent {
+		empty := reason.text.Len() == 0 && len(calls) == 0 && (held == "" || held == "processing")
+		if err == nil && empty && attempts < 2 && !sent {
 			guard.reset()
 			firstSeen, held = false, ""
 			continue
@@ -270,6 +286,56 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		"protocol", protocol, "stream", stream, "chars", reason.chars(), "calls", len(calls),
 		"attempts", attempts, "duration_ms", time.Since(started).Milliseconds())
 	return reason.chars(), len(calls)
+}
+
+const defaultImageLimit = 10
+
+func imageLimit(route config.Route) int {
+	if route.MaxImages > 0 {
+		return route.MaxImages
+	}
+	return defaultImageLimit
+}
+
+// applyCapabilities shapes the request with the discovered model limits.
+func applyCapabilities(request *webprov.Request, route config.Route) error {
+	if route.Reasoning != nil {
+		request.Reasoning = *route.Reasoning
+	}
+	if route.Temperature != nil && request.Temperature == nil {
+		value := *route.Temperature
+		request.Temperature = &value
+	}
+	if route.TopP != nil && request.TopP == nil {
+		value := *route.TopP
+		request.TopP = &value
+	}
+	if route.MaxResponse > 0 && request.MaxTokens > route.MaxResponse {
+		request.MaxTokens = route.MaxResponse
+	}
+	if route.MaxContext > 0 && request.MaxTokens > route.MaxContext {
+		request.MaxTokens = route.MaxContext
+	}
+	return nil
+}
+
+// checkContext rejects a prompt that cannot fit before spending a request.
+func checkContext(system string, messages []webprov.Message, tools []toolSpec, route config.Route) error {
+	if route.MaxContext <= 0 {
+		return nil
+	}
+	size := len(system)
+	for _, message := range messages {
+		size += len(message.Content)
+	}
+	for _, tool := range tools {
+		size += len(tool.Function.Description) + len(tool.Function.Parameters)
+	}
+	if estimateChars(size) > route.MaxContext {
+		return fmt.Errorf("The prompt is about %d tokens; the model accepts %d.",
+			estimateChars(size), route.MaxContext)
+	}
+	return nil
 }
 
 func replyID(protocol config.Protocol) string {

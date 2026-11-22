@@ -36,8 +36,8 @@ key gives clients access to the routes the operator has configured.
 - Larger attachment handling: chunked bodies and multiple files per turn.
 - Panel: keep probe history per alias and chart usage over time.
 - Run `smoke` on a schedule and notify on a failing alias.
-- Add richer catalog metadata for modalities, context windows, and endpoint
-  compatibility where providers publish those fields.
+- Extend capability use to tools and modality routing where providers publish
+  those fields.
 - Add cross-platform CI and reproducible Windows, Linux, and macOS releases,
   plus opt-in smoke tests for official provider APIs.
 

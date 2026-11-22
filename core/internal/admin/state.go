@@ -38,6 +38,10 @@ type modelView struct {
 	Label         string          `json:"label"`
 	Available     bool            `json:"available"`
 	Disabled      bool            `json:"disabled"`
+	Reasoning     *bool           `json:"reasoning,omitempty"`
+	MaxContext    int             `json:"max_context,omitempty"`
+	MaxResponse   int             `json:"max_response,omitempty"`
+	MaxImages     int             `json:"max_images,omitempty"`
 }
 
 type stateView struct {
@@ -108,7 +112,8 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 		record := modelView{
 			ID: route.ID, Provider: route.Provider, UpstreamModel: route.UpstreamModel,
 			Protocol: route.Protocol, Privacy: route.Privacy, Label: route.CredentialLabel,
-			Disabled: route.Disabled,
+			Disabled: route.Disabled, Reasoning: route.Reasoning, MaxContext: route.MaxContext,
+			MaxResponse: route.MaxResponse, MaxImages: route.MaxImages,
 		}
 		for _, provider := range view.Providers {
 			if provider.ID != route.Provider {
@@ -205,7 +210,13 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 				!strings.Contains(strings.ToLower(model.Name), match) {
 				continue
 			}
-			result = append(result, catalog.Model{ID: model.ID, Name: model.Name, Type: model.Kind})
+			result = append(result, catalog.Model{
+				ID: model.ID, Name: model.Name, Type: model.Kind,
+				Reasoning: model.Reasoning, Tools: model.Tools, Vision: model.MaxImages > 0,
+				MaxImages: model.MaxImages, Context: model.ContextLimit, Response: model.MaxResponse,
+				ProOnly: model.ProOnly, Credits: model.UsesCredits,
+				Temperature: model.Temperature, TopP: model.TopP,
+			})
 			if len(result) >= 500 {
 				break
 			}

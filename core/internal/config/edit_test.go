@@ -177,3 +177,31 @@ func TestSetModelDisabled(t *testing.T) {
 		t.Fatal("unknown alias accepted")
 	}
 }
+
+func TestCapabilityValidation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	route := `{"id":"a","provider":"openai","upstream_model":"m"`
+	for _, entry := range []struct {
+		extra string
+		ok    bool
+	}{
+		{`,"reasoning":true,"max_context":128000,"max_response":8000,"max_images":4,"temperature":0.4,"top_p":0.8}`, true},
+		{`,"max_context":-1}`, false},
+		{`,"max_response":2000000}`, false},
+		{`,"max_images":51}`, false},
+		{`,"temperature":2.5}`, false},
+		{`,"top_p":1.2}`, false},
+	} {
+		body := `{"models":[` + route + entry.extra + `]}`
+		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+		_, err := Load(path)
+		if entry.ok && err != nil {
+			t.Fatalf("%s: %v", entry.extra, err)
+		}
+		if !entry.ok && err == nil {
+			t.Fatalf("%s accepted", entry.extra)
+		}
+	}
+}

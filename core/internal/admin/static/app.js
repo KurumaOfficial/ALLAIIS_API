@@ -8,6 +8,7 @@ let view = 'overview'
 let logCursor = 0
 let keyVisible = false
 const quotas = {}
+let pickedModel = null
 
 async function api (path, options = {}) {
   const headers = { 'X-ALLAIIS-Admin': token }
@@ -139,7 +140,8 @@ function render () {
   for (const model of state.models) {
     const row = models.insertRow()
     row.innerHTML = '<td>' + esc(model.id) + '</td><td>' + esc(model.provider) + '</td><td><span class="badge ' + esc(model.protocol) + '">' + (model.protocol || 'chat') +
-      '</span></td><td>' + esc(model.privacy) + '</td><td>' + (model.label ? esc(model.label) : '<span class="muted">pool</span>') +
+      '</span>' + (model.max_context ? ' <span class="badge">' + Math.round(model.max_context / 1000) + 'K</span>' : '') +
+      (model.reasoning ? ' <span class="badge">think</span>' : '') + '</td><td>' + esc(model.privacy) + '</td><td>' + (model.label ? esc(model.label) : '<span class="muted">pool</span>') +
       '</td><td class="wrap muted">' + esc(model.upstream_model) + '</td><td></td>'
     const cell = row.lastElementChild
     const toggle = document.createElement('input')
@@ -263,9 +265,19 @@ function bind () {
     event.preventDefault()
     const data = Object.fromEntries(new FormData(event.target))
     try {
+      if (pickedModel && pickedModel.id === data.upstream_model) {
+        data.reasoning = pickedModel.reasoning
+        data.max_context = pickedModel.max_context || 0
+        data.max_response = pickedModel.max_response || 0
+        data.max_images = pickedModel.max_images || 0
+        data.temperature = pickedModel.temperature
+        data.top_p = pickedModel.top_p
+      }
       const result = await api('/api/models', { method: 'POST', body: JSON.stringify(data) })
       toast('Alias ' + result.id + (result.added ? ' added' : ' already matched'))
       event.target.reset()
+      pickedModel = null
+      $('model-caps').textContent = 'responses routes need a credential'
       await refresh()
     } catch (error) { toast(error.message, true) }
   }
@@ -277,6 +289,8 @@ function bind () {
       await api('/api/keys', { method: 'POST', body: JSON.stringify(data) })
       toast('Credential saved')
       event.target.reset()
+      pickedModel = null
+      $('model-caps').textContent = 'responses routes need a credential'
       await refresh()
     } catch (error) { toast(error.message, true) }
   }
@@ -310,20 +324,46 @@ function bind () {
     try {
       const result = await api('/api/discover?' + query)
       list.replaceChildren()
-      if (!result.models.length) list.innerHTML = '<p class="muted">No matches.</p>'
+      if (result.cached) {
+        const note = document.createElement('p')
+        note.className = 'muted tiny'
+        note.textContent = 'Cached result, up to 10 minutes old.'
+        list.append(note)
+      }
+      if (!result.models.length) {
+        const empty = document.createElement('p')
+        empty.className = 'muted'
+        empty.textContent = 'No matches.'
+        list.append(empty)
+      }
       for (const model of result.models) {
         const line = document.createElement('div')
         line.className = 'row'
-        line.innerHTML = '<code>' + esc(model.id) + '</code><span class="muted tiny">' + esc(model.name || '') + '</span>'
+        const caps = []
+        if (model.pro_only) caps.push('pro')
+        if (model.uses_credits) caps.push('credits')
+        if (model.reasoning) caps.push('thinking')
+        if (model.vision) caps.push('vision')
+        if (model.function_calling) caps.push('tools')
+        if (model.max_context) caps.push(Math.round(model.max_context / 1000) + 'K ctx')
+        line.innerHTML = '<code>' + esc(model.id) + '</code><span class="muted tiny">' + esc(model.name || '') + '</span>' +
+          caps.map(cap => ' <span class="badge">' + esc(cap) + '</span>').join('')
         const add = document.createElement('button')
         add.className = 'ghost'
         add.textContent = 'Create alias'
         add.onclick = () => {
+          pickedModel = model
           $('model-provider').value = provider
           fillLabels()
           $('model-label').value = $('discover-label').value
           $('model-upstream').value = model.id
           $('model-name').value = ''
+          const caps = []
+          if (model.reasoning) caps.push('thinking')
+          if (model.vision) caps.push('vision ×' + (model.max_images || 10))
+          if (model.max_context) caps.push(Math.round(model.max_context / 1000) + 'K context')
+          if (model.max_response) caps.push(Math.round(model.max_response / 1000) + 'K response')
+          $('model-caps').textContent = caps.length ? 'inherits ' + caps.join(', ') : 'no published capabilities'
           switchView('aliases')
         }
         line.append(add)

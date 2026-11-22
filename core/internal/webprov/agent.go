@@ -33,10 +33,12 @@ type agentPart struct {
 // ChatImages posts a multipart turn to the agent endpoint, which is the only
 // path that accepts attachments. The text-only path stays on plain JSON.
 func (c *Client) ChatImages(ctx context.Context, cred Credential, req Request, emit func(Event) error) error {
-	userID, err := c.user(ctx, cred)
+	release, err := c.lock(ctx, cred)
 	if err != nil {
 		return err
 	}
+	defer release()
+	userID, signedIn, mintErr := c.resolveUser(ctx, cred)
 	body, parts := agentBody(req)
 	var buffer bytes.Buffer
 	writer := multipart.NewWriter(&buffer)
@@ -110,9 +112,18 @@ func (c *Client) ChatImages(ctx context.Context, cred Credential, req Request, e
 			response.Body.Close()
 			continue
 		}
-		if status == http.StatusUnauthorized && userID == "anonymous" {
+		if status == http.StatusUnauthorized {
 			io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
 			response.Body.Close()
+			if attempt == 1 && (signedIn || mintErr != nil || cred.clerkCookie("__client") != "") {
+				if refreshed, _, err := c.remint(ctx, cred); err == nil {
+					userID = refreshed
+					continue
+				}
+			}
+			if signedIn {
+				return ErrUnauthorized
+			}
 			return ErrSignInRequired
 		}
 		if status == http.StatusForbidden && attempt == 1 {
@@ -252,6 +263,15 @@ func decodeAgentStream(body io.Reader, emit func(Event) error) error {
 			message := frame.Response.Error.Message
 			if message == "" {
 				message = "agent stream failed"
+			}
+			lower := strings.ToLower(message)
+			switch {
+			case strings.Contains(lower, "insufficientbalance"):
+				return errInsufficientBalance
+			case strings.Contains(lower, "prompttoolong"), strings.Contains(lower, "context length"):
+				return errContextTooLong
+			case strings.Contains(lower, "model"):
+				return fmt.Errorf("%w: %s", errUnknownModel, message)
 			}
 			return errors.New(message)
 		default:

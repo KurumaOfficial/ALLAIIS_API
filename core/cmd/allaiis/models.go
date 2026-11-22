@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
@@ -23,6 +24,18 @@ func providerWeb(ctx context.Context, path, id string) bool {
 	return ok && provider.Web()
 }
 
+// triState parses an optional boolean flag.
+func triState(raw string) (*bool, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return nil, errors.New("--reasoning must be true or false")
+	}
+	return &value, nil
+}
+
 func runModels(ctx context.Context, path string, args []string) error {
 	if len(args) == 0 {
 		return errors.New("expected models discover or models add")
@@ -30,7 +43,8 @@ func runModels(ctx context.Context, path string, args []string) error {
 	command := args[0]
 	flags := flag.NewFlagSet("models "+command, flag.ContinueOnError)
 	providerID := flags.String("provider", "", "provider ID")
-	var match, model, name, label, privacy, protocol string
+	var match, model, name, label, privacy, protocol, reasoning string
+	var maxContext, maxResponse, maxImages int
 	var all, withKeys bool
 	switch command {
 	case "discover":
@@ -44,6 +58,10 @@ func runModels(ctx context.Context, path string, args []string) error {
 		flags.StringVar(&label, "label", "", "bind this alias to a named credential")
 		flags.StringVar(&privacy, "privacy", string(config.Consumer), "privacy classification of the upstream route")
 		flags.StringVar(&protocol, "protocol", "chat", "route protocol: chat, responses, or messages")
+		flags.StringVar(&reasoning, "reasoning", "", "true or false: force thinking for this model")
+		flags.IntVar(&maxContext, "max-context", 0, "model context window in tokens")
+		flags.IntVar(&maxResponse, "max-response", 0, "maximum response tokens")
+		flags.IntVar(&maxImages, "max-images", 0, "maximum attachments per request")
 	default:
 		return fmt.Errorf("unknown models command %q", command)
 	}
@@ -67,16 +85,21 @@ func runModels(ctx context.Context, path string, args []string) error {
 		if name == "" {
 			name = model
 		}
+		thinking, err := triState(reasoning)
+		if err != nil {
+			return err
+		}
 		route := config.Route{
 			ID: name + "-" + *providerID, Provider: *providerID, UpstreamModel: model,
 			Privacy: config.Privacy(privacy), CredentialLabel: label, Protocol: config.Protocol(protocol),
+			Reasoning: thinking, MaxContext: maxContext, MaxResponse: maxResponse, MaxImages: maxImages,
 		}
 		added, err := config.AddModel(ctx, path, route)
 		if err != nil {
 			return fmt.Errorf("edit model configuration: %w", err)
 		}
 		if added {
-			fmt.Fprintf(os.Stdout, "Added %s. Restart a running gateway to load the model.\n", route.ID)
+			fmt.Fprintf(os.Stdout, "Added %s. A running gateway picks it up within seconds.\n", route.ID)
 			if label == "" && providerWeb(ctx, path, *providerID) {
 				fmt.Fprintln(os.Stdout, "Hint: pass --label to pin the alias when the provider has several sessions.")
 			}

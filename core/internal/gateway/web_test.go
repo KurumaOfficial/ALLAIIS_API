@@ -263,3 +263,79 @@ func TestWebEmptyReplyRetriesOnce(t *testing.T) {
 		t.Fatalf("retry failed: %d %s", result.Code, result.Body)
 	}
 }
+
+func TestCapabilitiesShapeTheRequest(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		if body["reasoning"] != true {
+			t.Errorf("reasoning not forced: %v", body["reasoning"])
+		}
+		if body["maxTokens"] != float64(64) {
+			t.Errorf("max tokens not clamped: %v", body["maxTokens"])
+		}
+		if body["temperature"] != float64(0.3) {
+			t.Errorf("default temperature missing: %v", body["temperature"])
+		}
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
+	})
+	store, cfg := setup(t, server.URL)
+	cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+	thinking := true
+	temperature := 0.3
+	cfg.Models = []config.Route{{
+		ID: "capable", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer,
+		Reasoning: &thinking, MaxResponse: 64, Temperature: &temperature,
+	}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "web", Endpoint: server.URL, Label: "one",
+		Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"capable","max_tokens":4096,"messages":[{"role":"user","content":"hi"}]}`))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
+func TestContextLimitRejectsBeforeSending(t *testing.T) {
+	sent := false
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		sent = true
+		fmt.Fprint(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
+	})
+	store, cfg := setup(t, server.URL)
+	cfg.Providers = map[string]config.Provider{"web": {BaseURL: server.URL, Transport: config.TransportVeniceWeb}}
+	cfg.Models = []config.Route{{
+		ID: "small", Provider: "web", UpstreamModel: "m", Privacy: config.Consumer, MaxContext: 10,
+	}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "web", Endpoint: server.URL, Label: "one",
+		Key: webprov.Credential{DistinctID: "d", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "c"}}}.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"small","messages":[{"role":"user","content":"`+strings.Repeat("long ", 200)+`"}]}`))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "context_length_exceeded") || sent {
+		t.Fatalf("got %d sent=%v %s", result.Code, sent, result.Body)
+	}
+}

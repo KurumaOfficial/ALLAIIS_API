@@ -143,6 +143,13 @@ type Route struct {
 	Protocol        Protocol `json:"protocol,omitempty"`
 	// Disabled keeps the alias configured but out of `/v1/models` and routing.
 	Disabled bool `json:"disabled,omitempty"`
+	// Capabilities come from catalog discovery and shape the upstream request.
+	Reasoning   *bool    `json:"reasoning,omitempty"`
+	MaxContext  int      `json:"max_context,omitempty"`
+	MaxResponse int      `json:"max_response,omitempty"`
+	MaxImages   int      `json:"max_images,omitempty"`
+	Temperature *float64 `json:"temperature,omitempty"`
+	TopP        *float64 `json:"top_p,omitempty"`
 }
 
 func ValidCredentialLabel(label string) bool { return credentialLabel.MatchString(label) }
@@ -296,6 +303,17 @@ func (c *Config) validate() error {
 		}
 		if route.Protocol == Responses && route.CredentialLabel == "" {
 			return fmt.Errorf("model %q: responses routes require a credential_label", route.ID)
+		}
+		if route.MaxContext < 0 || route.MaxContext > 10_000_000 ||
+			route.MaxResponse < 0 || route.MaxResponse > 1_000_000 ||
+			route.MaxImages < 0 || route.MaxImages > 50 {
+			return fmt.Errorf("model %q has an out-of-range capability limit", route.ID)
+		}
+		if route.Temperature != nil && (*route.Temperature < 0 || *route.Temperature > 2) {
+			return fmt.Errorf("model %q has an out-of-range temperature", route.ID)
+		}
+		if route.TopP != nil && (*route.TopP < 0 || *route.TopP > 1) {
+			return fmt.Errorf("model %q has an out-of-range top_p", route.ID)
 		}
 	}
 	return nil

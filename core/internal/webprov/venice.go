@@ -19,6 +19,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -157,6 +158,8 @@ type Request struct {
 	Temperature *float64
 	TopP        *float64
 	MaxTokens   int
+	// MaxImages caps the attachments the caller allows for this model.
+	MaxImages int
 }
 
 // Event is one decoded upstream event. Kind is "content", "reasoning" or "meta".
@@ -240,13 +243,13 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 	}
 	defer release()
 
-	userID, err := c.user(ctx, cred)
-	if err != nil {
-		return err
-	}
+	userID, signedIn, mintErr := c.resolveUser(ctx, cred)
 	body, err := json.Marshal(venicePayload(cred, req, userID))
 	if err != nil {
 		return err
+	}
+	if os.Getenv("ALLAIIS_WEB_DEBUG") != "" {
+		os.WriteFile(os.TempDir()+"/venice-chat-body.json", body, 0o600)
 	}
 	for attempt := 1; ; attempt++ {
 		attestation, err := c.attestation(ctx, cred, userID)
@@ -292,9 +295,22 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 			response.Body.Close()
 			continue
 		}
-		if status == http.StatusUnauthorized && userID == "anonymous" {
+		if status == http.StatusUnauthorized {
 			io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
 			response.Body.Close()
+			// A clerk session can expire or a mint can race. Refresh it once.
+			if attempt == 1 && (signedIn || mintErr != nil || cred.clerkCookie("__client") != "") {
+				if refreshed, _, err := c.remint(ctx, cred); err == nil {
+					userID = refreshed
+					if body, err = json.Marshal(venicePayload(cred, req, userID)); err != nil {
+						return err
+					}
+					continue
+				}
+			}
+			if signedIn {
+				return ErrUnauthorized
+			}
 			return ErrSignInRequired
 		}
 		// A spent or raced attestation token also answers 403. Mint a new one
@@ -381,6 +397,9 @@ func venicePayload(cred Credential, req Request, userID string) map[string]any {
 }
 
 func requestID(cred Credential, req Request) string {
+	if req.RequestID != "" {
+		return req.RequestID
+	}
 	sum := sha256.Sum256([]byte(cred.DistinctID + "\x00" + req.Model + "\x00" + fmt.Sprint(len(req.Messages))))
 	return hex.EncodeToString(sum[:])[:7]
 }
@@ -487,20 +506,36 @@ func (c *Client) headers(req *http.Request, cred Credential, attestation string)
 	}
 }
 
-// user resolves the account subject from the Clerk session token. A guest
-// `__client` cookie has no session, so minting failure falls back to anonymous.
-func (c *Client) user(ctx context.Context, cred Credential) (string, error) {
+// resolveUser returns the account subject and whether the credential intends to
+// be signed in. A guest cookie is anonymous without an error; a failed mint
+// returns the error so the caller can retry.
+func (c *Client) resolveUser(ctx context.Context, cred Credential) (string, bool, error) {
 	if cred.clerkCookie("__client") == "" {
-		return "anonymous", nil
+		return "anonymous", false, nil
 	}
 	token, err := c.clerkToken(ctx, cred)
 	if err != nil {
-		return "anonymous", nil
+		return "anonymous", true, err
 	}
 	if sub := jwtSubject(token); sub != "" {
-		return sub, nil
+		return sub, true, nil
 	}
-	return "anonymous", nil
+	return "anonymous", true, errors.New("clerk token carried no subject")
+}
+
+// user resolves the subject, degrading to anonymous on a mint failure.
+func (c *Client) user(ctx context.Context, cred Credential) (string, error) {
+	userID, _, err := c.resolveUser(ctx, cred)
+	if err != nil {
+		return "anonymous", nil
+	}
+	return userID, nil
+}
+
+// remint forgets cached tokens and resolves the user again.
+func (c *Client) remint(ctx context.Context, cred Credential) (string, bool, error) {
+	c.Forget(cred)
+	return c.resolveUser(ctx, cred)
 }
 
 func (c *Client) sessionToken(cred Credential, userID string) string {
@@ -742,7 +777,7 @@ func (c *Client) Principal(ctx context.Context, cred Credential) string {
 
 // Probe lists the remaining chat quota without spending a message.
 func (c *Client) Probe(ctx context.Context, cred Credential) (map[string]any, error) {
-	userID, err := c.user(ctx, cred)
+	userID, _, err := c.resolveUser(ctx, cred)
 	if err != nil {
 		return nil, err
 	}

@@ -114,7 +114,12 @@ func discoverProvider(ctx context.Context, store *vault.Store, id string, provid
 				!strings.Contains(strings.ToLower(model.Name), strings.ToLower(match)) {
 				continue
 			}
-			result.Models = append(result.Models, catalog.Model{ID: model.ID, Name: model.Name, Type: model.Kind})
+			result.Models = append(result.Models, catalog.Model{
+				ID: model.ID, Name: model.Name, Type: model.Kind,
+				Reasoning: model.Reasoning, Tools: model.Tools, Vision: model.MaxImages > 0,
+				MaxImages: model.MaxImages, Context: model.ContextLimit, Response: model.MaxResponse,
+				ProOnly: model.ProOnly, Credits: model.UsesCredits,
+			})
 		}
 		result.Status = "ok"
 		return result

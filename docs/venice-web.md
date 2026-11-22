@@ -122,6 +122,23 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   are served over the same plain transport; per-field client-side encryption is
   not implemented.
 
+## Model capabilities
+
+The web catalog publishes per-model limits and traits. Discovery keeps them, and
+an alias created from the panel stores them:
+
+| Field | Effect |
+|---|---|
+| `max_context` | prompt estimate is checked before a request; oversized prompts get `context_length_exceeded` without spending quota |
+| `max_response` | `max_tokens` / `max_output_tokens` is clamped down to it |
+| `max_images` | attachment count is checked before upload (`too_many_attachments`) |
+| `reasoning` | forces thinking on or off instead of guessing from the model name |
+| `temperature`, `top_p` | used only when the client did not send its own |
+
+The CLI sets the same fields with `--reasoning true|false`, `--max-context`,
+`--max-response`, `--max-images`. The catalog also tags `pro_only` and
+`uses_credits`, which the panel shows so a paid model is not picked by accident.
+
 ## Inbound protocols
 
 A web route can be registered for Chat Completions or Anthropic Messages:

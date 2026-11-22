@@ -408,3 +408,23 @@ func TestCatalogCacheServesAndBypasses(t *testing.T) {
 		t.Fatalf("refresh did not refetch: %d hits=%d", refresh.Code, hits)
 	}
 }
+
+func TestAddModelStoresCapabilities(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")
+	body := `{"provider":"fake","upstream_model":"gpt-x","name":"capable","label":"work",` +
+		`"reasoning":true,"max_context":200000,"max_response":8000,"max_images":4,"temperature":0.4,"top_p":0.8}`
+	if result := f.call(t, http.MethodPost, "/api/models", body, ""); result.Code != http.StatusOK {
+		t.Fatalf("add: %d %s", result.Code, result.Body)
+	}
+	cfg, err := config.Load(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := cfg.Models[0]
+	if route.Reasoning == nil || !*route.Reasoning || route.MaxContext != 200000 ||
+		route.MaxResponse != 8000 || route.MaxImages != 4 ||
+		route.Temperature == nil || *route.Temperature != 0.4 || route.TopP == nil || *route.TopP != 0.8 {
+		t.Fatalf("capabilities lost: %+v", route)
+	}
+}
