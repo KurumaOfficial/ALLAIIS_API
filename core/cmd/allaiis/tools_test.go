@@ -26,7 +26,7 @@ func TestToolsShowPrintsCountsAndOrder(t *testing.T) {
 	writeRecord(t, dir, `{"folded":2,"suffixed":1,"unknown":3,"names":{"bash":2,"grep":1}}`)
 
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, "config", false); err != nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), dir, "test", 0, "config", false); err != nil {
 		t.Fatal(err)
 	}
 	text := out.String()
@@ -42,11 +42,17 @@ func TestToolsShowPrintsCountsAndOrder(t *testing.T) {
 
 func TestToolsShowWithoutARecord(t *testing.T) {
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(t.TempDir(), "tool-names.json"), 0, "config", false); err != nil {
+	dir := t.TempDir()
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), dir, "test", 0, "config", false); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "No tool name record") {
-		t.Fatalf("unexpected output: %q", out.String())
+	text := out.String()
+	if !strings.Contains(text, "No tool name record") {
+		t.Fatalf("unexpected output: %q", text)
+	}
+	// Even with no record the path is the answer: it shows which profile was read.
+	if !strings.Contains(text, filepath.Join(dir, "tool-names.json")) {
+		t.Fatalf("path missing: %q", text)
 	}
 }
 
@@ -54,7 +60,7 @@ func TestToolsShowRejectsABrokenRecord(t *testing.T) {
 	dir := t.TempDir()
 	writeRecord(t, dir, "{nope")
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, "config", false); err == nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), dir, "test", 0, "config", false); err == nil {
 		t.Fatal("broken record accepted")
 	}
 }
@@ -123,7 +129,7 @@ func TestToolsShowMarksExpiredNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 30*24*time.Hour, "config", false); err != nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), dir, "test", 30*24*time.Hour, "config", false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), expiredLabel) || !strings.Contains(out.String(), "1 expired") {
@@ -139,7 +145,7 @@ func TestToolsShowPrintsAge(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, "config", false); err != nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), dir, "test", 0, "config", false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "LAST SEEN") || !strings.Contains(out.String(), "5h") {
@@ -252,7 +258,7 @@ func TestToolsShowStatesTheRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 5*time.Minute, "config", false); err != nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), dir, "ALLAIIS_DATA_DIR", 5*time.Minute, "config", false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "Retention: 5m from config") {
@@ -260,6 +266,9 @@ func TestToolsShowStatesTheRetention(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "File: ") {
 		t.Fatalf("file path missing: %q", out.String())
+	}
+	if !strings.Contains(out.String(), "(from ALLAIIS_DATA_DIR)") {
+		t.Fatalf("data dir origin missing: %q", out.String())
 	}
 }
 

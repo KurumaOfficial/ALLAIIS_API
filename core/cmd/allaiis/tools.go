@@ -31,7 +31,7 @@ type toolNameRecord struct {
 	Seen     map[string]int64 `json:"seen"`
 }
 
-func runTools(dataDir, configPath string, args []string) error {
+func runTools(dataDir, origin, configPath string, args []string) error {
 	if len(args) == 0 {
 		fmt.Fprint(os.Stdout, toolsUsage)
 		return nil
@@ -40,7 +40,7 @@ func runTools(dataDir, configPath string, args []string) error {
 	switch args[0] {
 	case "show":
 		asJSON := len(args) > 1 && args[1] == "--json"
-		return showToolNames(os.Stdout, path, RetentionTTL(configPath), retentionSource(), asJSON)
+		return showToolNames(os.Stdout, path, dataDir, origin, RetentionTTL(configPath), retentionSource(), asJSON)
 	case "reset":
 		expiredOnly := len(args) > 1 && args[1] == "--expired"
 		return resetToolNames(os.Stdout, path, RetentionTTL(configPath), expiredOnly)
@@ -88,10 +88,21 @@ func RetentionTTL(configPath string) time.Duration {
 // showToolNames prints the record, or says there is none. A gateway that is not
 // running never prunes the file, so the command applies the retention itself
 // and marks what would go.
-func showToolNames(out io.Writer, path string, ttl time.Duration, source string, asJSON bool) error {
+func showToolNames(out io.Writer, path, dir, origin string, ttl time.Duration, source string, asJSON bool) error {
+	// The data directory comes from the environment, so name where it came from
+	// and which file was read: a wrong variable must not silently show another
+	// profile's record. This comes before the read, so it also appears when the
+	// file is missing and the path itself explains why.
+	if !asJSON {
+		fmt.Fprintf(out, "Data dir: %s (from %s)\n", dir, origin)
+		fmt.Fprintf(out, "File: %s\n", path)
+		fmt.Fprintf(out, "Retention: %s\n", retentionText(ttl, source))
+	}
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintln(out, "No tool name record yet.")
+		if !asJSON {
+			fmt.Fprintln(out, "No tool name record yet.")
+		}
 		return nil
 	}
 	if err != nil {
@@ -104,10 +115,6 @@ func showToolNames(out io.Writer, path string, ttl time.Duration, source string,
 	if asJSON {
 		return writeJSON(out, record)
 	}
-	// The data directory comes from the environment, so name the file: a wrong
-	// variable must not silently show another profile's record.
-	fmt.Fprintf(out, "File: %s\n", path)
-	fmt.Fprintf(out, "Retention: %s\n", retentionText(ttl, source))
 	repaired := record.Folded + record.Suffixed
 	fmt.Fprintf(out, "Repaired names: %d (folded %d, trailing word %d)\n", repaired, record.Folded, record.Suffixed)
 	fmt.Fprintf(out, "Unknown names: %d\n", record.Unknown)

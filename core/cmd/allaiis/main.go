@@ -81,7 +81,11 @@ func run(ctx context.Context, args []string) error {
 		return runWeb(ctx, dir, configPath, vaultPath, args[1:])
 	}
 	if args[0] == "tools" {
-		return runTools(dir, configPath, args[1:])
+		origin := "the default config directory"
+		if os.Getenv("ALLAIIS_DATA_DIR") != "" {
+			origin = "ALLAIIS_DATA_DIR"
+		}
+		return runTools(dir, origin, configPath, args[1:])
 	}
 
 	command := args[0]
