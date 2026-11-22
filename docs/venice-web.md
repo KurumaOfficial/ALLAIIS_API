@@ -81,6 +81,8 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   marks `"estimated": true` and sets `X-ALLAIIS-Emulated-Features: usage_estimate`.
 - **Reasoning** is forwarded as `reasoning_content` when the model is a
   reasoning model or the request sets `reasoning_effort`/`reasoning.effort`.
+- **Debugging.** Set `ALLAIIS_WEB_DEBUG=1` to log each upstream event and to
+  drop the last multipart body and SSE frames into the OS temp directory.
 - **Transient failures retry once.** A transport error, a `5xx`, a spent
   attestation, or a stream that dies before its first event triggers one retry
   with a fresh attestation. A stream that already delivered text is not retried.

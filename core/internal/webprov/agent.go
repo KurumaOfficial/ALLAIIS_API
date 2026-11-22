@@ -168,6 +168,15 @@ func agentBody(req Request) ([]byte, []agentPart) {
 	if req.Reasoning {
 		payload["reasoning"] = true
 	}
+	if req.Temperature != nil {
+		payload["temperature"] = *req.Temperature
+	}
+	if req.TopP != nil {
+		payload["topP"] = *req.TopP
+	}
+	if req.MaxTokens > 0 {
+		payload["maxTokens"] = req.MaxTokens
+	}
 	body, _ := json.Marshal(payload)
 	return body, parts
 }
