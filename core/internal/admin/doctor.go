@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -169,6 +171,9 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		// A running gateway knows better than this process does.
 		repaired, unknown, names, expired, ttl = live.repaired, live.unknown, live.names, live.expired, live.ttl
 	}
+	if status, detail, ok := autostartVerdict(); ok {
+		add("autostart", status, detail)
+	}
 	if status, detail, ok := toolNameVerdict(repaired, unknown, firstNames(names, 3)); ok {
 		// The retention decides how long a warning lives, so it travels with it.
 		detail += "; " + retentionNote(ttl)
@@ -219,6 +224,23 @@ func (s *Server) toolReset(w http.ResponseWriter, r *http.Request) {
 	}
 	s.options.Gateway.ResetToolNameState()
 	writeJSON(w, http.StatusOK, map[string]any{"reset": true})
+}
+
+// autostartVerdict reports whether the gateway starts with the session, which a
+// machine meant to keep serving needs.
+func autostartVerdict() (string, string, bool) {
+	if runtime.GOOS != "windows" {
+		return "", "", false
+	}
+	appData := os.Getenv("APPDATA")
+	if appData == "" {
+		return "", "", false
+	}
+	launcher := filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "ALLAIIS-Gateway.cmd")
+	if _, err := os.Stat(launcher); err == nil {
+		return "ok", "registered to start at logon", true
+	}
+	return "warn", "not registered to start at logon; run allaiis service install", true
 }
 
 // retentionNote says how long a name stays evidence.

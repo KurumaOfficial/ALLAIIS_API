@@ -7,6 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -196,5 +199,38 @@ func TestDiagnoseMentionsExpiredNames(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expired names not mentioned")
+	}
+}
+
+func TestDiagnoseWarnsWhenAutostartIsMissing(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("the startup folder is Windows-only")
+	}
+	appData := t.TempDir()
+	t.Setenv("APPDATA", appData)
+	t.Setenv("ALLAIIS_DATA_DIR", t.TempDir())
+	f := setup(t)
+
+	status := func() string {
+		for _, check := range Diagnose(context.Background(), f.store, f.path) {
+			if check.Name == "autostart" {
+				return check.Status
+			}
+		}
+		return ""
+	}
+	if got := status(); got != "warn" {
+		t.Fatalf("missing autostart not flagged: %q", got)
+	}
+
+	startup := filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+	if err := os.MkdirAll(startup, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(startup, "ALLAIIS-Gateway.cmd"), []byte("@echo off"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := status(); got != "ok" {
+		t.Fatalf("autostart not accepted: %q", got)
 	}
 }
