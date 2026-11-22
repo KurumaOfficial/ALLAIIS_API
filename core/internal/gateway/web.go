@@ -841,8 +841,13 @@ func renderCallList(text string, calls []toolCall) string {
 		if err != nil {
 			name = []byte(`""`)
 		}
-		fmt.Fprintf(&block, `{"name":%s,"arguments":%s}`, name,
-			compactJSON(call.Function.Arguments))
+		arguments := compactJSON(call.Function.Arguments)
+		if arguments == "" {
+			// A call parsed without an arguments key must still render as JSON,
+			// or the shown block is an invalid example.
+			arguments = "{}"
+		}
+		fmt.Fprintf(&block, `{"name":%s,"arguments":%s}`, name, arguments)
 	}
 	block.WriteString(`]}` + toolClose)
 	return block.String()

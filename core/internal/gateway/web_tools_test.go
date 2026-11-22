@@ -266,18 +266,25 @@ func TestReasoningCountsTowardTheCap(t *testing.T) {
 
 func TestWebRepairsACallWithoutArguments(t *testing.T) {
 	var attempts atomic.Int32
-	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, _ map[string]any) {
+	var shown string
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
 		if attempts.Add(1) == 1 {
 			// A call that forgot its arguments, the client would reject it.
 			writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file"}]}<<<END_TOOL_CALL>>>`)
 			return
 		}
+		prompt := body["prompt"].([]any)
+		shown = prompt[len(prompt)-2].(map[string]any)["content"].(string)
 		writeFrames(w, toolBlock("fixed.txt"))
 	})
 	handler, store := webGateway(t, server.URL)
 	result := complete(handler, store.ClientKey(), "", toolPayload)
 	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
 		t.Fatalf("empty call not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
+	}
+	// A call parsed without arguments must still be shown as valid JSON.
+	if !strings.Contains(shown, `"arguments":{}`) {
+		t.Fatalf("shown block is not valid JSON: %q", shown)
 	}
 }
 
@@ -295,7 +302,7 @@ func TestWebDeliversAnEmptyCallWhenRepairRunsOut(t *testing.T) {
 
 func TestWebRepairsACallMissingARequiredField(t *testing.T) {
 	var attempts atomic.Int32
-	var note string
+	var note, shown string
 	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
 		if attempts.Add(1) == 1 {
 			// The field exists here but the required one does not.
@@ -303,6 +310,7 @@ func TestWebRepairsACallMissingARequiredField(t *testing.T) {
 			return
 		}
 		prompt := body["prompt"].([]any)
+		shown = prompt[len(prompt)-2].(map[string]any)["content"].(string)
 		note = prompt[len(prompt)-1].(map[string]any)["content"].(string)
 		writeFrames(w, toolBlock("fixed.txt"))
 	})
@@ -311,9 +319,13 @@ func TestWebRepairsACallMissingARequiredField(t *testing.T) {
 	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
 		t.Fatalf("missing field not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
 	}
-	// The retry has to say what is missing, not just that something was wrong.
+	// The retry has to say what is missing, not just that something was wrong,
+	// and show a valid block.
 	if !strings.Contains(note, "read_file misses path") {
 		t.Fatalf("repair note is vague: %q", note)
+	}
+	if !strings.Contains(shown, `"name":"read_file"`) {
+		t.Fatalf("shown block lost the call: %q", shown)
 	}
 }
 
