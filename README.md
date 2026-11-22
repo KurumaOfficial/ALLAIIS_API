@@ -345,9 +345,9 @@ gofmt -l core    # must print nothing
 
 CI runs those on Linux, macOS and Windows, plus `-race` on Linux
 (`.github/workflows/ci.yml`). A docs check also compares the shape of each
-bilingual pair (headings, tables, lists, code blocks), confirms every test and
-relative link the docs cite exists, so neither a language nor a reference can
-quietly drift.
+bilingual pair (headings, tables, lists, code blocks), confirms every test, relative link and
+anchor the docs cite exists, so neither a language nor a reference can quietly
+drift.
 
 [Roadmap](ROADMAP.md) · [Related projects](docs/related-projects.md)
 

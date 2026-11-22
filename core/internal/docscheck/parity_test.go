@@ -161,8 +161,32 @@ func TestPairedDocsCiteTheSameTests(t *testing.T) {
 	}
 }
 
-// linkTarget finds relative link targets in markdown.
-var linkTarget = regexp.MustCompile(`\]\(([^)#\s]+)`)
+// linkTarget finds relative link targets in markdown, with an optional anchor.
+var linkTarget = regexp.MustCompile(`\]\(([^)#\s]*)(?:#([^)\s]+))?`)
+
+// slugger turns a heading into the anchor GitHub would give it.
+var slugger = regexp.MustCompile(`[^\p{L}\p{N} _-]`)
+
+func slug(heading string) string {
+	cleaned := slugger.ReplaceAllString(strings.ToLower(heading), "")
+	return strings.ReplaceAll(cleaned, " ", "-")
+}
+
+// anchors lists the anchors a document offers.
+func anchors(t *testing.T, path string) map[string]bool {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+	found := map[string]bool{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(line, "#") {
+			found[slug(strings.TrimLeft(line, "# "))] = true
+		}
+	}
+	return found
+}
 
 func TestLinksResolve(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
@@ -191,14 +215,27 @@ func TestLinksResolve(t *testing.T) {
 			t.Fatalf("%s: %v", path, err)
 		}
 		for _, match := range linkTarget.FindAllStringSubmatch(string(raw), -1) {
-			target := match[1]
+			target, anchor := match[1], match[2]
 			if strings.HasPrefix(target, "http") || strings.HasPrefix(target, "mailto:") ||
 				strings.HasPrefix(target, "../../") {
 				continue
 			}
-			resolved := filepath.Join(filepath.Dir(filepath.Join(root, path)), target)
-			if _, err := os.Stat(resolved); err != nil {
-				t.Fatalf("%s links %s, which does not exist", path, target)
+			resolved := filepath.Join(root, path)
+			if target != "" {
+				resolved = filepath.Join(filepath.Dir(resolved), target)
+				if _, err := os.Stat(resolved); err != nil {
+					t.Fatalf("%s links %s, which does not exist", path, target)
+				}
+			}
+			if anchor == "" {
+				continue
+			}
+			if !anchors(t, resolved)[anchor] {
+				where := target
+				if where == "" {
+					where = "the same file"
+				}
+				t.Fatalf("%s links to #%s, which no heading in %s offers", path, anchor, where)
 			}
 		}
 	}
