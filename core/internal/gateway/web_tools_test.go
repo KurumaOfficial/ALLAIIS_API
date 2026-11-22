@@ -379,3 +379,20 @@ func TestMissingArgumentsLogsOnlyWhenDelivered(t *testing.T) {
 		t.Fatalf("delivered call not logged: %s", log.String())
 	}
 }
+
+func TestWebRepairsAFoldedNameMissingArguments(t *testing.T) {
+	var attempts atomic.Int32
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, _ map[string]any) {
+		if attempts.Add(1) == 1 {
+			// Wrong separator and no argument: both need fixing.
+			writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read-file"}]}<<<END_TOOL_CALL>>>`)
+			return
+		}
+		writeFrames(w, toolBlock("fixed.txt"))
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", toolPayload)
+	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
+		t.Fatalf("folded empty call not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
+	}
+}

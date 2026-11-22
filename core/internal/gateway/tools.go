@@ -335,8 +335,10 @@ func (g *toolGuard) logMissing(calls []toolCall) {
 // missingRequired lists the declared required fields a call did not fill, which
 // a client will reject. An unknown name or unreadable arguments yield nothing.
 func (g *toolGuard) missingRequired(call toolCall) []string {
+	// Compare folded, because an unknown separator is repaired only later.
+	key := nameKey(call.Function.Name)
 	for _, tool := range g.tools {
-		if tool.Function.Name != call.Function.Name {
+		if nameKey(tool.Function.Name) != key {
 			continue
 		}
 		var shape struct {
