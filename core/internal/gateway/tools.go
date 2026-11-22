@@ -969,40 +969,49 @@ func (g *toolGuard) parse(block string) ([]toolCall, error) {
 	block = strings.TrimPrefix(block, "```json")
 	block = strings.TrimPrefix(block, "```")
 	block = strings.TrimSuffix(block, "```")
-	var envelope struct {
-		Calls []struct {
-			Name      string          `json:"name"`
-			Arguments json.RawMessage `json:"arguments"`
-		} `json:"calls"`
+
+	type candidate struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
 	}
-	if err := json.Unmarshal([]byte(block), &envelope); err != nil || len(envelope.Calls) == 0 {
-		block = escapeControl(block)
+	decode := func(text string) ([]candidate, bool) {
+		var envelope struct {
+			Calls []candidate `json:"calls"`
+		}
+		if json.Unmarshal([]byte(text), &envelope) == nil && len(envelope.Calls) > 0 {
+			return envelope.Calls, true
+		}
+		// A lone call object without the envelope is common enough to accept.
+		var one candidate
+		if json.Unmarshal([]byte(text), &one) == nil && one.Name != "" {
+			return []candidate{one}, true
+		}
+		return nil, false
 	}
-	if err := json.Unmarshal([]byte(block), &envelope); err != nil || len(envelope.Calls) == 0 {
+	candidates, ok := decode(block)
+	if !ok {
+		candidates, ok = decode(escapeControl(block))
+	}
+	if !ok {
 		return nil, errNoToolBlock
 	}
-	calls := make([]toolCall, 0, len(envelope.Calls))
-	for _, candidate := range envelope.Calls {
-		known := false
-		for _, tool := range g.tools {
-			if tool.Function.Name == candidate.Name {
-				known = true
-				break
-			}
-		}
-		if !known {
+	calls := make([]toolCall, 0, len(candidates))
+	for _, item := range candidates {
+		// The name is not checked against the advertised tools: a closed block is
+		// final, and the client reports an unknown name better than a failed turn.
+		if item.Name == "" {
 			return nil, errNoToolBlock
 		}
-		arguments := string(candidate.Arguments)
+		arguments := string(item.Arguments)
 		if arguments == "" || arguments == "null" {
-			return nil, errNoToolBlock
+			arguments = "{}"
 		}
 		var object map[string]any
 		if json.Unmarshal([]byte(arguments), &object) != nil {
 			return nil, errNoToolBlock
 		}
 		call := toolCall{ID: "call_" + randomID(), Type: "function"}
-		call.Function.Name = candidate.Name
+		call.Function.Name = item.Name
 		call.Function.Arguments = arguments
 		calls = append(calls, call)
 	}

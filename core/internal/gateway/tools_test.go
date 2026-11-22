@@ -53,8 +53,10 @@ func TestToolGuardRejectsBadBlocks(t *testing.T) {
 		t.Fatal("invalid JSON accepted")
 	}
 	guard = guardFor("read_file")
-	if _, _, err := guard.Write("<<<ALLAIIS_TOOL_CALL>>>{\"calls\":[{\"name\":\"other\",\"arguments\":{}}]}<<<END_TOOL_CALL>>>"); err == nil {
-		t.Fatal("unknown tool accepted")
+	// An unknown name is delivered, the client reports it.
+	if _, calls, err := guard.Write("<<<ALLAIIS_TOOL_CALL>>>{\"calls\":[{\"name\":\"other\",\"arguments\":{}}]}<<<END_TOOL_CALL>>>"); err != nil ||
+		len(calls) != 1 || calls[0].Function.Name != "other" {
+		t.Fatalf("unknown tool dropped: %+v %v", calls, err)
 	}
 	guard = guardFor("read_file")
 	if _, _, err := guard.Write("<<<ALLAIIS_TOOL_CALL>>>{\"calls\":[]}<<<END_TOOL_CALL>>>"); err == nil {
@@ -514,5 +516,32 @@ func TestUnknownToolIsDeliveredWhileStreaming(t *testing.T) {
 	if err != nil || len(calls) != 1 || calls[0].Function.Name != "bash" ||
 		calls[0].Function.Arguments != `{"command":"ls"}` {
 		t.Fatalf("unknown tool stalled: %+v %v", calls, err)
+	}
+}
+
+func TestDSMLUnknownToolIsDelivered(t *testing.T) {
+	guard := guardFor("other")
+	block := `<|DSML|function_calls>\n<|DSML|invoke name="bash">\n` +
+		`<|DSML|parameter name="command" string="true">ls</|DSML|parameter>\n` +
+		"</|DSML|invoke>\n</|DSML|function_calls>" + toolClose
+	_, calls, err := guard.Write(block)
+	if err != nil || len(calls) != 1 || calls[0].Function.Name != "bash" {
+		t.Fatalf("dsml unknown: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardAcceptsABareCallObject(t *testing.T) {
+	guard := guardFor("shell")
+	_, calls, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"name":"shell","arguments":{"command":"ls"}}` + toolClose)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{"command":"ls"}` {
+		t.Fatalf("bare call: %+v %v", calls, err)
+	}
+}
+
+func TestToolGuardDefaultsMissingArguments(t *testing.T) {
+	guard := guardFor("ping")
+	_, calls, err := guard.Write(`<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"ping"}]}` + toolClose)
+	if err != nil || len(calls) != 1 || calls[0].Function.Arguments != `{}` {
+		t.Fatalf("no arguments: %+v %v", calls, err)
 	}
 }

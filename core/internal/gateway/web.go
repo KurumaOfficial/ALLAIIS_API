@@ -164,6 +164,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			if len(tools) > 0 {
 				safe, parsed, err := guard.Write(event.Content)
 				if err != nil {
+					if webDebug {
+						slog.Info("guard error", "err", err.Error(), "buf", guard.buf.String())
+					}
 					return errToolRepair
 				}
 				text = safe
