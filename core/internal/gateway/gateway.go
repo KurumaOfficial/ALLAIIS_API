@@ -553,6 +553,8 @@ func writeError(w http.ResponseWriter, protocol config.Protocol, status int, cod
 		kind = "api_error"
 	} else if status == http.StatusTooManyRequests {
 		kind = "rate_limit_error"
+	} else if status == http.StatusPaymentRequired {
+		kind = "insufficient_quota"
 	}
 	if protocol == config.Messages {
 		switch status {
