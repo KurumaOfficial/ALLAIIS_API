@@ -171,6 +171,33 @@ func noteUnknownName(name string) {
 	unknownNames.count[name] = 1
 }
 
+// LiveUnknownNames lists the unknown names that are still inside retention.
+func LiveUnknownNames(limit int) []string {
+	names := ToolUnknownNames(0)
+	days := toolNameTTL.Load()
+	if days <= 0 {
+		return trimNames(names, limit)
+	}
+	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	kept := make([]string, 0, len(names))
+	unknownNames.mu.Lock()
+	for _, name := range names {
+		if seen, ok := unknownNames.seen[name]; !ok || !seen.Before(cutoff) {
+			kept = append(kept, name)
+		}
+	}
+	unknownNames.mu.Unlock()
+	return trimNames(kept, limit)
+}
+
+// trimNames cuts the list to limit, or keeps it whole for a zero limit.
+func trimNames(names []string, limit int) []string {
+	if limit > 0 && len(names) > limit {
+		return names[:limit]
+	}
+	return names
+}
+
 // ToolUnknownNames lists the most frequent unknown names, newest first on a tie.
 func ToolUnknownNames(limit int) []string {
 	unknownNames.mu.Lock()

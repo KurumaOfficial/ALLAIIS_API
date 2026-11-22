@@ -904,12 +904,49 @@ func TestToolNamesExpireOnSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(raw), "ttl_old") {
-		t.Fatalf("expired name saved: %s", raw)
+	// A save keeps the expired name; the drop is explicit.
+	if !strings.Contains(string(raw), "ttl_old") {
+		t.Fatalf("expired name dropped on save: %s", raw)
 	}
 	if !strings.Contains(string(raw), "ttl_fresh") {
 		t.Fatalf("fresh name lost: %s", raw)
 	}
+}
+
+func TestLiveUnknownNamesSkipsExpired(t *testing.T) {
+	setToolNameTTL(t, 1)
+	seedUnknownName("lv_old", time.Now().Add(-48*time.Hour))
+	seedUnknownName("lv_fresh", time.Now())
+
+	live := LiveUnknownNames(0)
+	has := func(name string) bool {
+		for _, got := range live {
+			if got == name {
+				return true
+			}
+		}
+		return false
+	}
+	if has("lv_old") {
+		t.Fatalf("expired name listed: %v", live)
+	}
+	if !has("lv_fresh") {
+		t.Fatalf("fresh name missing: %v", live)
+	}
+	if len(LiveUnknownNames(1)) != 1 {
+		t.Fatal("limit not applied")
+	}
+}
+
+func TestLiveUnknownNamesWithRetentionOff(t *testing.T) {
+	setToolNameTTL(t, 0)
+	seedUnknownName("lv_forever", time.Now().Add(-50*24*time.Hour))
+	for _, name := range LiveUnknownNames(0) {
+		if name == "lv_forever" {
+			return
+		}
+	}
+	t.Fatal("name dropped with retention off")
 }
 
 func TestToolNamesExpireOnLoad(t *testing.T) {

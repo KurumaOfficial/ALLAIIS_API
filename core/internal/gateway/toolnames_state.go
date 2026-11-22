@@ -268,9 +268,9 @@ func saveToolNameState() {
 		return
 	}
 
-	now := time.Now()
+	// Names past retention are kept here and only removed on load or by the
+	// explicit drop, so the panel button has something to act on.
 	unknownNames.mu.Lock()
-	dropExpiredNames(now)
 	names := make(map[string]int, len(unknownNames.count))
 	seen := make(map[string]int64, len(unknownNames.count))
 	for name, count := range unknownNames.count {

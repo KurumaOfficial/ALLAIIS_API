@@ -30,7 +30,7 @@ func (s *Server) diagnose(ctx context.Context) []Check {
 // nameStats is a seam so a test can supply parser counters and names.
 var nameStats = func() (repaired, unknown int64, names []string) {
 	repaired, unknown = gateway.ToolNameStats()
-	return repaired, unknown, gateway.ToolUnknownNames(3)
+	return repaired, unknown, gateway.LiveUnknownNames(3)
 }
 
 // Diagnose validates the local setup without spending provider quota.

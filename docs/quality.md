@@ -84,8 +84,10 @@ drops only the names past retention, which keeps the fresh evidence, which is ho
 show` prints the record with the time each name was last seen and marks a name
 past retention as expired, so a stopped gateway cannot make the view lie; a running
 gateway notices an outside edit or deletion within a couple of seconds. A name also expires after
-`tool_name_ttl_days` (default 30, `0` keeps names forever), so an alias fixed
-months ago does not keep the warning alive; the totals are cumulative and stay.
+`tool_name_ttl_days` (default 30, `0` keeps names forever): it stops being listed
+and stop counting as evidence, and the drop button or a restart removes it, so an
+alias fixed months ago does not keep the warning alive. Saving does not prune, so
+the drop has something to act on; the totals are cumulative and stay.
 Cardinality follows the configured aliases. Scrape it from a loopback collector.
 
 ## Graceful shutdown
