@@ -18,6 +18,13 @@ import (
 )
 
 func responsesGateway(t *testing.T, upstream string) (http.Handler, *vault.Store) {
+	handler, _, store := responsesGatewayRebuild(t, upstream)
+	return handler, store
+}
+
+// responsesGatewayRebuild also returns a builder for a second gateway instance
+// over the same vault, which is how a restart is simulated.
+func responsesGatewayRebuild(t *testing.T, upstream string) (http.Handler, func() http.Handler, *vault.Store) {
 	t.Helper()
 	store, _ := setup(t, upstream)
 	cfg := config.Default()
@@ -38,12 +45,15 @@ func responsesGateway(t *testing.T, upstream string) (http.Handler, *vault.Store
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	routes, err := router.New(t.Context(), cfg, store)
-	if err != nil {
-		t.Fatal(err)
-	}
 	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(upstream)
-	return gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web), store
+	build := func() http.Handler {
+		routes, err := router.New(t.Context(), cfg, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	}
+	return build(), build, store
 }
 
 func responsesCall(handler http.Handler, key, body string) *httptest.ResponseRecorder {
@@ -143,7 +153,7 @@ func TestResponsesFollowUpByPreviousId(t *testing.T) {
 		}
 		writeFrames(w, "second answer")
 	})
-	handler, store := responsesGateway(t, server.URL)
+	handler, rebuild, store := responsesGatewayRebuild(t, server.URL)
 	first := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"one"}`)
 	var created struct {
 		ID string `json:"id"`
@@ -151,7 +161,8 @@ func TestResponsesFollowUpByPreviousId(t *testing.T) {
 	if err := json.Unmarshal(first.Body.Bytes(), &created); err != nil || created.ID == "" {
 		t.Fatalf("no response id: %s", first.Body)
 	}
-	second := responsesCall(handler, store.ClientKey(),
+	// A new handler shares only the vault, like a restarted process.
+	second := responsesCall(rebuild(), store.ClientKey(),
 		`{"model":"gpt-venice-web-fixture","previous_response_id":"`+created.ID+`","input":"two"}`)
 	if second.Code != http.StatusOK || !strings.Contains(second.Body.String(), "second answer") {
 		t.Fatalf("follow-up failed: %d %s", second.Code, second.Body)

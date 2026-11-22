@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS credentials (
 	PRIMARY KEY (provider, endpoint, label),
 	UNIQUE (provider, endpoint, fingerprint)
 );
+CREATE TABLE IF NOT EXISTS response_turns (
+	id TEXT PRIMARY KEY,
+	ciphertext BLOB NOT NULL,
+	expires_unix_ms INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS cooldowns (
 	provider TEXT NOT NULL,
 	endpoint TEXT NOT NULL,
@@ -111,6 +116,10 @@ func Open(ctx context.Context, path string, passphrase []byte) (*Store, error) {
 	}
 	aead, fingerprintKey, key, err := unlock(ctx, db, passphrase)
 	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	if _, err := db.ExecContext(ctx, schema); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -256,6 +265,55 @@ func (s *Store) SetCooldown(ctx context.Context, provider, endpoint string, unti
 		SET until_unix_ms = MAX(until_unix_ms, excluded.until_unix_ms)`,
 		provider, endpoint, until.Add(time.Millisecond-1).UnixMilli())
 	return err
+}
+
+// SaveResponse stores one encrypted Responses turn list.
+func (s *Store) SaveResponse(ctx context.Context, id string, turns []byte, expires time.Time) error {
+	if id == "" || len(turns) == 0 {
+		return nil
+	}
+	sealed := s.aead.Seal(nil, nil, turns, responseAAD(id))
+	now := time.Now()
+	if _, err := s.db.ExecContext(ctx, `
+		INSERT INTO response_turns (id, ciphertext, expires_unix_ms) VALUES (?, ?, ?)
+		ON CONFLICT (id) DO UPDATE
+		SET ciphertext = excluded.ciphertext, expires_unix_ms = excluded.expires_unix_ms`,
+		id, sealed, expires.UnixMilli()); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM response_turns WHERE expires_unix_ms <= ?`, now.UnixMilli()); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM response_turns WHERE id NOT IN (
+			SELECT id FROM response_turns ORDER BY expires_unix_ms DESC LIMIT 128
+		)`)
+	return err
+}
+
+// LoadResponse reads a stored turn list. A missing or expired id is nil, false.
+func (s *Store) LoadResponse(ctx context.Context, id string) ([]byte, bool) {
+	if id == "" {
+		return nil, false
+	}
+	var sealed []byte
+	var expires int64
+	if err := s.db.QueryRowContext(ctx, `SELECT ciphertext, expires_unix_ms FROM response_turns WHERE id = ?`, id).
+		Scan(&sealed, &expires); err != nil {
+		return nil, false
+	}
+	if time.Now().UnixMilli() >= expires {
+		return nil, false
+	}
+	turns, err := s.aead.Open(nil, nil, sealed, responseAAD(id))
+	if err != nil {
+		return nil, false
+	}
+	return turns, true
+}
+
+func responseAAD(id string) []byte {
+	return []byte("response/v1\x00" + id)
 }
 
 func entryAAD(entry Entry) []byte {

@@ -130,10 +130,11 @@ translated, and the reply uses `response.created`, `response.output_text.delta`,
 `response.function_call_arguments.delta` and `response.completed`, or a
 `response` object.
 
-The transport is stateless, so the gateway keeps the last 64 turn lists for an
-hour and replays one when a request sends only `previous_response_id`. A cold
-gateway (restart) loses them, so a long-lived client should still send the full
-`input` when it can.
+The transport is stateless, so the gateway stores turn lists and replays one
+when a request sends only `previous_response_id`. Stored turns sit in the vault
+SQLite file, AES-GCM sealed like credentials, expire after an hour and are capped
+at 128 entries, so a follow-up survives a gateway restart without exposing
+prompts on disk.
 
 ## Client setup (OpenCode)
 

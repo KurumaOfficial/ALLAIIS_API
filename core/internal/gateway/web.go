@@ -67,8 +67,11 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		return
 	}
 	if request.Parent != "" {
-		if previous, ok := g.responses.load(request.Parent); ok {
-			reason.turns = append(append([]webprov.Message{}, previous...), reason.turns...)
+		if raw, ok := g.router.LoadResponse(r.Context(), request.Parent); ok {
+			var previous []webprov.Message
+			if json.Unmarshal(raw, &previous) == nil && len(previous) > 0 {
+				reason.turns = append(previous, reason.turns...)
+			}
 		}
 		request.Messages = reason.messages(reason.system)
 	}
@@ -239,7 +242,13 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			reply = renderCallList(reply, calls)
 		}
 		turns := append(append([]webprov.Message{}, reason.turns...), webprov.Message{Role: "assistant", Content: reply})
-		g.responses.save(id, turns)
+		if raw, err := json.Marshal(turns); err == nil {
+			persist, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+			if saveErr := g.router.SaveResponse(persist, id, raw, time.Now().Add(time.Hour)); saveErr != nil {
+				slog.Warn("could not persist response turns", "error", saveErr)
+			}
+			cancel()
+		}
 	}
 	slog.Info("web completion", "provider", target.Route.Provider, "model", target.Route.ID,
 		"protocol", protocol, "stream", stream, "chars", reason.chars(), "calls", len(calls),

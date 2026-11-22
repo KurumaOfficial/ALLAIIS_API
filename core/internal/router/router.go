@@ -129,6 +129,16 @@ func (r *Router) SetCooldown(ctx context.Context, target Target, until time.Time
 	return r.store.SetCooldown(ctx, target.Route.Provider, target.Provider.BaseURL, until)
 }
 
+// SaveResponse persists a Responses turn list for follow-ups.
+func (r *Router) SaveResponse(ctx context.Context, id string, turns []byte, expires time.Time) error {
+	return r.store.SaveResponse(ctx, id, turns, expires)
+}
+
+// LoadResponse reads a persisted turn list.
+func (r *Router) LoadResponse(ctx context.Context, id string) ([]byte, bool) {
+	return r.store.LoadResponse(ctx, id)
+}
+
 func (r *Router) cooldown(ctx context.Context, provider, endpoint string) (time.Time, error) {
 	persisted, err := r.store.Cooldown(ctx, provider, endpoint)
 	if err != nil {
