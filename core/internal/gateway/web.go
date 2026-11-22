@@ -81,6 +81,14 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return 0, 0
 	}
+	if limit := toolLimit(target.Route); len(tools) > limit {
+		writeError(w, protocol, http.StatusBadRequest, "too_many_tools",
+			fmt.Sprintf("This model accepts at most %d tool(s).", limit))
+		return 0, 0
+	}
+	if target.Route.WebSearch {
+		request.WebSearch = true
+	}
 	if limit := imageLimit(target.Route); request.Images() > limit {
 		writeError(w, protocol, http.StatusBadRequest, "too_many_attachments",
 			fmt.Sprintf("This model accepts at most %d attachment(s).", limit))
@@ -288,13 +296,23 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	return reason.chars(), len(calls)
 }
 
-const defaultImageLimit = 10
+const (
+	defaultImageLimit = 10
+	defaultToolLimit  = 64
+)
 
 func imageLimit(route config.Route) int {
 	if route.MaxImages > 0 {
 		return route.MaxImages
 	}
 	return defaultImageLimit
+}
+
+func toolLimit(route config.Route) int {
+	if route.MaxTools > 0 {
+		return route.MaxTools
+	}
+	return defaultToolLimit
 }
 
 // applyCapabilities shapes the request with the discovered model limits.
@@ -467,7 +485,11 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		RequestID: randomID(), Model: model,
 		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
 	}
-	request.Reasoning = input.ReasoningEffort != "" || input.Reasoning.Effort != "" ||
+	request.ReasoningEffort = input.ReasoningEffort
+	if request.ReasoningEffort == "" {
+		request.ReasoningEffort = input.Reasoning.Effort
+	}
+	request.Reasoning = request.ReasoningEffort != "" ||
 		strings.Contains(strings.ToLower(model), "reasoning")
 	reason := &webReason{reasoning: request.Reasoning}
 	for _, message := range input.Messages {

@@ -30,7 +30,8 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 			Schema      json.RawMessage `json:"input_schema"`
 		} `json:"tools"`
 		Thinking *struct {
-			Type string `json:"type"`
+			Type         string `json:"type"`
+			BudgetTokens int    `json:"budget_tokens"`
 		} `json:"thinking"`
 	}
 	if err := json.Unmarshal(payload, &input); err != nil {
@@ -41,6 +42,9 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
 	}
 	request.Reasoning = input.Thinking != nil || strings.Contains(strings.ToLower(model), "reasoning")
+	if input.Thinking != nil && input.Thinking.Type != "disabled" && input.Thinking.BudgetTokens > 0 {
+		request.ReasoningEffort = effortFor(input.Thinking.BudgetTokens)
+	}
 	reason := &webReason{reasoning: request.Reasoning}
 	if text, images := messageParts(input.System); text != "" || len(images) > 0 {
 		reason.system = text
@@ -73,6 +77,20 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 	}
 	request.Messages = reason.messages(reason.system)
 	return request, reason, tools, nil
+}
+
+// effortFor maps a thinking budget onto the coarse effort scale.
+func effortFor(budget int) string {
+	switch {
+	case budget < 2048:
+		return "low"
+	case budget < 8192:
+		return "medium"
+	case budget < 32000:
+		return "high"
+	default:
+		return "max"
+	}
 }
 
 // anthropicShape renders Anthropic Messages events and JSON.

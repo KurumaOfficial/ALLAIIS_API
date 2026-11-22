@@ -160,6 +160,10 @@ type Request struct {
 	MaxTokens   int
 	// MaxImages caps the attachments the caller allows for this model.
 	MaxImages int
+	// ReasoningEffort is the requested thinking depth, when the model takes one.
+	ReasoningEffort string
+	// WebSearch enables the web tool for this turn.
+	WebSearch bool
 }
 
 // Event is one decoded upstream event. Kind is "content", "reasoning" or "meta".
@@ -392,6 +396,12 @@ func venicePayload(cred Credential, req Request, userID string) map[string]any {
 	}
 	if req.MaxTokens > 0 {
 		payload["maxTokens"] = req.MaxTokens
+	}
+	if req.ReasoningEffort != "" {
+		payload["reasoningEffort"] = req.ReasoningEffort
+	}
+	if req.WebSearch {
+		payload["webEnabled"] = true
 	}
 	return payload
 }

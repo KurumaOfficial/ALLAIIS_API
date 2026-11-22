@@ -44,7 +44,8 @@ func runModels(ctx context.Context, path string, args []string) error {
 	flags := flag.NewFlagSet("models "+command, flag.ContinueOnError)
 	providerID := flags.String("provider", "", "provider ID")
 	var match, model, name, label, privacy, protocol, reasoning string
-	var maxContext, maxResponse, maxImages int
+	var maxContext, maxResponse, maxImages, maxTools int
+	var webSearch bool
 	var all, withKeys bool
 	switch command {
 	case "discover":
@@ -62,6 +63,8 @@ func runModels(ctx context.Context, path string, args []string) error {
 		flags.IntVar(&maxContext, "max-context", 0, "model context window in tokens")
 		flags.IntVar(&maxResponse, "max-response", 0, "maximum response tokens")
 		flags.IntVar(&maxImages, "max-images", 0, "maximum attachments per request")
+		flags.IntVar(&maxTools, "max-tools", 0, "maximum tools per request")
+		flags.BoolVar(&webSearch, "web-search", false, "enable the provider's web tool")
 	default:
 		return fmt.Errorf("unknown models command %q", command)
 	}
@@ -93,6 +96,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 			ID: name + "-" + *providerID, Provider: *providerID, UpstreamModel: model,
 			Privacy: config.Privacy(privacy), CredentialLabel: label, Protocol: config.Protocol(protocol),
 			Reasoning: thinking, MaxContext: maxContext, MaxResponse: maxResponse, MaxImages: maxImages,
+			MaxTools: maxTools, WebSearch: webSearch,
 		}
 		added, err := config.AddModel(ctx, path, route)
 		if err != nil {

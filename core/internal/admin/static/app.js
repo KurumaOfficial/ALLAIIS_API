@@ -270,6 +270,8 @@ function bind () {
         data.max_context = pickedModel.max_context || 0
         data.max_response = pickedModel.max_response || 0
         data.max_images = pickedModel.max_images || 0
+        data.max_tools = pickedModel.max_tools || 0
+        data.web_search = !!pickedModel.web_search
         data.temperature = pickedModel.temperature
         data.top_p = pickedModel.top_p
       }
@@ -345,6 +347,7 @@ function bind () {
         if (model.reasoning) caps.push('thinking')
         if (model.vision) caps.push('vision')
         if (model.function_calling) caps.push('tools')
+        if (model.web_search) caps.push('web')
         if (model.max_context) caps.push(Math.round(model.max_context / 1000) + 'K ctx')
         line.innerHTML = '<code>' + esc(model.id) + '</code><span class="muted tiny">' + esc(model.name || '') + '</span>' +
           caps.map(cap => ' <span class="badge">' + esc(cap) + '</span>').join('')
@@ -363,6 +366,7 @@ function bind () {
           if (model.vision) caps.push('vision ×' + (model.max_images || 10))
           if (model.max_context) caps.push(Math.round(model.max_context / 1000) + 'K context')
           if (model.max_response) caps.push(Math.round(model.max_response / 1000) + 'K response')
+          if (model.web_search) caps.push('web search')
           $('model-caps').textContent = caps.length ? 'inherits ' + caps.join(', ') : 'no published capabilities'
           switchView('aliases')
         }

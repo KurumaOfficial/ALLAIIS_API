@@ -32,6 +32,8 @@ type Model struct {
 	Tools     bool `json:"function_calling,omitempty"`
 	Vision    bool `json:"vision,omitempty"`
 	MaxImages int  `json:"max_images,omitempty"`
+	MaxTools  int  `json:"max_tools,omitempty"`
+	WebSearch bool `json:"web_search,omitempty"`
 	Context   int  `json:"max_context,omitempty"`
 	Response  int  `json:"max_response,omitempty"`
 	ProOnly   bool `json:"pro_only,omitempty"`

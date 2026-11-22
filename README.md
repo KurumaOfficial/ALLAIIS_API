@@ -264,6 +264,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Venice web quota probe and catalog | ✓ | `TestErrorClassification` | `web login`, `models discover` | — |
 | Venice web Pro session | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
 | Guest and Pro aliases side by side | ✓ | `TestProviderAliasesAndPinnedCredentials` | guest + Pro in one run | — |
+| Reasoning effort, web flag and tool cap | ✓ | `TestReasoningEffortAndWebSearchReachThePayload`, `TestMessagesThinkingBudgetBecomesEffort`, `TestToolLimitRejects` | payload dump on a free model | — |
 | Model capabilities from the catalog | ✓ | `TestCatalogCarriesCapabilities`, `TestCapabilitiesShapeTheRequest`, `TestContextLimitRejectsBeforeSending`, `TestAddModelStoresCapabilities` | reasoning forced, `max_tokens` clamped on a free model | — |
 | Prometheus metrics | ✓ | `TestMetricsExposition`, `TestMetricsNeedsNoKey` | `/metrics` on the live gateway | — |
 | Request IDs and CORS | ✓ | `TestRequestIDIsEchoedAndStamped`, `TestErrorBodyCarriesRequestID`, `TestPreflightAndCORSHeaders` | — | — |

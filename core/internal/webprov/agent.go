@@ -188,6 +188,12 @@ func agentBody(req Request) ([]byte, []agentPart) {
 	if req.MaxTokens > 0 {
 		payload["maxTokens"] = req.MaxTokens
 	}
+	if req.ReasoningEffort != "" {
+		payload["reasoningEffort"] = req.ReasoningEffort
+	}
+	if req.WebSearch {
+		payload["webEnabled"] = true
+	}
 	body, _ := json.Marshal(payload)
 	return body, parts
 }

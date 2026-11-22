@@ -148,6 +148,8 @@ type Route struct {
 	MaxContext  int      `json:"max_context,omitempty"`
 	MaxResponse int      `json:"max_response,omitempty"`
 	MaxImages   int      `json:"max_images,omitempty"`
+	MaxTools    int      `json:"max_tools,omitempty"`
+	WebSearch   bool     `json:"web_search,omitempty"`
 	Temperature *float64 `json:"temperature,omitempty"`
 	TopP        *float64 `json:"top_p,omitempty"`
 }
@@ -306,7 +308,8 @@ func (c *Config) validate() error {
 		}
 		if route.MaxContext < 0 || route.MaxContext > 10_000_000 ||
 			route.MaxResponse < 0 || route.MaxResponse > 1_000_000 ||
-			route.MaxImages < 0 || route.MaxImages > 50 {
+			route.MaxImages < 0 || route.MaxImages > 50 ||
+			route.MaxTools < 0 || route.MaxTools > 128 {
 			return fmt.Errorf("model %q has an out-of-range capability limit", route.ID)
 		}
 		if route.Temperature != nil && (*route.Temperature < 0 || *route.Temperature > 2) {

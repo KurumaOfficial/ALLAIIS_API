@@ -134,10 +134,19 @@ an alias created from the panel stores them:
 | `max_images` | attachment count is checked before upload (`too_many_attachments`) |
 | `reasoning` | forces thinking on or off instead of guessing from the model name |
 | `temperature`, `top_p` | used only when the client did not send its own |
+| `max_tools` | tool count is checked before the envelope is built (`too_many_tools`) |
+| `web_search` | sets the provider's web tool for every turn |
 
 The CLI sets the same fields with `--reasoning true|false`, `--max-context`,
-`--max-response`, `--max-images`. The catalog also tags `pro_only` and
+`--max-response`, `--max-images`, `--max-tools` and `--web-search`. The catalog also tags `pro_only` and
 `uses_credits`, which the panel shows so a paid model is not picked by accident.
+
+### Thinking depth
+
+`reasoning_effort` (Chat) and `thinking.budget_tokens` (Messages) are passed to
+the web payload as `reasoningEffort`; a budget under 2048 becomes `low`, under
+8192 `medium`, under 32000 `high`, and larger `max`. The provider advertises the
+options it accepts.
 
 ## Inbound protocols
 

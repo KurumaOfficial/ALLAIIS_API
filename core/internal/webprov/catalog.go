@@ -23,7 +23,9 @@ type CatalogModel struct {
 	ContextLimit int    `json:"context,omitempty"`
 	MaxResponse  int    `json:"max_response,omitempty"`
 	MaxImages    int    `json:"max_images,omitempty"`
+	MaxTools     int    `json:"max_tools,omitempty"`
 	Reasoning    bool   `json:"reasoning,omitempty"`
+	WebSearch    bool   `json:"web_search,omitempty"`
 	Tools        bool   `json:"function_calling,omitempty"`
 	Temperature  *float64
 	TopP         *float64
@@ -65,6 +67,8 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 				MaxContext  int    `json:"maxContextLength"`
 				MaxResponse int    `json:"maxResponseTokens"`
 				MaxImages   int    `json:"maxImages"`
+				MaxTools    int    `json:"maxToolCount"`
+				WebSearch   bool   `json:"supportsXSearch"`
 				Reasoning   bool   `json:"supportsReasoning"`
 				Tools       bool   `json:"supportsFunctionCalling"`
 				Settings    struct {
@@ -93,7 +97,8 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 		models = append(models, CatalogModel{
 			ID: model.ID, Name: name, Kind: "text", UsesCredits: model.UsesCredits,
 			ProOnly: model.ProOnly, ContextLimit: model.MaxContext, MaxResponse: model.MaxResponse,
-			MaxImages: model.MaxImages, Reasoning: model.Reasoning, Tools: model.Tools,
+			MaxImages: model.MaxImages, MaxTools: model.MaxTools, WebSearch: model.WebSearch,
+			Reasoning: model.Reasoning, Tools: model.Tools,
 			Temperature: model.Settings.Temperature, TopP: model.Settings.TopP,
 		})
 	}

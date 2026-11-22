@@ -363,6 +363,8 @@ func (s *Server) addModel(w http.ResponseWriter, r *http.Request) {
 		MaxContext    int             `json:"max_context"`
 		MaxResponse   int             `json:"max_response"`
 		MaxImages     int             `json:"max_images"`
+		MaxTools      int             `json:"max_tools"`
+		WebSearch     bool            `json:"web_search"`
 		Temperature   *float64        `json:"temperature"`
 		TopP          *float64        `json:"top_p"`
 	}
@@ -386,7 +388,8 @@ func (s *Server) addModel(w http.ResponseWriter, r *http.Request) {
 		ID: name, Provider: input.Provider, UpstreamModel: strings.TrimSpace(input.UpstreamModel),
 		Protocol: input.Protocol, Privacy: input.Privacy, CredentialLabel: input.Label,
 		Reasoning: input.Reasoning, MaxContext: input.MaxContext, MaxResponse: input.MaxResponse,
-		MaxImages: input.MaxImages, Temperature: input.Temperature, TopP: input.TopP,
+		MaxImages: input.MaxImages, MaxTools: input.MaxTools, WebSearch: input.WebSearch,
+		Temperature: input.Temperature, TopP: input.TopP,
 	}
 	added, err := config.AddModel(r.Context(), s.options.ConfigPath, route)
 	if err != nil {
