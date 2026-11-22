@@ -3,6 +3,7 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -30,8 +31,9 @@ var toolNameFile struct {
 // toolNameSaveEvery throttles disk writes; the file is only read at startup.
 const toolNameSaveEvery = 3 * time.Second
 
-// WithStateDir loads and remembers the tool name state under dir.
-func (g *Gateway) WithStateDir(dir string) *Gateway {
+// WithStateDir loads and remembers the tool name state under dir, and watches
+// the file so a CLI reset or edit takes effect without a restart.
+func (g *Gateway) WithStateDir(ctx context.Context, dir string) *Gateway {
 	if dir == "" {
 		return g
 	}
@@ -40,7 +42,67 @@ func (g *Gateway) WithStateDir(dir string) *Gateway {
 	toolNameFile.path = path
 	toolNameFile.mu.Unlock()
 	loadToolNameState(path)
+	go watchToolNameFile(ctx)
 	return g
+}
+
+// toolNameWatchEvery is how often the file is checked for an outside change.
+const toolNameWatchEvery = 2 * time.Second
+
+// watchToolNameFile keeps memory in step with the file. Deletion is treated
+// like a reset; another change is loaded and becomes the new baseline.
+func watchToolNameFile(ctx context.Context) {
+	ticker := time.NewTicker(toolNameWatchEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		toolNameFile.mu.Lock()
+		path, last := toolNameFile.path, toolNameFile.lastSave
+		toolNameFile.mu.Unlock()
+		if path == "" {
+			continue
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			// Only a vanished file counts, and only once the last write is old
+			// enough that it cannot be a save in flight.
+			if since := time.Since(last); os.IsNotExist(err) && since >= toolNameSaveEvery && hasToolNameState() {
+				clearToolNameState()
+			}
+			continue
+		}
+		if !info.ModTime().After(last) {
+			continue
+		}
+		loadToolNameState(path)
+		toolNameFile.mu.Lock()
+		toolNameFile.lastSave = info.ModTime()
+		toolNameFile.mu.Unlock()
+	}
+}
+
+// hasToolNameState reports whether anything is worth clearing.
+func hasToolNameState() bool {
+	if toolCounters.fold.Load()+toolCounters.suffix.Load()+toolCounters.unknown.Load() > 0 {
+		return true
+	}
+	unknownNames.mu.Lock()
+	defer unknownNames.mu.Unlock()
+	return len(unknownNames.count) > 0
+}
+
+// clearToolNameState zeroes the counters and names but leaves the file alone.
+func clearToolNameState() {
+	toolCounters.fold.Store(0)
+	toolCounters.suffix.Store(0)
+	toolCounters.unknown.Store(0)
+	unknownNames.mu.Lock()
+	unknownNames.count = map[string]int{}
+	unknownNames.mu.Unlock()
 }
 
 // loadToolNameState applies a saved file, keeping only the most frequent names.
@@ -71,12 +133,7 @@ func loadToolNameState(path string) {
 // ResetToolNameState forgets the counters, the names and the saved file, so the
 // doctor starts from scratch.
 func (g *Gateway) ResetToolNameState() {
-	toolCounters.fold.Store(0)
-	toolCounters.suffix.Store(0)
-	toolCounters.unknown.Store(0)
-	unknownNames.mu.Lock()
-	unknownNames.count = map[string]int{}
-	unknownNames.mu.Unlock()
+	clearToolNameState()
 
 	toolNameFile.mu.Lock()
 	defer toolNameFile.mu.Unlock()

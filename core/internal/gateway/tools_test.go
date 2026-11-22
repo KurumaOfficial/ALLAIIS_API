@@ -3,6 +3,7 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -738,7 +739,7 @@ func TestToolUnknownNamesIsBounded(t *testing.T) {
 
 func TestToolNameStateSurvivesARestart(t *testing.T) {
 	dir := t.TempDir()
-	(&Gateway{}).WithStateDir(dir)
+	(&Gateway{}).WithStateDir(context.Background(), dir)
 
 	for _, name := range []string{"sx_bash", "sx_bash", "sx_grep"} {
 		guard := guardFor("shell")
@@ -759,7 +760,7 @@ func TestToolNameStateSurvivesARestart(t *testing.T) {
 	unknownNames.count = nil
 	unknownNames.mu.Unlock()
 
-	(&Gateway{}).WithStateDir(dir)
+	(&Gateway{}).WithStateDir(context.Background(), dir)
 
 	_, unknown := ToolNameStats()
 	if unknown < 2 {
@@ -792,7 +793,7 @@ func TestToolNameStateIgnoresABrokenFile(t *testing.T) {
 	unknownNames.count = map[string]int{"sx_keep": 1}
 	unknownNames.mu.Unlock()
 
-	(&Gateway{}).WithStateDir(dir)
+	(&Gateway{}).WithStateDir(context.Background(), dir)
 
 	if names := ToolUnknownNames(5); len(names) != 1 || names[0] != "sx_keep" {
 		t.Fatalf("broken file clobbered memory: %v", names)
@@ -804,7 +805,7 @@ func TestToolNameStateIgnoresABrokenFile(t *testing.T) {
 
 func TestResetToolNameStateClearsEverything(t *testing.T) {
 	dir := t.TempDir()
-	g := (&Gateway{}).WithStateDir(dir)
+	g := (&Gateway{}).WithStateDir(context.Background(), dir)
 
 	guard := guardFor("shell")
 	if _, _, err := guard.Write(`<invoke name="rs_name"><parameter name="command">ls</parameter></invoke>`); err != nil {
@@ -833,4 +834,36 @@ func TestResetToolNameStateClearsEverything(t *testing.T) {
 	toolNameFile.mu.Lock()
 	toolNameFile.path = ""
 	toolNameFile.mu.Unlock()
+}
+
+func TestWatcherFollowsAnOutsideReset(t *testing.T) {
+	dir := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	(&Gateway{}).WithStateDir(ctx, dir)
+
+	guard := guardFor("shell")
+	if _, _, err := guard.Write(`<invoke name="wx_gone"><parameter name="command">ls</parameter></invoke>`); err != nil {
+		t.Fatal(err)
+	}
+	toolNameFile.mu.Lock()
+	toolNameFile.lastSave = time.Time{}
+	toolNameFile.mu.Unlock()
+	saveToolNameState()
+	if _, err := os.Stat(filepath.Join(dir, "tool-names.json")); err != nil {
+		t.Fatalf("file not written: %v", err)
+	}
+
+	if err := os.Remove(filepath.Join(dir, "tool-names.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(3 * toolNameWatchEvery)
+	for time.Now().Before(deadline) {
+		if _, unknown := ToolNameStats(); unknown == 0 && len(ToolUnknownNames(0)) == 0 {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("deletion not followed: %v", ToolUnknownNames(3))
 }

@@ -42,6 +42,7 @@ const usage = `Usage: allaiis <command>
   web quota         Show remaining quota for stored web sessions
   status            Show configured models, key labels, and provider cooldowns
   doctor            Check config, vault, listener, aliases and capture browser
+  tools             Inspect or clear the tool name record
   smoke             Probe aliases through an in-process gateway
   key               Print the local gateway bearer key
   export opencode   Print a custom provider config for OpenCode
@@ -78,6 +79,9 @@ func run(ctx context.Context, args []string) error {
 	}
 	if args[0] == "web" {
 		return runWeb(ctx, dir, configPath, vaultPath, args[1:])
+	}
+	if args[0] == "tools" {
+		return runTools(dir, args[1:])
 	}
 
 	command := args[0]
@@ -238,7 +242,7 @@ func run(ctx context.Context, args []string) error {
 		return exportOpenCode(os.Stdout, cfg.Listen, routes.Models(cfg.MinPrivacy))
 	case "up":
 		advertise(os.Stdout, cfg, routes.Models(cfg.MinPrivacy))
-		live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithStateDir(dir).WithReload(configPath, store)
+		live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithStateDir(ctx, dir).WithReload(configPath, store)
 		go live.Watch(ctx)
 		return serve(ctx, cfg.Listen, live)
 	}
