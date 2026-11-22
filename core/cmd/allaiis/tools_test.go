@@ -24,7 +24,7 @@ func TestToolsShowPrintsCountsAndOrder(t *testing.T) {
 	writeRecord(t, dir, `{"folded":2,"suffixed":1,"unknown":3,"names":{"bash":2,"grep":1}}`)
 
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), false); err != nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, false); err != nil {
 		t.Fatal(err)
 	}
 	text := out.String()
@@ -40,7 +40,7 @@ func TestToolsShowPrintsCountsAndOrder(t *testing.T) {
 
 func TestToolsShowWithoutARecord(t *testing.T) {
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(t.TempDir(), "tool-names.json"), false); err != nil {
+	if err := showToolNames(&out, filepath.Join(t.TempDir(), "tool-names.json"), 0, false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "No tool name record") {
@@ -52,7 +52,7 @@ func TestToolsShowRejectsABrokenRecord(t *testing.T) {
 	dir := t.TempDir()
 	writeRecord(t, dir, "{nope")
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), false); err == nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, false); err == nil {
 		t.Fatal("broken record accepted")
 	}
 }
@@ -93,18 +93,37 @@ func TestAgeRendering(t *testing.T) {
 	now := time.UnixMilli(1_800_000_000_000)
 	cases := []struct {
 		stamp int64
+		ttl   int
 		want  string
 	}{
-		{0, "unknown"},
-		{now.UnixMilli() - 30_000, "just now"},
-		{now.UnixMilli() - 5*60_000, "5m"},
-		{now.UnixMilli() - 3*3_600_000, "3h"},
-		{now.UnixMilli() - 9*24*3_600_000, "9d"},
+		{0, 30, "unknown"},
+		{now.UnixMilli() - 30_000, 30, "just now"},
+		{now.UnixMilli() - 5*60_000, 30, "5m"},
+		{now.UnixMilli() - 3*3_600_000, 30, "3h"},
+		{now.UnixMilli() - 9*24*3_600_000, 30, "9d"},
+		{now.UnixMilli() - 40*24*3_600_000, 30, expiredLabel},
+		{now.UnixMilli() - 40*24*3_600_000, 0, "40d"},
 	}
 	for _, item := range cases {
-		if got := age(now, item.stamp); got != item.want {
-			t.Fatalf("age(%d) = %q, want %q", item.stamp, got, item.want)
+		if got := age(now, item.stamp, item.ttl); got != item.want {
+			t.Fatalf("age(%d, %d) = %q, want %q", item.stamp, item.ttl, got, item.want)
 		}
+	}
+}
+
+func TestToolsShowMarksExpiredNames(t *testing.T) {
+	dir := t.TempDir()
+	old := time.Now().Add(-40 * 24 * time.Hour).UnixMilli()
+	body := `{"unknown":1,"names":{"stale":1},"seen":{"stale":` + strconv.FormatInt(old, 10) + `}}`
+	if err := os.WriteFile(filepath.Join(dir, "tool-names.json"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 30, false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), expiredLabel) || !strings.Contains(out.String(), "1 expired") {
+		t.Fatalf("expired name not marked: %q", out.String())
 	}
 }
 
@@ -116,7 +135,7 @@ func TestToolsShowPrintsAge(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), false); err != nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "LAST SEEN") || !strings.Contains(out.String(), "5h") {

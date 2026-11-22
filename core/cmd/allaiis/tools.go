@@ -12,6 +12,8 @@ import (
 	"sort"
 	"text/tabwriter"
 	"time"
+
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
 
 const toolsUsage = `allaiis tools — inspect the tool name record the doctor reads
@@ -29,7 +31,7 @@ type toolNameRecord struct {
 	Seen     map[string]int64 `json:"seen"`
 }
 
-func runTools(dataDir string, args []string) error {
+func runTools(dataDir, configPath string, args []string) error {
 	if len(args) == 0 {
 		fmt.Fprint(os.Stdout, toolsUsage)
 		return nil
@@ -38,7 +40,7 @@ func runTools(dataDir string, args []string) error {
 	switch args[0] {
 	case "show":
 		asJSON := len(args) > 1 && args[1] == "--json"
-		return showToolNames(os.Stdout, path, asJSON)
+		return showToolNames(os.Stdout, path, retentionDays(configPath), asJSON)
 	case "reset":
 		return resetToolNames(os.Stdout, path)
 	default:
@@ -46,8 +48,20 @@ func runTools(dataDir string, args []string) error {
 	}
 }
 
-// showToolNames prints the record, or says there is none.
-func showToolNames(out io.Writer, path string, asJSON bool) error {
+// retentionDays reads the configured retention, or zero when the config cannot
+// be read: without it nothing is called expired.
+func retentionDays(configPath string) int {
+	cfg, err := config.Load(configPath)
+	if err != nil || cfg.ToolNameTTLDays < 0 {
+		return 0
+	}
+	return cfg.ToolNameTTLDays
+}
+
+// showToolNames prints the record, or says there is none. A gateway that is not
+// running never prunes the file, so the command applies the retention itself
+// and marks what would go.
+func showToolNames(out io.Writer, path string, ttlDays int, asJSON bool) error {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintln(out, "No tool name record yet.")
@@ -82,18 +96,34 @@ func showToolNames(out io.Writer, path string, asJSON bool) error {
 	table := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
 	fmt.Fprintln(table, "\nNAME\tCALLS\tLAST SEEN")
 	now := time.Now()
+	expired := 0
 	for _, name := range names {
-		fmt.Fprintf(table, "%s\t%d\t%s\n", name, record.Names[name], age(now, record.Seen[name]))
+		shown := age(now, record.Seen[name], ttlDays)
+		if shown == expiredLabel {
+			expired++
+		}
+		fmt.Fprintf(table, "%s\t%d\t%s\n", name, record.Names[name], shown)
 	}
-	return table.Flush()
+	if err := table.Flush(); err != nil {
+		return err
+	}
+	if expired > 0 {
+		fmt.Fprintf(out, "\n%d expired: a gateway drops them on its next start.\n", expired)
+	}
+	return nil
 }
 
-// age renders how long ago a name was last seen, empty when unknown.
-func age(now time.Time, stamp int64) string {
+const expiredLabel = "expired"
+
+// age renders how long ago a name was last seen, or that it is past retention.
+func age(now time.Time, stamp int64, ttlDays int) string {
 	if stamp == 0 {
 		return "unknown"
 	}
 	span := now.Sub(time.UnixMilli(stamp))
+	if ttlDays > 0 && span > time.Duration(ttlDays)*24*time.Hour {
+		return expiredLabel
+	}
 	switch {
 	case span < time.Minute:
 		return "just now"

@@ -81,7 +81,7 @@ func run(ctx context.Context, args []string) error {
 		return runWeb(ctx, dir, configPath, vaultPath, args[1:])
 	}
 	if args[0] == "tools" {
-		return runTools(dir, args[1:])
+		return runTools(dir, configPath, args[1:])
 	}
 
 	command := args[0]
