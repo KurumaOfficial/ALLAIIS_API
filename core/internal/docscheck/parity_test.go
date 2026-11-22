@@ -160,3 +160,46 @@ func TestPairedDocsCiteTheSameTests(t *testing.T) {
 		}
 	}
 }
+
+// linkTarget finds relative link targets in markdown.
+var linkTarget = regexp.MustCompile(`\]\(([^)#\s]+)`)
+
+func TestLinksResolve(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	var docs []string
+	if err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if entry.Name() == ".git" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, ".md") {
+			relative, _ := filepath.Rel(root, path)
+			docs = append(docs, relative)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range docs {
+		raw, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		for _, match := range linkTarget.FindAllStringSubmatch(string(raw), -1) {
+			target := match[1]
+			if strings.HasPrefix(target, "http") || strings.HasPrefix(target, "mailto:") ||
+				strings.HasPrefix(target, "../../") {
+				continue
+			}
+			resolved := filepath.Join(filepath.Dir(filepath.Join(root, path)), target)
+			if _, err := os.Stat(resolved); err != nil {
+				t.Fatalf("%s links %s, which does not exist", path, target)
+			}
+		}
+	}
+}
