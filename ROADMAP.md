@@ -13,8 +13,9 @@ key gives clients access to the routes the operator has configured.
   cooldowns that respect `Retry-After`.
 - Chunked request bodies, several attachments per turn, and a configurable request
   size cap (`max_request_mb`) for inline data-URL payloads.
-- Cross-platform CI (format, vet, build, tests, `-race` on Linux) and a per-OS
-  setup guide in [docs/venice-web.md](docs/venice-web.md).
+- Cross-platform CI (format, vet, build, tests, `-race` on Linux), tagged
+  releases for five targets with `SHA256SUMS`, `allaiis update` to install one,
+  start-at-logon via `allaiis service`, rotated logs, and backup/restore.
 - Loopback control panel (`allaiis gui`) for keys, aliases, discovery, probes,
   metrics, logs and settings, with atomic hot reload so edits apply without a
   restart, and a scheduled sweep that records a per-alias streak and alerts a
@@ -39,8 +40,7 @@ key gives clients access to the routes the operator has configured.
   drawn as a streak).
 - Extend capability use to tools and modality routing where providers publish
   those fields.
-- Reproducible Windows, Linux, and macOS releases, plus opt-in smoke tests for
-  official provider APIs (CI itself now runs on all three).
+- Opt-in smoke tests for official provider APIs.
 
 ## Later
 
