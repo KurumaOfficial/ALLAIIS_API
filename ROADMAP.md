@@ -13,7 +13,8 @@ key gives clients access to the routes the operator has configured.
   cooldowns that respect `Retry-After`.
 - Loopback control panel (`allaiis gui`) for keys, aliases, discovery, probes,
   metrics, logs and settings, with atomic hot reload so edits apply without a
-  restart.
+  restart, and a scheduled sweep that records a per-alias streak and alerts a
+  webhook on regressions.
 - **Venice web transport (Tier C)**: page-free replay of the web app's own
   inference API with a browser TLS fingerprint, single-use attestation pool,
   Clerk session tokens, NDJSON streaming, quota probe, model discovery, image
@@ -34,8 +35,8 @@ key gives clients access to the routes the operator has configured.
 - Add tier labels to the catalog page and a `--transport` column so web and
   official routes for one model are visibly distinct.
 - Larger attachment handling: chunked bodies and multiple files per turn.
-- Panel: keep probe history per alias and chart usage over time.
-- Run `smoke` on a schedule and notify on a failing alias.
+- Panel: chart usage over time (per-alias probe history is already kept and
+  drawn as a streak).
 - Extend capability use to tools and modality routing where providers publish
   those fields.
 - Add cross-platform CI and reproducible Windows, Linux, and macOS releases,
