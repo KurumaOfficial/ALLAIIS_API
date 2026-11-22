@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALLAIIS control panel</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<aside class="rail">
+  <div class="brand"><span class="dot"></span> ALLAIIS</div>
+  <nav>
+    <button class="nav" data-view="overview" aria-current="page">Overview</button>
+    <button class="nav" data-view="aliases">Aliases</button>
+    <button class="nav" data-view="keys">Keys</button>
+    <button class="nav" data-view="discovery">Discovery</button>
+    <button class="nav" data-view="playground">Playground</button>
+    <button class="nav" data-view="logs">Logs</button>
+    <button class="nav" data-view="settings">Settings</button>
+  </nav>
+  <div class="rail-foot">
+    <div id="gateway-pill" class="pill">checking…</div>
+    <div class="muted tiny" id="version"></div>
+  </div>
+</aside>
+
+<main>
+  <header class="top">
+    <h1 id="title">Overview</h1>
+    <button id="refresh" class="ghost" title="Refresh now">Refresh</button>
+  </header>
+
+  <section id="view-overview" class="view">
+    <div class="cards">
+      <div class="card"><div class="label">Gateway</div><div class="value" id="ov-gateway">—</div><div class="muted tiny" id="ov-listen"></div></div>
+      <div class="card"><div class="label">Aliases</div><div class="value" id="ov-models">—</div><div class="muted tiny">configured routes</div></div>
+      <div class="card"><div class="label">Requests</div><div class="value" id="ov-requests">—</div><div class="muted tiny" id="ov-errors"></div></div>
+      <div class="card"><div class="label">Characters served</div><div class="value" id="ov-chars">—</div><div class="muted tiny">estimated replies</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Gateway key</h2><div class="row"><button id="key-reveal" class="ghost">Reveal</button><button id="key-copy" class="ghost">Copy</button></div></div>
+      <code id="client-key" class="key">••••••••••••••••••••••••</code>
+      <p class="muted">Send it as <code>Authorization: Bearer …</code> or, for Anthropic clients, <code>x-api-key</code>. Base URL: <code id="base-url"></code></p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Provider health</h2></div>
+      <div id="provider-health" class="stack"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Recent requests</h2></div>
+      <div class="table-wrap"><table id="recent"><thead><tr><th>Time</th><th>Alias</th><th>Protocol</th><th>Status</th><th>ms</th><th>chars</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="view-aliases" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Add alias</h2></div>
+      <form id="model-form" class="grid-form">
+        <label>Provider<select name="provider" id="model-provider" required></select></label>
+        <label>Credential<select name="label" id="model-label"></select></label>
+        <label>Upstream model<input name="upstream_model" id="model-upstream" required placeholder="model id from discovery"></label>
+        <label>Alias<input name="name" id="model-name" placeholder="auto from model"></label>
+        <label>Protocol<select name="protocol"><option value="">chat</option><option value="messages">messages</option><option value="responses">responses</option></select></label>
+        <label>Privacy<select name="privacy"><option value="consumer_cloud">consumer_cloud</option><option value="zdr">zdr</option><option value="e2ee">e2ee</option><option value="public_research">public_research</option></select></label>
+        <div class="form-foot"><button type="submit" class="primary">Add alias</button><span class="muted tiny">responses routes need a credential</span></div>
+      </form>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Aliases</h2><span class="muted tiny">changes apply live</span></div>
+      <div class="table-wrap"><table id="models"><thead><tr><th>Alias</th><th>Provider</th><th>Protocol</th><th>Privacy</th><th>Credential</th><th>Upstream</th><th></th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="view-keys" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Stored credentials</h2><span class="muted tiny">values never leave the vault</span></div>
+      <div id="credential-list" class="stack"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Add credential</h2></div>
+      <form id="key-form" class="grid-form">
+        <label>Provider<select name="provider" id="key-provider" required></select></label>
+        <label>Label<input name="label" id="key-label" required placeholder="pro, work, guest"></label>
+        <label class="wide">API key or web-session JSON<textarea name="key" id="key-value" rows="3" required placeholder="sk-… or the JSON printed by web login"></textarea></label>
+        <div class="form-foot"><button type="submit" class="primary">Save credential</button></div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Web session capture</h2></div>
+      <p class="muted">Venice is reachable through the web app. Open the capture browser, sign in there, then capture the session. Your own Chrome windows are never touched.</p>
+      <div class="row">
+        <button id="capture-open" class="ghost">1. Open capture browser</button>
+        <input id="capture-label" placeholder="label, e.g. pro" class="inline">
+        <button id="capture-run" class="primary">2. Capture session</button>
+      </div>
+      <pre id="capture-out" class="out" hidden></pre>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Gateway key</h2></div>
+      <p class="muted">Rotating replaces the key every client must use. Existing clients keep working until you update them.</p>
+      <button id="rotate" class="ghost">Rotate gateway key</button>
+      <pre id="rotate-out" class="out" hidden></pre>
+    </div>
+  </section>
+
+  <section id="view-discovery" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Upstream catalog</h2></div>
+      <div class="row">
+        <select id="discover-provider"></select>
+        <select id="discover-label"></select>
+        <input id="discover-match" placeholder="filter">
+        <button id="discover-run" class="primary">List models</button>
+      </div>
+      <p class="muted tiny">Catalog calls use the stored credential and count against its quota.</p>
+    </div>
+    <div class="panel">
+      <div id="discover-list" class="stack"></div>
+    </div>
+  </section>
+
+  <section id="view-playground" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Send a probe</h2><span class="muted tiny">through the live gateway</span></div>
+      <div class="row">
+        <select id="probe-model"></select>
+        <input id="probe-prompt" placeholder="prompt" value="Reply with the single word: ready">
+        <button id="probe-run" class="primary">Send</button>
+      </div>
+      <pre id="probe-out" class="out" hidden></pre>
+    </div>
+  </section>
+
+  <section id="view-logs" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Live log</h2><div class="row"><label class="check"><input type="checkbox" id="logs-follow" checked> follow</label><button id="logs-clear" class="ghost">Clear view</button></div></div>
+      <div id="logs" class="logs"></div>
+    </div>
+  </section>
+
+  <section id="view-settings" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Privacy floor</h2></div>
+      <p class="muted">Requests may raise the floor with <code>X-ALLAIIS-Min-Privacy</code>, never lower it.</p>
+      <div class="row"><select id="set-privacy"></select><button id="set-privacy-save" class="primary">Save</button></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Client snippets</h2></div>
+      <div class="stack">
+        <div><div class="label">curl</div><pre class="out" id="snip-curl"></pre></div>
+        <div><div class="label">Claude Code</div><pre class="out" id="snip-claude"></pre></div>
+        <div><div class="label">OpenCode provider</div><pre class="out" id="snip-opencode"></pre></div>
+      </div>
+      <div class="row"><button id="copy-curl" class="ghost">Copy curl</button><button id="copy-claude" class="ghost">Copy Claude Code</button></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Files and maintenance</h2></div>
+      <dl class="facts">
+        <dt>Data directory</dt><dd id="fact-data"></dd>
+        <dt>Config file</dt><dd id="fact-config"></dd>
+        <dt>Listen</dt><dd id="fact-listen"></dd>
+      </dl>
+      <div class="row"><button id="reload" class="ghost">Reload config from disk</button><button id="download" class="ghost">Download config JSON</button></div>
+      <pre id="settings-out" class="out" hidden></pre>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+<script>window.ADMIN_TOKEN = "{{TOKEN}}";</script>
+<script src="/static/app.js"></script>
+</body>
+</html>

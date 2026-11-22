@@ -17,9 +17,79 @@ import (
 )
 
 func AddModel(ctx context.Context, path string, route Route) (bool, error) {
-	path, err := filepath.EvalSymlinks(path)
+	added := false
+	err := edit(ctx, path, func(cfg *Config) error {
+		if route.Privacy == "" {
+			route.Privacy = Consumer
+		}
+		if route.Protocol == "chat" {
+			route.Protocol = Chat
+		}
+		for _, existing := range cfg.Models {
+			if existing.ID == route.ID {
+				if existing == route {
+					return nil
+				}
+				return fmt.Errorf("model alias %q already points to a different route", route.ID)
+			}
+		}
+		cfg.Models = append(cfg.Models, route)
+		added = true
+		return nil
+	})
 	if err != nil {
 		return false, err
+	}
+	return added, nil
+}
+
+// RemoveModel deletes an alias and reports whether it existed.
+func RemoveModel(ctx context.Context, path, id string) (bool, error) {
+	removed := false
+	err := edit(ctx, path, func(cfg *Config) error {
+		kept := cfg.Models[:0]
+		for _, route := range cfg.Models {
+			if route.ID == id {
+				removed = true
+				continue
+			}
+			kept = append(kept, route)
+		}
+		cfg.Models = kept
+		if !removed {
+			return fmt.Errorf("model alias %q is not configured", id)
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return removed, nil
+}
+
+// UpdateProvider registers or replaces a custom provider.
+func UpdateProvider(ctx context.Context, path, id string, provider Provider) error {
+	return edit(ctx, path, func(cfg *Config) error {
+		if cfg.Providers == nil {
+			cfg.Providers = map[string]Provider{}
+		}
+		cfg.Providers[id] = provider
+		return nil
+	})
+}
+
+// SetMinPrivacy updates the gateway-wide privacy floor.
+func SetMinPrivacy(ctx context.Context, path string, level Privacy) error {
+	return edit(ctx, path, func(cfg *Config) error {
+		cfg.MinPrivacy = level
+		return nil
+	})
+}
+
+func edit(ctx context.Context, path string, change func(*Config) error) error {
+	path, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
 	}
 	lock := flock.New(path+".lock", flock.SetPermissions(0600))
 	defer lock.Close()
@@ -27,45 +97,30 @@ func AddModel(ctx context.Context, path string, route Route) (bool, error) {
 	defer cancel()
 	locked, err := lock.TryLockContext(lockContext, 50*time.Millisecond)
 	if err != nil {
-		return false, fmt.Errorf("lock configuration: %w", err)
+		return fmt.Errorf("lock configuration: %w", err)
 	}
 	if !locked {
-		return false, errors.New("configuration is being edited by another process")
+		return errors.New("configuration is being edited by another process")
 	}
 
 	cfg, err := Load(path)
 	if err != nil {
-		return false, err
+		return err
 	}
-	if route.Privacy == "" {
-		route.Privacy = Consumer
+	if err := change(&cfg); err != nil {
+		return err
 	}
-	if route.Protocol == "chat" {
-		route.Protocol = Chat
-	}
-	for _, existing := range cfg.Models {
-		if existing.ID == route.ID {
-			if existing == route {
-				return false, nil
-			}
-			return false, fmt.Errorf("model alias %q already points to a different route", route.ID)
-		}
-	}
-	cfg.Models = append(cfg.Models, route)
 	if err := cfg.validate(); err != nil {
-		return false, err
+		return err
 	}
 	body, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
-		return false, err
+		return err
 	}
 	if len(body)+1 > maxConfigBytes {
-		return false, errors.New("edited configuration would exceed 1 MiB")
+		return errors.New("edited configuration would exceed 1 MiB")
 	}
-	if err := replaceConfig(ctx, path, append(body, '\n')); err != nil {
-		return false, err
-	}
-	return true, nil
+	return replaceConfig(ctx, path, append(body, '\n'))
 }
 
 func replaceConfig(ctx context.Context, path string, body []byte) error {

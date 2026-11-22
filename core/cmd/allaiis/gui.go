@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"os"
+
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/admin"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
+)
+
+const version = "0.1.0"
+
+// runGUI serves the gateway and the loopback control panel together.
+func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, openBrowser bool) error {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("load configuration: %w", err)
+	}
+	if listen != "" {
+		cfg.Listen = listen
+	}
+	if _, _, err := net.SplitHostPort(cfg.Listen); err != nil {
+		return fmt.Errorf("invalid listen address: %w", err)
+	}
+	passphrase, err := readPassphrase()
+	if err != nil {
+		return err
+	}
+	defer clear(passphrase)
+	store, err := vault.Open(ctx, vaultPath, passphrase)
+	if err != nil {
+		return fmt.Errorf("open vault (run allaiis init for a new vault): %w", err)
+	}
+	defer store.Close()
+	routes, err := router.New(ctx, cfg, store)
+	if err != nil {
+		return err
+	}
+
+	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithReload(configPath, store)
+	panel, err := admin.New(admin.Options{
+		Gateway: live, Store: store, ConfigPath: configPath, DataDir: dir,
+		Listen: cfg.Listen, Passphrase: append([]byte{}, passphrase...), Version: version,
+	})
+	if err != nil {
+		return err
+	}
+	stderr := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})
+	slog.SetDefault(slog.New(admin.Tee(panel.Logs(), stderr)))
+	advertise(os.Stdout, cfg, routes.Models(cfg.MinPrivacy))
+
+	run, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go live.Watch(run)
+
+	ready := make(chan string, 1)
+	failures := make(chan error, 2)
+	go func() {
+		err := panel.Listen(run, ui, func(url string) {
+			fmt.Fprintf(os.Stdout, "Control panel: %s\n", url)
+			if openBrowser {
+				if err := admin.OpenBrowser(url); err != nil {
+					slog.Warn("could not open the browser", "error", err)
+				}
+			}
+			ready <- url
+		})
+		if err != nil && !errors.Is(err, context.Canceled) {
+			failures <- err
+		}
+	}()
+	select {
+	case <-ready:
+	case err := <-failures:
+		return err
+	case <-run.Done():
+		return nil
+	}
+	go func() {
+		if err := serve(run, cfg.Listen, live); err != nil && !errors.Is(err, context.Canceled) {
+			failures <- err
+		}
+	}()
+	select {
+	case err := <-failures:
+		return err
+	case <-run.Done():
+		return nil
+	}
+}

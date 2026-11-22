@@ -15,12 +15,15 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
 
@@ -31,28 +34,45 @@ const (
 	anthropicVersion = "2026-10-21"
 )
 
-type Gateway struct {
-	router    *router.Router
-	client    *http.Client
-	web       *webprov.Client
-	keyDigest [32]byte
-	minimum   config.Privacy
+// table is one immutable routing snapshot. Reload swaps whole tables so a
+// request never observes a half-applied configuration.
+type table struct {
+	routes *router.Router
+	config config.Config
 }
 
-func New(routes *router.Router, clientKey string, minimum config.Privacy) http.Handler {
+type Gateway struct {
+	live    atomic.Pointer[table]
+	client  *http.Client
+	web     *webprov.Client
+	key     atomic.Pointer[[32]byte]
+	minimum atomic.Value
+	metrics *metrics
+	reload  *reloadState
+	mux     http.Handler
+}
+
+// reloadState carries what a hot reload needs to reread the configuration.
+type reloadState struct {
+	path  string
+	store *vault.Store
+	stamp atomic.Pointer[string]
+	mtime atomic.Int64
+	size  atomic.Int64
+}
+
+func New(routes *router.Router, clientKey string, minimum config.Privacy) *Gateway {
 	return NewWithWeb(routes, clientKey, minimum, webprov.New(10*time.Minute))
 }
 
 // NewWithWeb builds a gateway with an explicit web-provider client.
-func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy, web *webprov.Client) http.Handler {
+func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy, web *webprov.Client) *Gateway {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.ResponseHeaderTimeout = 90 * time.Second
 	g := &Gateway{
-		router:    routes,
-		keyDigest: sha256.Sum256([]byte(clientKey)),
-		minimum:   minimum,
-		web:       web,
+		web:     web,
+		metrics: newMetrics(),
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   10 * time.Minute,
@@ -61,6 +81,9 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 			},
 		},
 	}
+	g.live.Store(&table{routes: routes, config: config.Default()})
+	g.SetClientKey(clientKey)
+	g.minimum.Store(minimum)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -69,7 +92,99 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 	mux.HandleFunc("POST /v1/chat/completions", g.completion(config.Chat, "/chat/completions"))
 	mux.HandleFunc("POST /v1/responses", g.completion(config.Responses, "/responses"))
 	mux.HandleFunc("POST /v1/messages", g.completion(config.Messages, "/messages"))
-	return mux
+	g.mux = mux
+	return g
+}
+
+func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) { g.mux.ServeHTTP(w, r) }
+
+func (g *Gateway) table() *table { return g.live.Load() }
+
+// Models lists every configured alias, without the privacy filter.
+func (g *Gateway) Models() []router.Model { return g.table().routes.Models(config.Public) }
+
+// Minimum reports the configured privacy floor.
+func (g *Gateway) Minimum() config.Privacy { return g.minimum.Load().(config.Privacy) }
+
+// ValidKey reports whether key is the current client key.
+func (g *Gateway) ValidKey(key string) bool { return g.validKey(key) }
+
+// SetClientKey installs the bearer key clients must present.
+func (g *Gateway) SetClientKey(key string) {
+	digest := sha256.Sum256([]byte(key))
+	g.key.Store(&digest)
+}
+
+// WithReload enables hot reload for a configuration file and vault.
+func (g *Gateway) WithReload(path string, store *vault.Store) *Gateway {
+	g.reload = &reloadState{path: path, store: store}
+	return g
+}
+
+// Reload rereads the configuration and swaps in a new routing table. On error
+// the previous table stays live.
+func (g *Gateway) Reload(ctx context.Context) error {
+	if g.reload == nil {
+		return errors.New("hot reload is not configured")
+	}
+	cfg, err := config.Load(g.reload.path)
+	if err != nil {
+		return err
+	}
+	routes, err := router.New(ctx, cfg, g.reload.store)
+	if err != nil {
+		return err
+	}
+	g.live.Store(&table{routes: routes, config: cfg})
+	g.minimum.Store(cfg.MinPrivacy)
+	stamp, _ := g.reload.store.CredentialStamp(ctx)
+	if stamp != "" {
+		g.reload.stamp.Store(&stamp)
+	}
+	// Baseline the file metadata too, so the watcher does not reload again for
+	// the write we just handled.
+	if info, err := os.Stat(g.reload.path); err == nil {
+		g.reload.mtime.Store(info.ModTime().UnixNano())
+		g.reload.size.Store(info.Size())
+	}
+	slog.Info("configuration reloaded", "models", len(cfg.Models))
+	return nil
+}
+
+// Watch polls the configuration and vault and reloads when either changes.
+func (g *Gateway) Watch(ctx context.Context) {
+	if g.reload == nil {
+		return
+	}
+	stamp, _ := g.reload.store.CredentialStamp(ctx)
+	g.reload.stamp.Store(&stamp)
+	if info, err := os.Stat(g.reload.path); err == nil {
+		g.reload.mtime.Store(info.ModTime().UnixNano())
+		g.reload.size.Store(info.Size())
+	}
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		info, err := os.Stat(g.reload.path)
+		changed := err == nil && (info.ModTime().UnixNano() != g.reload.mtime.Load() || info.Size() != g.reload.size.Load())
+		if current, err := g.reload.store.CredentialStamp(ctx); err == nil {
+			if last := g.reload.stamp.Load(); last == nil || *last != current {
+				changed = true
+			}
+		}
+		if !changed {
+			continue
+		}
+		if err := g.Reload(ctx); err != nil {
+			slog.Warn("configuration reload failed, keeping the previous routes", "error", err)
+			continue
+		}
+	}
 }
 
 func (g *Gateway) authorize(protocol config.Protocol, next http.HandlerFunc) http.HandlerFunc {
@@ -103,22 +218,24 @@ func clientCredential(r *http.Request, protocol config.Protocol) string {
 
 func (g *Gateway) validKey(key string) bool {
 	digest := sha256.Sum256([]byte(key))
-	return key != "" && subtle.ConstantTimeCompare(digest[:], g.keyDigest[:]) == 1
+	expected := g.key.Load()
+	return key != "" && expected != nil && subtle.ConstantTimeCompare(digest[:], expected[:]) == 1
 }
 
 func (g *Gateway) privacy(r *http.Request) (config.Privacy, bool) {
 	values := r.Header.Values("X-ALLAIIS-Min-Privacy")
+	minimum := g.minimum.Load().(config.Privacy)
 	if len(values) == 0 {
-		return g.minimum, true
+		return minimum, true
 	}
 	requested := config.Privacy(values[0])
 	if len(values) != 1 || !requested.Valid() {
 		return "", false
 	}
-	if requested.Meets(g.minimum) {
+	if requested.Meets(minimum) {
 		return requested, true
 	}
-	return g.minimum, true
+	return minimum, true
 }
 
 func (g *Gateway) models(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +244,7 @@ func (g *Gateway) models(w http.ResponseWriter, r *http.Request) {
 		writeError(w, config.Chat, http.StatusBadRequest, "invalid_privacy", "Invalid X-ALLAIIS-Min-Privacy value.")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": g.router.Models(minimum)})
+	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": g.table().routes.Models(minimum)})
 }
 
 func (g *Gateway) completion(protocol config.Protocol, path string) http.HandlerFunc {
@@ -137,6 +254,13 @@ func (g *Gateway) completion(protocol config.Protocol, path string) http.Handler
 }
 
 func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, path string) {
+	start := time.Now()
+	recorder := &statusWriter{ResponseWriter: w}
+	w = recorder
+	model, provider, stream, chars, calls := "", "", false, 0, 0
+	defer func() {
+		g.recordCompletion(recorder, start, stream, func() (string, string) { return model, provider }, chars, calls)
+	}()
 	minimum, ok := g.privacy(r)
 	if !ok {
 		writeError(w, protocol, http.StatusBadRequest, "invalid_privacy", "Invalid X-ALLAIIS-Min-Privacy value.")
@@ -162,7 +286,8 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 		return
 	}
 
-	fields, model, stream, prefix, err := parseCompletion(body, protocol)
+	fields, parsedModel, parsedStream, prefix, err := parseCompletion(body, protocol)
+	model, stream = parsedModel, parsedStream
 	if err != nil {
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return
@@ -176,7 +301,8 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 		return
 	}
 	session := g.sessionID(sessionHeader, prefix)
-	target, until, err := g.router.Resolve(r.Context(), model, protocol, minimum, session)
+	target, until, err := g.table().routes.Resolve(r.Context(), model, protocol, minimum, session)
+	provider = target.Route.Provider
 	if target.Route.ID != "" {
 		w.Header().Set(tierHeader, "tier_a")
 		w.Header().Set("X-ALLAIIS-Provider", target.Route.Provider)
@@ -198,7 +324,7 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 	}
 
 	if target.Provider.Web() {
-		g.webCompletion(w, r, protocol, target, body, stream)
+		chars, calls = g.webCompletion(w, r, protocol, target, body, stream)
 		return
 	}
 	fields["model"], _ = json.Marshal(target.Route.UpstreamModel)
@@ -315,7 +441,7 @@ func parseCompletion(body []byte, protocol config.Protocol) (map[string]json.Raw
 }
 
 func (g *Gateway) sessionID(hint string, prefix []byte) [32]byte {
-	mac := hmac.New(sha256.New, g.keyDigest[:])
+	mac := hmac.New(sha256.New, g.key.Load()[:])
 	if hint != "" {
 		mac.Write([]byte("session/v1\x00" + hint))
 	} else {
@@ -333,7 +459,7 @@ func (g *Gateway) upstreamError(w http.ResponseWriter, ctx context.Context, targ
 		until := retryTime(response.Header.Get("Retry-After"), time.Now())
 		persist, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if err := g.router.SetCooldown(persist, target, until); err != nil {
+		if err := g.table().routes.SetCooldown(persist, target, until); err != nil {
 			slog.Warn("could not persist provider cooldown", "provider", target.Route.Provider)
 		}
 		rateLimited(w, protocol, until)

@@ -43,6 +43,7 @@ const usage = `Usage: allaiis <command>
   key               Print the local gateway bearer key
   export opencode   Print a custom provider config for OpenCode
   up                Start the loopback gateway
+  gui               Start the gateway and open the control panel
 `
 
 func main() {
@@ -86,7 +87,8 @@ func run(ctx context.Context, args []string) error {
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	var sources []string
-	var providerID, label, keyEnv, authPath string
+	var providerID, label, keyEnv, authPath, listen, ui string
+	var noOpen bool
 	switch command {
 	case "import":
 		flags.Func("from", "key source, env or opencode (repeatable)", func(source string) error {
@@ -107,6 +109,11 @@ func run(ctx context.Context, args []string) error {
 	case "account remove":
 		flags.StringVar(&providerID, "provider", "", "configured provider ID")
 		flags.StringVar(&label, "label", "", "credential label within the pool")
+	case "gui":
+		flags.StringVar(&listen, "listen", "", "gateway address (defaults to the configured one)")
+		flags.StringVar(&ui, "ui", "127.0.0.1:0", "control panel address")
+		flags.BoolVar(&noOpen, "no-open", false, "do not open a browser")
+		fallthrough
 	case "init", "key", "status", "export opencode", "up":
 	default:
 		return fmt.Errorf("unknown command %q. Run allaiis help", command)
@@ -123,6 +130,9 @@ func run(ctx context.Context, args []string) error {
 	}
 	if (command == "account add" || command == "account remove") && (providerID == "" || label == "") {
 		return errors.New("--provider and --label are required")
+	}
+	if command == "gui" {
+		return runGUI(ctx, dir, configPath, vaultPath, listen, ui, !noOpen)
 	}
 	passphrase, err := readPassphrase()
 	if err != nil {
@@ -179,7 +189,7 @@ func run(ctx context.Context, args []string) error {
 		if !removed {
 			return errors.New("credential label was not found for this provider")
 		}
-		fmt.Fprintln(os.Stdout, "Removed credential. Restart a running gateway to reload its key pool.")
+		fmt.Fprintln(os.Stdout, "Removed credential. A running gateway reloads it within a few seconds.")
 		return nil
 	}
 
@@ -200,7 +210,9 @@ func run(ctx context.Context, args []string) error {
 		return exportOpenCode(os.Stdout, cfg.Listen, routes.Models(cfg.MinPrivacy))
 	case "up":
 		advertise(os.Stdout, cfg, routes.Models(cfg.MinPrivacy))
-		return serve(ctx, cfg.Listen, gateway.New(routes, store.ClientKey(), cfg.MinPrivacy))
+		live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithReload(configPath, store)
+		go live.Watch(ctx)
+		return serve(ctx, cfg.Listen, live)
 	}
 	return errors.New("unhandled command")
 }
@@ -289,7 +301,7 @@ func saveEntries(ctx context.Context, store *vault.Store, entries []vault.Entry)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stdout, "Saved %d API key(s). Restart a running gateway to reload its key pool.\n", count)
+	fmt.Fprintf(os.Stdout, "Saved %d API key(s). A running gateway reloads them within a few seconds.\n", count)
 	return nil
 }
 

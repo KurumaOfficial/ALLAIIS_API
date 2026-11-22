@@ -13,6 +13,19 @@
 
 ALLAIIS — локальный шлюз на Go для AI-клиентов, включая OpenCode. Регистрируй алиасы моделей, храни ключи провайдеров в зашифрованном хранилище и используй один loopback-адрес для JSON и потоковых ответов.
 
+## Панель управления
+
+```powershell
+.\allaiis.exe gui
+```
+
+`gui` поднимает гейтвей и открывает панель, доступную только с loopback: в ней
+можно добавлять ключи, захватить веб-сессию Venice, регистрировать алиасы,
+смотреть каталоги, отправлять пробы и наблюдать живой лог. Панель слушает
+`127.0.0.1` на случайном порту и требует одноразовый токен; наружу ничего не
+уходит. Изменения применяются к работающему гейтвею за секунды через горячую
+перезагрузку — без рестарта. См. [docs/gui.ru.md](docs/gui.ru.md).
+
 ## Быстрый старт
 
 **Локальный запуск проверен офлайн. Записанных live-проверок провайдеров: 1 (Venice web).** Тест использует сервер на loopback и тестовые ключи.
@@ -238,6 +251,10 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Эмуляция тулов Тира C | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | вызов `read_file` | — |
 | Веб-маршруты на `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | текст Opus и `tool_use` | — |
 | Веб-маршруты на `/v1/responses` | ✓ | `TestResponsesFollowUpByPreviousId` (переживает новый handler) | SSE-формат, шифрованные продолжения | — |
+| Локальная панель (`allaiis gui`) | ✓ | `TestPanelAddKeyAndAlias`, `TestPanelRejectsMissingToken` | добавление алиаса, проба и удаление через панель | — |
+| Горячая перезагрузка и наблюдатель | ✓ | `TestReloadSwapsAndKeepsPreviousOnError`, `TestWatchReloadsChangedConfig` | изменения без рестарта | — |
+| Ротация ключа гейтвея | ✓ | `TestPanelDeleteAndRotate` | — | — |
+| Метрики запросов и живой лог | ✓ | `TestPanelProbe` | счётчики в панели | — |
 | Ввод изображений и файлов | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | цвет по PNG, поле из .txt | — |
 
 ### Офлайн-совместимость

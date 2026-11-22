@@ -35,12 +35,12 @@ type webShape interface {
 }
 
 // webCompletion serves a route whose provider has no documented API.
-func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, target router.Target, payload []byte, stream bool) {
+func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, target router.Target, payload []byte, stream bool) (chars, callsOut int) {
 	credential, err := webprov.ParseCredential(target.Entry.Key)
 	if err != nil {
 		writeError(w, protocol, http.StatusServiceUnavailable, "credential_invalid",
 			"The stored web session is unreadable. Capture it again.")
-		return
+		return 0, 0
 	}
 	if credential.DistinctID == "" {
 		credential.DistinctID = randomID()
@@ -64,10 +64,10 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	if err != nil {
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
-		return
+		return 0, 0
 	}
 	if request.Parent != "" {
-		if raw, ok := g.router.LoadResponse(r.Context(), request.Parent); ok {
+		if raw, ok := g.table().routes.LoadResponse(r.Context(), request.Parent); ok {
 			var previous []webprov.Message
 			if json.Unmarshal(raw, &previous) == nil && len(previous) > 0 {
 				reason.turns = append(previous, reason.turns...)
@@ -219,11 +219,11 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	if err != nil && sent {
 		writeStreamError(w, protocol, err)
 		slog.Warn("web provider stream failed", "provider", target.Route.Provider, "error", err)
-		return
+		return reason.chars(), len(calls)
 	}
 	if err != nil {
 		g.webError(w, protocol, target, err)
-		return
+		return reason.chars(), len(calls)
 	}
 	promptTokens := estimateChars(len(payload))
 	usage := map[string]any{
@@ -244,7 +244,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		turns := append(append([]webprov.Message{}, reason.turns...), webprov.Message{Role: "assistant", Content: reply})
 		if raw, err := json.Marshal(turns); err == nil {
 			persist, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
-			if saveErr := g.router.SaveResponse(persist, id, raw, time.Now().Add(time.Hour)); saveErr != nil {
+			if saveErr := g.table().routes.SaveResponse(persist, id, raw, time.Now().Add(time.Hour)); saveErr != nil {
 				slog.Warn("could not persist response turns", "error", saveErr)
 			}
 			cancel()
@@ -253,6 +253,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	slog.Info("web completion", "provider", target.Route.Provider, "model", target.Route.ID,
 		"protocol", protocol, "stream", stream, "chars", reason.chars(), "calls", len(calls),
 		"attempts", attempts, "duration_ms", time.Since(started).Milliseconds())
+	return reason.chars(), len(calls)
 }
 
 func replyID(protocol config.Protocol) string {
@@ -289,7 +290,7 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 		}
 		persist, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if setErr := g.router.SetCooldown(persist, target, until); setErr != nil {
+		if setErr := g.table().routes.SetCooldown(persist, target, until); setErr != nil {
 			slog.Warn("could not persist provider cooldown", "provider", target.Route.Provider)
 		}
 		rateLimited(w, protocol, until)

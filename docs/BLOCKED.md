@@ -2,8 +2,10 @@
 
 ## B1. Open items
 
-Venice web works live as a guest and on a Pro session, over Chat Completions
-Anthropic Messages and OpenAI Responses. Remaining gaps are larger attachments and a second provider.
+Venice web works live as a guest and on a Pro session, over Chat Completions,
+Anthropic Messages and OpenAI Responses. The control panel manages keys, aliases,
+probes and logs against a live gateway with hot reload. Remaining gaps are larger
+attachments and a second provider.
 
 - A second web provider on the same capture flow.
 
@@ -24,6 +26,8 @@ Anthropic Messages and OpenAI Responses. Remaining gaps are larger attachments a
 | Tool emulation on web routes | done | live check passed |
 | Attachments (images, files) | done | live colour and text-file answers |
 | E2EE models | done (server-side path) | client-side field encryption is open |
+| Control panel and hot reload | done | — |
+| Gateway key rotation | done | — |
 | Second web provider | open | per-provider protocol capture |
 | Second live web session | done | — |
 
@@ -38,3 +42,5 @@ Anthropic Messages and OpenAI Responses. Remaining gaps are larger attachments a
 - [x] Verify a tool call on a Pro model and an `e2ee-*` model.
 - [x] Run two sessions side by side and confirm isolation.
 - [x] Record the test name, provider, model, and result in the README status matrix.
+- [x] Add and delete an alias through the panel and confirm the live gateway picks
+  it up without a restart.

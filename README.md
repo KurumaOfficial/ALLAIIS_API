@@ -13,6 +13,19 @@
 
 ALLAIIS is a self-hosted Go gateway for AI clients such as OpenCode. Register model aliases, store provider keys in an encrypted local vault, and use one loopback endpoint for native JSON and streaming responses.
 
+## Control panel
+
+```powershell
+.\allaiis.exe gui
+```
+
+`gui` starts the gateway and opens a loopback-only panel where you can add
+credentials, capture a Venice web session, register aliases, browse catalogs,
+send probes and watch the live log. The panel binds `127.0.0.1` with a random
+port and a per-run token; it never leaves the machine. Changes apply to the
+running gateway within seconds through a hot reload — no restart. See
+[docs/gui.md](docs/gui.md).
+
 ## Quick start
 
 **Offline setup verified. Live provider checks recorded: 0.** The smoke test uses a loopback provider and fixture credentials.
@@ -244,6 +257,10 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Tier C tool emulation | ✓ | `TestToolGuardSplitsMarkers`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call | — |
 | Web routes on `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | Opus text and `tool_use` | — |
 | Web routes on `/v1/responses` | ✓ | `TestResponsesFollowUpByPreviousId` (survives a new handler) | adopted SSE shape, encrypted follow-ups | — |
+| Local control panel (`allaiis gui`) | ✓ | `TestPanelAddKeyAndAlias`, `TestPanelRejectsMissingToken` | alias add, probe, delete via the panel | — |
+| Hot config reload and watcher | ✓ | `TestReloadSwapsAndKeepsPreviousOnError`, `TestWatchReloadsChangedConfig` | changes applied without a restart | — |
+| Gateway key rotation | ✓ | `TestPanelDeleteAndRotate` | — | — |
+| Request metrics and live log | ✓ | `TestPanelProbe` | panel overview counters | — |
 | Web image and file input | ✓ | `TestAgentBodyCarriesMediaParts`, `TestAgentBodyMarksFiles`, `TestWebVisionUsesAgentMultipart` | colour from a PNG, owner from a .txt | — |
 
 ### Offline compatibility

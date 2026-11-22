@@ -11,6 +11,9 @@ key gives clients access to the routes the operator has configured.
   OpenAI-compatible model discovery for configured aliases.
 - Encrypted key storage, named credentials, session affinity, and provider
   cooldowns that respect `Retry-After`.
+- Loopback control panel (`allaiis gui`) for keys, aliases, discovery, probes,
+  metrics, logs and settings, with atomic hot reload so edits apply without a
+  restart.
 - **Venice web transport (Tier C)**: page-free replay of the web app's own
   inference API with a browser TLS fingerprint, single-use attestation pool,
   Clerk session tokens, NDJSON streaming, quota probe, model discovery, image
@@ -27,11 +30,11 @@ key gives clients access to the routes the operator has configured.
 
 ## Next
 
-- Verify a Pro Venice session end to end and document the login walkthrough on
-  each OS.
+- Document the login walkthrough on each OS.
 - Add tier labels to the catalog page and a `--transport` column so web and
   official routes for one model are visibly distinct.
 - Larger attachment handling: chunked bodies and multiple files per turn.
+- Panel: per-alias quick probe results history and a usage chart over time.
 - Add richer catalog metadata for modalities, context windows, and endpoint
   compatibility where providers publish those fields.
 - Add cross-platform CI and reproducible Windows, Linux, and macOS releases,

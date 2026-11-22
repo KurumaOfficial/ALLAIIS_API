@@ -15,7 +15,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/argon2"
@@ -64,6 +66,7 @@ type Store struct {
 	db             *sql.DB
 	aead           cipher.AEAD
 	fingerprintKey []byte
+	mu             sync.Mutex
 	clientKey      string
 }
 
@@ -176,6 +179,30 @@ func derive(passphrase, salt []byte) (cipher.AEAD, []byte) {
 func (s *Store) Close() error { return s.db.Close() }
 
 func (s *Store) ClientKey() string { return s.clientKey }
+
+// RotateClientKey seals a fresh gateway key and returns it.
+func (s *Store) RotateClientKey(ctx context.Context) (string, error) {
+	key := "sk-allaiis-" + rand.Text()
+	sealed := s.aead.Seal(nil, nil, []byte(key), []byte("client-key/v1"))
+	if _, err := s.db.ExecContext(ctx, `UPDATE vault SET client_key = ? WHERE id = 1`, sealed); err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	s.clientKey = key
+	s.mu.Unlock()
+	return key, nil
+}
+
+// CredentialStamp changes whenever the credential set changes, also from
+// another process, so a running gateway can notice edits it did not make.
+func (s *Store) CredentialStamp(ctx context.Context) (string, error) {
+	var count, sum int64
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(rowid), 0) FROM credentials`).Scan(&count, &sum)
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatInt(count, 10) + ":" + strconv.FormatInt(sum, 10), nil
+}
 
 func (s *Store) Import(ctx context.Context, entries []Entry) (int, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
