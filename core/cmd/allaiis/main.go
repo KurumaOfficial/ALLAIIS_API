@@ -131,7 +131,6 @@ func run(ctx context.Context, args []string) error {
 		flags.BoolVar(&noOpen, "no-open", false, "do not open a browser")
 		flags.DurationVar(&smokeEvery, "smoke-every", 0, "probe every alias on this interval (e.g. 15m)")
 		flags.StringVar(&smokeWebhook, "smoke-webhook", "", "POST failures and regressions to this URL")
-		flags.BoolVar(&noToolProbe, "no-tools", false, "skip the tool parser probe")
 		fallthrough
 	case "smoke":
 		flags.StringVar(&label, "alias", "", "probe only this alias")
