@@ -277,7 +277,7 @@ with a repair request after 512 KiB instead of buffering forever. A literal
 `</parameter>` inside an argument value is kept, and a close tag the value never
 opened is escaped before XML parsing.
 
-Usage is estimated from characters, not tokenized, and flagged
+Usage is estimated from characters, thinking included, not tokenized, and flagged
 `"estimated": true`; `X-ALLAIIS-Emulated-Features: tools,usage_estimate`
 declares both on every tool request. Messages aliases are exported under a
 separate `allaiis-anthropic` provider.

@@ -285,9 +285,11 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			}
 		}
 	}
+	// Thinking is output too, even when the route does not surface it.
+	completion := reason.chars() + len([]rune(reason.reasoningText.String()))
 	if len(calls) > 0 {
 		finish = "tool_calls"
-	} else if request.MaxTokens > 0 && reason.chars() >= request.MaxTokens*3 {
+	} else if request.MaxTokens > 0 && completion >= request.MaxTokens*3 {
 		// Venice sends no finish reason; a reply near the cap was cut.
 		finish = "length"
 	}
@@ -310,8 +312,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	promptTokens := estimateChars(len(payload))
 	usage := map[string]any{
-		"prompt_tokens": promptTokens, "completion_tokens": reason.chars(),
-		"total_tokens": promptTokens + reason.chars(), "estimated": true,
+		"prompt_tokens": promptTokens, "completion_tokens": completion,
+		"total_tokens": promptTokens + completion, "estimated": true,
 	}
 	if stream {
 		startStream()

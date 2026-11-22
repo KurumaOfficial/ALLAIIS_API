@@ -243,3 +243,21 @@ func TestReplyNearTheTokenCapReportsLength(t *testing.T) {
 		t.Fatalf("finish %d %s", result.Code, result.Body)
 	}
 }
+
+func TestReasoningCountsTowardTheCap(t *testing.T) {
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
+		frame, _ := json.Marshal(map[string]string{"kind": "reasoning", "content": strings.Repeat("think ", 60)})
+		fmt.Fprintf(w, "%s\n", frame)
+		frame, _ = json.Marshal(map[string]string{"kind": "content", "content": "short"})
+		fmt.Fprintf(w, "%s\n", frame)
+	})
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`
+	result := complete(handler, store.ClientKey(), "", payload)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"finish_reason":"length"`) {
+		t.Fatalf("finish %d %s", result.Code, result.Body)
+	}
+	if !strings.Contains(result.Body.String(), `"completion_tokens":365`) {
+		t.Fatalf("reasoning not counted: %s", result.Body)
+	}
+}
