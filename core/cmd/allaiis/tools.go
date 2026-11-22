@@ -40,7 +40,7 @@ func runTools(dataDir, configPath string, args []string) error {
 	switch args[0] {
 	case "show":
 		asJSON := len(args) > 1 && args[1] == "--json"
-		return showToolNames(os.Stdout, path, RetentionTTL(configPath), asJSON)
+		return showToolNames(os.Stdout, path, RetentionTTL(configPath), retentionSource(), asJSON)
 	case "reset":
 		expiredOnly := len(args) > 1 && args[1] == "--expired"
 		return resetToolNames(os.Stdout, path, RetentionTTL(configPath), expiredOnly)
@@ -88,7 +88,7 @@ func RetentionTTL(configPath string) time.Duration {
 // showToolNames prints the record, or says there is none. A gateway that is not
 // running never prunes the file, so the command applies the retention itself
 // and marks what would go.
-func showToolNames(out io.Writer, path string, ttl time.Duration, asJSON bool) error {
+func showToolNames(out io.Writer, path string, ttl time.Duration, source string, asJSON bool) error {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintln(out, "No tool name record yet.")
@@ -104,6 +104,7 @@ func showToolNames(out io.Writer, path string, ttl time.Duration, asJSON bool) e
 	if asJSON {
 		return writeJSON(out, record)
 	}
+	fmt.Fprintf(out, "Retention: %s\n", retentionText(ttl, source))
 	repaired := record.Folded + record.Suffixed
 	fmt.Fprintf(out, "Repaired names: %d (folded %d, trailing word %d)\n", repaired, record.Folded, record.Suffixed)
 	fmt.Fprintf(out, "Unknown names: %d\n", record.Unknown)
@@ -141,6 +142,34 @@ func showToolNames(out io.Writer, path string, ttl time.Duration, asJSON bool) e
 }
 
 const expiredLabel = "expired"
+
+// retentionSource names where the retention came from.
+func retentionSource() string {
+	if _, ok := envTTL(); ok {
+		return TTLEnv
+	}
+	return "config"
+}
+
+// retentionText renders the retention with its source, or that it is off.
+func retentionText(ttl time.Duration, source string) string {
+	if ttl <= 0 {
+		return "off (names are kept forever)"
+	}
+	days := int(ttl / (24 * time.Hour))
+	span := ""
+	switch {
+	case days > 0:
+		span = fmt.Sprintf("%dd", days)
+	case ttl >= time.Hour:
+		span = fmt.Sprintf("%dh", int(ttl/time.Hour))
+	case ttl >= time.Minute:
+		span = fmt.Sprintf("%dm", int(ttl/time.Minute))
+	default:
+		span = fmt.Sprintf("%ds", int(ttl/time.Second))
+	}
+	return span + " from " + source
+}
 
 // age renders how long ago a name was last seen, or that it is past retention.
 func age(now time.Time, stamp int64, ttl time.Duration) string {

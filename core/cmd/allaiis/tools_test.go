@@ -26,7 +26,7 @@ func TestToolsShowPrintsCountsAndOrder(t *testing.T) {
 	writeRecord(t, dir, `{"folded":2,"suffixed":1,"unknown":3,"names":{"bash":2,"grep":1}}`)
 
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, false); err != nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, "config", false); err != nil {
 		t.Fatal(err)
 	}
 	text := out.String()
@@ -42,7 +42,7 @@ func TestToolsShowPrintsCountsAndOrder(t *testing.T) {
 
 func TestToolsShowWithoutARecord(t *testing.T) {
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(t.TempDir(), "tool-names.json"), 0, false); err != nil {
+	if err := showToolNames(&out, filepath.Join(t.TempDir(), "tool-names.json"), 0, "config", false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "No tool name record") {
@@ -54,7 +54,7 @@ func TestToolsShowRejectsABrokenRecord(t *testing.T) {
 	dir := t.TempDir()
 	writeRecord(t, dir, "{nope")
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, false); err == nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, "config", false); err == nil {
 		t.Fatal("broken record accepted")
 	}
 }
@@ -123,7 +123,7 @@ func TestToolsShowMarksExpiredNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 30, false); err != nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 30*24*time.Hour, "config", false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), expiredLabel) || !strings.Contains(out.String(), "1 expired") {
@@ -139,7 +139,7 @@ func TestToolsShowPrintsAge(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, false); err != nil {
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, "config", false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "LAST SEEN") || !strings.Contains(out.String(), "5h") {
@@ -242,5 +242,35 @@ func TestRetentionTTLPrefersTheEnvForARunningGateway(t *testing.T) {
 	os.Unsetenv(TTLEnv)
 	if got := retentionTTL(cfg, "unused"); got != 30*24*time.Hour {
 		t.Fatalf("config value lost: %v", got)
+	}
+}
+
+func TestToolsShowStatesTheRetention(t *testing.T) {
+	dir := t.TempDir()
+	body := `{"unknown":1,"names":{"x":1},"seen":{"x":` + strconv.FormatInt(time.Now().UnixMilli(), 10) + `}}`
+	if err := os.WriteFile(filepath.Join(dir, "tool-names.json"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := showToolNames(&out, filepath.Join(dir, "tool-names.json"), 5*time.Minute, "config", false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Retention: 5m from config") {
+		t.Fatalf("retention missing: %q", out.String())
+	}
+}
+
+func TestRetentionText(t *testing.T) {
+	cases := map[time.Duration]string{
+		0:                   "off (names are kept forever)",
+		90 * time.Second:    "1m from config",
+		5 * time.Minute:     "5m from config",
+		3 * time.Hour:       "3h from config",
+		30 * 24 * time.Hour: "30d from config",
+	}
+	for ttl, want := range cases {
+		if got := retentionText(ttl, "config"); got != want {
+			t.Fatalf("retentionText(%v) = %q, want %q", ttl, got, want)
+		}
 	}
 }
