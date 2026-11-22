@@ -321,7 +321,9 @@ tools the catalog does not declare, so the client's tool list is the thing to
 fix. The warning names the three most frequent unknown tools, because `bash`
 next to `shell` reads as a client mistake while `grep` reads as a missing tool.
 The set behind it is capped at 16, so a model that sprays random names cannot
-grow it without bound.
+grow it without bound. Both counts and names are saved to `tool-names.json` in
+the data directory, so the warning survives a restart instead of blaming the
+model only until the next one.
 
 Measured on a free model, 2026-11-22: five of five streams returned 200 and
 `[DONE]`, three of them in parallel; time to first content ran 2.5–7.4 s

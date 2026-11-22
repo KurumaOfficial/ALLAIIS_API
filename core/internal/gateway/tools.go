@@ -161,13 +161,7 @@ func noteUnknownName(name string) {
 		unknownNames.count[name]++
 		return
 	}
-	lowest, count := "", 0
-	for candidate, seen := range unknownNames.count {
-		if lowest == "" || seen < count {
-			lowest, count = candidate, seen
-		}
-	}
-	delete(unknownNames.count, lowest)
+	trimUnknownNames(maxUnknownNames - 1)
 	unknownNames.count[name] = 1
 }
 
@@ -264,6 +258,7 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 		if count == 1 {
 			calls[i].Function.Name = match
 			toolCounters.fold.Add(1)
+			saveToolNameState()
 		}
 	}
 	for i := range calls {
@@ -276,11 +271,13 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 		if head != name && g.known(head) {
 			calls[i].Function.Name = head
 			toolCounters.suffix.Add(1)
+			saveToolNameState()
 			continue
 		}
 		// Nothing matched: the name goes to the client as it is.
 		toolCounters.unknown.Add(1)
 		noteUnknownName(name)
+		saveToolNameState()
 	}
 	return calls
 }

@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func guardFor(names ...string) *toolGuard {
@@ -731,4 +734,70 @@ func TestToolUnknownNamesIsBounded(t *testing.T) {
 	if ToolUnknownNames(1)[0] != first {
 		t.Fatalf("repeated name lost: %v", ToolUnknownNames(3))
 	}
+}
+
+func TestToolNameStateSurvivesARestart(t *testing.T) {
+	dir := t.TempDir()
+	(&Gateway{}).WithStateDir(dir)
+
+	for _, name := range []string{"sx_bash", "sx_bash", "sx_grep"} {
+		guard := guardFor("shell")
+		if _, _, err := guard.Write(`<invoke name="` + name + `"><parameter name="command">ls</parameter></invoke>`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	toolNameFile.mu.Lock()
+	toolNameFile.lastSave = time.Time{}
+	toolNameFile.mu.Unlock()
+	saveToolNameState()
+
+	// Forget everything the way a restart would.
+	toolCounters.fold.Store(0)
+	toolCounters.suffix.Store(0)
+	toolCounters.unknown.Store(0)
+	unknownNames.mu.Lock()
+	unknownNames.count = nil
+	unknownNames.mu.Unlock()
+
+	(&Gateway{}).WithStateDir(dir)
+
+	_, unknown := ToolNameStats()
+	if unknown < 2 {
+		t.Fatalf("unknown count lost: %d", unknown)
+	}
+	names := ToolUnknownNames(0)
+	index := func(name string) int {
+		for i, got := range names {
+			if got == name {
+				return i
+			}
+		}
+		return -1
+	}
+	// Other tests leave names behind, so only the relative order is checked.
+	if index("sx_bash") < 0 || index("sx_grep") < 0 {
+		t.Fatalf("names lost: %v", names)
+	}
+	if index("sx_bash") > index("sx_grep") {
+		t.Fatalf("counts lost: %v", names)
+	}
+}
+
+func TestToolNameStateIgnoresABrokenFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "tool-names.json"), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	unknownNames.mu.Lock()
+	unknownNames.count = map[string]int{"sx_keep": 1}
+	unknownNames.mu.Unlock()
+
+	(&Gateway{}).WithStateDir(dir)
+
+	if names := ToolUnknownNames(5); len(names) != 1 || names[0] != "sx_keep" {
+		t.Fatalf("broken file clobbered memory: %v", names)
+	}
+	toolNameFile.mu.Lock()
+	toolNameFile.path = ""
+	toolNameFile.mu.Unlock()
 }
