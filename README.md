@@ -276,7 +276,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Cache invalidation on credential change | ✓ | `TestForgetDropsTokenAndAttestationCaches`, `TestReplacingAKeyClearsItsCooldown` | — | — |
 | Catalog cache with bypass | ✓ | `TestCatalogCacheServesAndBypasses` | panel cached and bypassed results | — |
 | Empty-reply retry and lead-in handling | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
-| DeepSeek DSML tool dialect and rising call indexes | ✓ | `TestToolGuardParsesDeepSeekDSML`, `TestStreamedToolCallIndexesKeepRising`, `TestWebToolCallStreamDSML`, `TestToolGuardFlushRepairsTruncatedBlock` | OpenCode agent loop on `deepseek-v4-1-flash-uncensored`: 9 tool calls, 5 steps, 16 s | — |
+| DeepSeek DSML tool dialect and rising call indexes | ✓ | `TestToolGuardParsesDeepSeekDSML`, `TestStreamedToolCallIndexesKeepRising`, `TestWebToolCallStreamDSML`, `TestToolGuardFlushRepairsTruncatedBlock`, `TestWhitespaceAssistantTextKeepsToolCalls` | OpenCode agent loop on `deepseek-v4-1-flash-uncensored`: 9 tool calls, 5 steps, 16 s | — |
 | Stream usage behind `stream_options.include_usage` | ✓ | `TestChatStreamUsageOnlyWhenRequested` | OpenCode reads non-zero tokens | — |
 | Tier C tool emulation (sentinel and XML dialects) | ✓ | `TestToolGuardSplitsMarkers`, `TestToolGuardParsesInvokeXML`, `TestToolGuardDropsDuplicatedDialect`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | `read_file` call on all three protocols | — |
 | Web routes on `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | Opus text and `tool_use` | — |

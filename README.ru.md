@@ -266,7 +266,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Инвалидация кеша при смене ключа | ✓ | `TestForgetDropsTokenAndAttestationCaches`, `TestReplacingAKeyClearsItsCooldown` | — | — |
 | Кеш каталога с обходом | ✓ | `TestCatalogCacheServesAndBypasses` | кеш и обход в панели | — |
 | Повтор пустого ответа и первый пустой чанк | ✓ | `TestWebEmptyFirstEventKeepsLaterText`, `TestWebEmptyReplyRetriesOnce` | — | — |
-| Диалект тулов DeepSeek DSML и растущие индексы вызовов | ✓ | `TestToolGuardParsesDeepSeekDSML`, `TestStreamedToolCallIndexesKeepRising`, `TestWebToolCallStreamDSML`, `TestToolGuardFlushRepairsTruncatedBlock` | цикл агента OpenCode на `deepseek-v4-1-flash-uncensored`: 9 вызовов, 5 шагов, 16 с | — |
+| Диалект тулов DeepSeek DSML и растущие индексы вызовов | ✓ | `TestToolGuardParsesDeepSeekDSML`, `TestStreamedToolCallIndexesKeepRising`, `TestWebToolCallStreamDSML`, `TestToolGuardFlushRepairsTruncatedBlock`, `TestWhitespaceAssistantTextKeepsToolCalls` | цикл агента OpenCode на `deepseek-v4-1-flash-uncensored`: 9 вызовов, 5 шагов, 16 с | — |
 | Usage в стриме по `stream_options.include_usage` | ✓ | `TestChatStreamUsageOnlyWhenRequested` | OpenCode видит ненулевые токены | — |
 | Эмуляция тулов Тира C (sentinel и XML) | ✓ | `TestToolGuardSplitsMarkers`, `TestToolGuardParsesInvokeXML`, `TestToolGuardDropsDuplicatedDialect`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | вызов `read_file` на всех трёх протоколах | — |
 | Веб-маршруты на `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | текст Opus и `tool_use` | — |
