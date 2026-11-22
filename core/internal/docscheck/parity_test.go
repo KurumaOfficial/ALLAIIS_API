@@ -6,11 +6,18 @@
 package docscheck
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
+)
+
+var (
+	testFunc = regexp.MustCompile(`(?m)^func (Test[A-Za-z0-9_]+)\(`)
+	testName = regexp.MustCompile("`(Test[A-Za-z0-9_]+)`")
 )
 
 // pairs are the documents that exist twice, English and Russian.
@@ -78,6 +85,78 @@ func TestPairedDocsKeepTheirShape(t *testing.T) {
 		if !slices.Equal(english.tables, russian.tables) || english.headings != russian.headings ||
 			english.bullets != russian.bullets || english.fences != russian.fences {
 			t.Fatalf("%s has shape %+v, %s has %+v", pair[0], english, pair[1], russian)
+		}
+	}
+}
+
+// everyTest lists the test functions that exist in the tree.
+func everyTest(t *testing.T) map[string]bool {
+	t.Helper()
+	found := map[string]bool{}
+	root := filepath.Join("..", "..", "..")
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, match := range testFunc.FindAllStringSubmatch(string(raw), -1) {
+			found[match[1]] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
+}
+
+func TestCitedTestsExist(t *testing.T) {
+	existing := everyTest(t)
+	root := filepath.Join("..", "..", "..")
+	for _, pair := range pairs {
+		for _, path := range pair {
+			raw, err := os.ReadFile(filepath.Join(root, path))
+			if err != nil {
+				t.Fatalf("%s: %v", path, err)
+			}
+			for _, match := range testName.FindAllStringSubmatch(string(raw), -1) {
+				if !existing[match[1]] {
+					t.Fatalf("%s cites %s, which no test defines", path, match[1])
+				}
+			}
+		}
+	}
+}
+
+func TestPairedDocsCiteTheSameTests(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	for _, pair := range pairs {
+		counts := make([]map[string]int, 2)
+		for index, path := range pair {
+			raw, err := os.ReadFile(filepath.Join(root, path))
+			if err != nil {
+				t.Fatalf("%s: %v", path, err)
+			}
+			counts[index] = map[string]int{}
+			for _, match := range testName.FindAllStringSubmatch(string(raw), -1) {
+				counts[index][match[1]]++
+			}
+		}
+		for name, count := range counts[0] {
+			if counts[1][name] != count {
+				t.Fatalf("%s cites %s %d time(s), %s cites it %d", pair[0], name, count, pair[1], counts[1][name])
+			}
+		}
+		for name, count := range counts[1] {
+			if counts[0][name] != count {
+				t.Fatalf("%s cites %s %d time(s), %s cites it %d", pair[1], name, count, pair[0], counts[0][name])
+			}
 		}
 	}
 }
