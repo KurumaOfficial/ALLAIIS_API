@@ -4,8 +4,9 @@
 
 Venice web works live as a guest and on a Pro session, over Chat Completions,
 Anthropic Messages and OpenAI Responses. The control panel manages keys, aliases,
-probes and logs against a live gateway with hot reload. Remaining gaps are larger
-attachments and a second provider.
+probes and logs against a live gateway with hot reload. Inline attachments are
+bounded by the configurable `max_request_mb`; the remaining gap is a second
+provider.
 
 - A second web provider on the same capture flow.
 
