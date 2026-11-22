@@ -4,6 +4,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -136,8 +137,17 @@ func toolNameVerdict(repaired, unknown int64, names []string) (status, detail st
 	return "ok", fmt.Sprintf("%d call(s) had a name repaired, %d stayed unknown%s", repaired, unknown, listed), true
 }
 
-// toolReset clears the tool name record the doctor reads.
+// toolReset clears the tool name record, or only its expired names when the
+// body asks for that.
 func (s *Server) toolReset(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Expired bool `json:"expired"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.Expired {
+		writeJSON(w, http.StatusOK, map[string]any{"dropped": s.options.Gateway.DropExpiredToolNames()})
+		return
+	}
 	s.options.Gateway.ResetToolNameState()
 	writeJSON(w, http.StatusOK, map[string]any{"reset": true})
 }

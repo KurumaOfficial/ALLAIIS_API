@@ -197,6 +197,22 @@ func (g *Gateway) ResetToolNameState() {
 	}
 }
 
+// DropExpiredToolNames forgets only the names past retention and reports how
+// many went. It touches neither the counters nor the fresh names.
+func (g *Gateway) DropExpiredToolNames() int {
+	unknownNames.mu.Lock()
+	dropped := dropExpiredNames(time.Now())
+	unknownNames.mu.Unlock()
+	if dropped == 0 {
+		return 0
+	}
+	toolNameFile.mu.Lock()
+	toolNameFile.lastSave = time.Time{}
+	toolNameFile.mu.Unlock()
+	saveToolNameState()
+	return dropped
+}
+
 // trimUnknownNames drops the least frequent entries down to limit. The caller
 // holds the lock.
 func trimUnknownNames(limit int) {

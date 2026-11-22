@@ -466,6 +466,14 @@ function bind () {
     try { await api('/api/settings', { method: 'POST', body: JSON.stringify({ min_privacy: $('set-privacy').value }) }); toast('Privacy floor saved'); refresh() } catch (error) { toast(error.message, true) }
   }
 
+  $('ov-tools-drop').onclick = async () => {
+    try {
+      const result = await api('/api/tools/reset', { method: 'POST', body: JSON.stringify({ expired: true }) })
+      toast(result.dropped ? result.dropped + ' expired name(s) dropped' : 'No expired names')
+      refresh()
+    } catch (error) { toast(error.message, true) }
+  }
+
   $('ov-tools-reset').onclick = async () => {
     try { await api('/api/tools/reset', { method: 'POST' }); toast('Tool record cleared'); refresh() } catch (error) { toast(error.message, true) }
   }

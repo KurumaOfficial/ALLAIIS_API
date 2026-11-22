@@ -973,3 +973,46 @@ func TestMetricsReportToolRetention(t *testing.T) {
 		t.Fatalf("retention not reported: %v", got)
 	}
 }
+
+func TestDropExpiredToolNamesKeepsTheFresh(t *testing.T) {
+	setToolNameTTL(t, 1)
+	dir := t.TempDir()
+	body := `{"folded":5,"unknown":9,"names":{"dx_fresh":1},"seen":{"dx_fresh":` +
+		strconv.FormatInt(time.Now().UnixMilli(), 10) + `}}`
+	path := filepath.Join(dir, "tool-names.json")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	g := (&Gateway{}).WithStateDir(context.Background(), dir)
+	// A name that aged while the gateway was up, not present at load.
+	seedUnknownName("dx_old", time.Now().Add(-48*time.Hour))
+
+	if dropped := g.DropExpiredToolNames(); dropped != 1 {
+		t.Fatalf("dropped %d, want 1", dropped)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "dx_old") {
+		t.Fatalf("expired name kept in the file: %s", raw)
+	}
+	if !strings.Contains(string(raw), "dx_fresh") {
+		t.Fatalf("fresh name lost: %s", raw)
+	}
+	if !strings.Contains(string(raw), `"unknown":9`) {
+		t.Fatalf("counters changed: %s", raw)
+	}
+	if again := g.DropExpiredToolNames(); again != 0 {
+		t.Fatalf("second drop removed %d", again)
+	}
+}
+
+func TestDropExpiredToolNamesWithRetentionOff(t *testing.T) {
+	setToolNameTTL(t, 0)
+	g := &Gateway{}
+	seedUnknownName("dx_forever", time.Now().Add(-50*24*time.Hour))
+	if dropped := g.DropExpiredToolNames(); dropped != 0 {
+		t.Fatalf("dropped %d with retention off", dropped)
+	}
+}

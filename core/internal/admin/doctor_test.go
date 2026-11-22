@@ -78,3 +78,21 @@ func TestToolResetNeedsTheToken(t *testing.T) {
 		t.Fatalf("reset without a token: %d", result.Code)
 	}
 }
+
+func TestToolResetAcceptsTheExpiredFlag(t *testing.T) {
+	f := setup(t)
+	result := f.call(t, http.MethodPost, "/api/tools/reset", `{"expired":true}`, "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("expired reset: %d %s", result.Code, result.Body)
+	}
+	if !strings.Contains(result.Body.String(), "dropped") {
+		t.Fatalf("no dropped field: %s", result.Body)
+	}
+}
+
+func TestToolResetToleratesAnEmptyBody(t *testing.T) {
+	f := setup(t)
+	if result := f.call(t, http.MethodPost, "/api/tools/reset", "", ""); result.Code != http.StatusOK {
+		t.Fatalf("empty body: %d %s", result.Code, result.Body)
+	}
+}
