@@ -295,18 +295,25 @@ func TestWebDeliversAnEmptyCallWhenRepairRunsOut(t *testing.T) {
 
 func TestWebRepairsACallMissingARequiredField(t *testing.T) {
 	var attempts atomic.Int32
-	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, _ map[string]any) {
+	var note string
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
 		if attempts.Add(1) == 1 {
 			// The field exists here but the required one does not.
 			writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file","arguments":{"offset":1}}]}<<<END_TOOL_CALL>>>`)
 			return
 		}
+		prompt := body["prompt"].([]any)
+		note = prompt[len(prompt)-1].(map[string]any)["content"].(string)
 		writeFrames(w, toolBlock("fixed.txt"))
 	})
 	handler, store := webGateway(t, server.URL)
 	result := complete(handler, store.ClientKey(), "", toolPayload)
 	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
 		t.Fatalf("missing field not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
+	}
+	// The retry has to say what is missing, not just that something was wrong.
+	if !strings.Contains(note, "read_file misses path") {
+		t.Fatalf("repair note is vague: %q", note)
 	}
 }
 

@@ -1299,10 +1299,16 @@ func (g *toolGuard) parse(block string) ([]toolCall, error) {
 }
 
 // repairMessages extends the conversation with the failed attempt and a fix-up.
-func repairMessages(messages []webprovMessage, raw string) []webprovMessage {
+// detail names what was wrong when it is known, so the model does not have to
+// guess.
+func repairMessages(messages []webprovMessage, raw, detail string) []webprovMessage {
+	note := toolRepairNote
+	if detail != "" {
+		note += " Problem: " + detail + "."
+	}
 	fixed := append([]webprovMessage{}, messages...)
 	fixed = append(fixed,
 		webprovMessage{Role: "assistant", Content: raw},
-		webprovMessage{Role: "user", Content: toolRepairNote})
+		webprovMessage{Role: "user", Content: note})
 	return fixed
 }

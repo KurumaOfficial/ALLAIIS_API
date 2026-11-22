@@ -52,9 +52,10 @@ results, and its checkbox forces a refetch.
 A retry happens only while the client has seen nothing, so streaming clients
 never get duplicated text. A tool call that misses a field its schema marks required (an empty one
 included) is held back while the client has seen nothing and answered with one
-repair turn instead; if the repair also misses it, the call is delivered as it
-came and logged as `tool call missing arguments` with the tool name and the
-fields, so the log explains the failed step.
+repair turn instead, and that turn names the tool and the missing fields rather
+than only saying a block was bad; if the repair also misses it, the call is
+delivered as it came and logged as `tool call missing arguments` with the tool
+name and the fields, so the log explains the failed step.
 
 ## Errors
 

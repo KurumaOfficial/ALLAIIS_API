@@ -240,7 +240,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			g.web.Forget(credential)
 		}
 		if errors.Is(err, errToolRepair) && attempts < 2 && !sent {
-			request.Messages = repairMessages(reason.messages(envelope), reason.text.String())
+			request.Messages = repairMessages(reason.messages(envelope), reason.text.String(), "")
 			reason.text.Reset()
 			reason.reasoningText.Reset()
 			guard.reset()
@@ -253,6 +253,15 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		empty := reason.text.Len() == 0 && len(calls) == 0 && len(heldCalls) == 0 && (held == "" || held == "processing")
 		incomplete := len(heldCalls) > 0 && !sent && reason.text.Len() == 0
 		if err == nil && (empty || incomplete) && attempts < 2 && !sent {
+			if incomplete {
+				// Say which field is missing: the model has the block in front of
+				// it and only has to fill the gap.
+				problems := make([]string, 0, len(heldCalls))
+				for _, call := range heldCalls {
+					problems = append(problems, call.Function.Name+" misses "+strings.Join(guard.missingRequired(call), ", "))
+				}
+				request.Messages = repairMessages(reason.messages(envelope), renderCallList("", heldCalls), strings.Join(problems, "; "))
+			}
 			reason.reasoningText.Reset()
 			guard.reset()
 			heldCalls = nil
