@@ -167,8 +167,9 @@ type Client struct {
 	clerk     string
 	now       func() time.Time
 	mu        sync.Mutex
-	tokens    map[string]cached   // session JWTs by credential hash
-	attesting map[string][]cached // client attestation token pool by user key
+	tokens    map[string]cached        // session JWTs by credential hash
+	attesting map[string][]cached      // client attestation token pool by user key
+	locks     map[string]chan struct{} // one generation per credential
 }
 
 type cached struct {
@@ -201,6 +202,7 @@ func New(timeout time.Duration) *Client {
 		now:       time.Now,
 		tokens:    map[string]cached{},
 		attesting: map[string][]cached{},
+		locks:     map[string]chan struct{}{},
 	}
 }
 
@@ -222,11 +224,14 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 	if len(req.Messages) == 0 {
 		return errors.New("no messages to send")
 	}
-	userID, err := c.user(ctx, cred)
+	// One generation per account: the web app rejects parallel turns.
+	release, err := c.lock(ctx, cred)
 	if err != nil {
 		return err
 	}
-	attestation, err := c.attestation(ctx, cred, userID)
+	defer release()
+
+	userID, err := c.user(ctx, cred)
 	if err != nil {
 		return err
 	}
@@ -234,27 +239,68 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 	if err != nil {
 		return err
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/inference/chat", strings.NewReader(string(body)))
-	if err != nil {
-		return err
-	}
-	c.headers(httpReq, cred, attestation)
-	httpReq.Header.Set("Accept", "text/event-stream")
-	if cred.DistinctID != "" {
-		httpReq.Header.Set("x-venice-distinct-id", cred.DistinctID)
-	}
-	if token := c.sessionToken(cred, userID); token != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+token)
-	}
-	response, err := c.http.Do(httpReq)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
+	for attempt := 1; ; attempt++ {
+		attestation, err := c.attestation(ctx, cred, userID)
+		if err != nil {
+			return err
+		}
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/inference/chat", strings.NewReader(string(body)))
+		if err != nil {
+			return err
+		}
+		c.headers(httpReq, cred, attestation)
+		httpReq.Header.Set("Accept", "text/event-stream")
+		if cred.DistinctID != "" {
+			httpReq.Header.Set("x-venice-distinct-id", cred.DistinctID)
+		}
+		if token := c.sessionToken(cred, userID); token != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+token)
+		}
+		response, err := c.http.Do(httpReq)
+		if err != nil {
+			return err
+		}
+		if response.StatusCode == http.StatusOK {
+			defer response.Body.Close()
+			return decodeEvents(response.Body, emit)
+		}
+		status := response.StatusCode
+		// A spent or raced attestation token also answers 403. Mint a new one
+		// once before blaming the clearance.
+		if status == http.StatusForbidden && attempt == 1 {
+			io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+			response.Body.Close()
+			c.invalidateAttestation(userID)
+			continue
+		}
+		defer response.Body.Close()
 		return c.statusError(response)
 	}
-	return decodeEvents(response.Body, emit)
+}
+
+// invalidateAttestation drops cached attestation tokens for a user.
+func (c *Client) invalidateAttestation(userID string) {
+	c.mu.Lock()
+	delete(c.attesting, userID)
+	c.mu.Unlock()
+}
+
+// lock serialises generations for one credential.
+func (c *Client) lock(ctx context.Context, cred Credential) (func(), error) {
+	key := credentialKey(cred)
+	c.mu.Lock()
+	guard, ok := c.locks[key]
+	if !ok {
+		guard = make(chan struct{}, 1)
+		c.locks[key] = guard
+	}
+	c.mu.Unlock()
+	select {
+	case guard <- struct{}{}:
+		return func() { <-guard }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func venicePayload(cred Credential, req Request, userID string) map[string]any {

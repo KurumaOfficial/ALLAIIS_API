@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -176,6 +177,88 @@ func TestErrorClassification(t *testing.T) {
 		if !errors.Is(err, test.want) {
 			t.Errorf("status %d: got %v", test.status, err)
 		}
+	}
+}
+
+func TestForbiddenRetriesWithFreshAttestation(t *testing.T) {
+	var mints atomic.Int32
+	var chats atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/mint") {
+			mints.Add(1)
+			fmt.Fprintf(w, `{"tokens":[{"token":"token-%d"}]}`, mints.Load())
+			return
+		}
+		if chats.Add(1) == 1 {
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, "<html>challenge</html>")
+			return
+		}
+		if r.Header.Get("x-venice-client-attestation") == "token-1" {
+			t.Error("stale attestation was replayed")
+		}
+		fmt.Fprint(w, `{"kind":"content","content":"ok"}`)
+	}))
+	t.Cleanup(server.Close)
+	var text strings.Builder
+	err := testClient(server).Chat(context.Background(), Credential{},
+		Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}},
+		func(event Event) error { text.WriteString(event.Content); return nil })
+	if err != nil || text.String() != "ok" || mints.Load() != 2 || chats.Load() != 2 {
+		t.Fatalf("text=%q mints=%d chats=%d err=%v", text.String(), mints.Load(), chats.Load(), err)
+	}
+}
+
+func TestForbiddenTwiceReportsClearance(t *testing.T) {
+	var chats atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/mint") {
+			fmt.Fprint(w, `{"tokens":[{"token":"t"}]}`)
+			return
+		}
+		chats.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, "<html>challenge</html>")
+	}))
+	t.Cleanup(server.Close)
+	err := testClient(server).Chat(context.Background(), Credential{},
+		Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}}, func(Event) error { return nil })
+	if !errors.Is(err, ErrCloudflare) || chats.Load() != 2 {
+		t.Fatalf("err=%v chats=%d", err, chats.Load())
+	}
+}
+
+func TestChatSerialisesAccount(t *testing.T) {
+	var inFlight, peak atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/mint") {
+			fmt.Fprint(w, `{"tokens":[{"token":"t"},{"token":"t2"}]}`)
+			return
+		}
+		current := inFlight.Add(1)
+		for {
+			old := peak.Load()
+			if current <= old || peak.CompareAndSwap(old, current) {
+				break
+			}
+		}
+		time.Sleep(40 * time.Millisecond)
+		inFlight.Add(-1)
+		fmt.Fprint(w, `{"kind":"content","content":"ok"}`)
+	}))
+	t.Cleanup(server.Close)
+	client := testClient(server)
+	cred := Credential{DistinctID: "same"}
+	var group sync.WaitGroup
+	for range 4 {
+		group.Go(func() {
+			client.Chat(context.Background(), cred,
+				Request{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}}, func(Event) error { return nil })
+		})
+	}
+	group.Wait()
+	if peak.Load() != 1 {
+		t.Fatalf("peak concurrency was %d", peak.Load())
 	}
 }
 
