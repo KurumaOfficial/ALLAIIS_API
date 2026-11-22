@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"log/slog"
 	"regexp"
 	"slices"
 	"sort"
@@ -298,6 +299,11 @@ func (g *toolGuard) resolve(calls []toolCall) []toolCall {
 		}
 	}
 	for i := range calls {
+		if args := strings.TrimSpace(calls[i].Function.Arguments); args == "" || args == "{}" {
+			// An empty call usually means the model forgot the arguments; a
+			// client then has to reject it, so it is worth seeing.
+			slog.Info("tool call without arguments", "name", calls[i].Function.Name)
+		}
 		// "shell command" names the tool and repeats what the argument carries.
 		name := calls[i].Function.Name
 		if g.known(name) {

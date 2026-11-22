@@ -50,7 +50,10 @@ results, and its checkbox forces a refetch.
 | Request body | 8 MiB cap, 90 s response-header timeout, 10 min whole call |
 
 A retry happens only while the client has seen nothing, so streaming clients
-never get duplicated text.
+never get duplicated text. A tool call that arrives with no arguments at all is
+still delivered as `{}` and logged as `tool call without arguments` with the tool
+name, since the client will have to reject it and the log explains the failed
+step.
 
 ## Errors
 
