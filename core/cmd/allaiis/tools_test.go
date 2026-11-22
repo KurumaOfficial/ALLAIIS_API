@@ -73,7 +73,7 @@ func TestToolsReset(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	err := resetToolNames(&out, filepath.Join(dir, "tool-names.json"), 0, false)
+	err := resetToolNames(&out, filepath.Join(dir, "tool-names.json"), dir, "test", 0, "config", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,11 +85,15 @@ func TestToolsReset(t *testing.T) {
 	if !strings.Contains(out.String(), "cleared") {
 		t.Fatalf("unexpected output: %q", out.String())
 	}
+	// A reset writes to a path from the environment, so it names the target.
+	if !strings.Contains(out.String(), "File: "+filepath.Join(dir, "tool-names.json")) {
+		t.Fatalf("target missing: %q", out.String())
+	}
 }
 
 func TestToolsResetWithoutARecord(t *testing.T) {
 	var out bytes.Buffer
-	if err := resetToolNames(&out, filepath.Join(t.TempDir(), "tool-names.json"), 0, false); err != nil {
+	if err := resetToolNames(&out, filepath.Join(t.TempDir(), "tool-names.json"), "", "test", 0, "config", false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "No record") {
@@ -165,7 +169,7 @@ func TestToolsResetDropsOnlyExpired(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := resetToolNames(&out, path, 30*24*time.Hour, true); err != nil {
+	if err := resetToolNames(&out, path, dir, "test", 30*24*time.Hour, "config", true); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(path)
@@ -191,7 +195,7 @@ func TestToolsResetExpiredWithoutExpiredNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := resetToolNames(&out, path, 30*24*time.Hour, true); err != nil {
+	if err := resetToolNames(&out, path, dir, "test", 30*24*time.Hour, "config", true); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "No expired names") {
@@ -207,7 +211,7 @@ func TestToolsResetExpiredWithRetentionOff(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := resetToolNames(&out, path, 0, true); err != nil {
+	if err := resetToolNames(&out, path, dir, "test", 0, "config", true); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "Retention is off") {

@@ -43,7 +43,7 @@ func runTools(dataDir, origin, configPath string, args []string) error {
 		return showToolNames(os.Stdout, path, dataDir, origin, RetentionTTL(configPath), retentionSource(), asJSON)
 	case "reset":
 		expiredOnly := len(args) > 1 && args[1] == "--expired"
-		return resetToolNames(os.Stdout, path, RetentionTTL(configPath), expiredOnly)
+		return resetToolNames(os.Stdout, path, dataDir, origin, RetentionTTL(configPath), retentionSource(), expiredOnly)
 	default:
 		return fmt.Errorf("unknown tools command %q", args[0])
 	}
@@ -94,8 +94,7 @@ func showToolNames(out io.Writer, path, dir, origin string, ttl time.Duration, s
 	// profile's record. This comes before the read, so it also appears when the
 	// file is missing and the path itself explains why.
 	if !asJSON {
-		fmt.Fprintf(out, "Data dir: %s (from %s)\n", dir, origin)
-		fmt.Fprintf(out, "File: %s\n", path)
+		target(out, path, dir, origin)
 		fmt.Fprintf(out, "Retention: %s\n", retentionText(ttl, source))
 	}
 	raw, err := os.ReadFile(path)
@@ -201,9 +200,19 @@ func age(now time.Time, stamp int64, ttl time.Duration) string {
 	return fmt.Sprintf("%dd", int(span.Hours()/24))
 }
 
+// target names the directory and file a command acts on, with where the
+// directory came from: the data directory is environment-driven, and a wrong
+// variable must not quietly hit another profile.
+func target(out io.Writer, path, dir, origin string) {
+	fmt.Fprintf(out, "Data dir: %s (from %s)\n", dir, origin)
+	fmt.Fprintf(out, "File: %s\n", path)
+}
+
 // resetToolNames removes the record, or only the names past retention. A running
 // gateway notices either change through the watch.
-func resetToolNames(out io.Writer, path string, ttl time.Duration, expiredOnly bool) error {
+func resetToolNames(out io.Writer, path, dir, origin string, ttl time.Duration, source string, expiredOnly bool) error {
+	target(out, path, dir, origin)
+	fmt.Fprintf(out, "Retention: %s\n", retentionText(ttl, source))
 	os.Remove(path + ".tmp")
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {

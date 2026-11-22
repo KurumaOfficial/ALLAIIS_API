@@ -86,12 +86,13 @@ drops only the names past retention, which keeps the fresh evidence, which is ho
 age), so a doctor started in another process reads the running gateway instead
 of its own zeroes. The names are arbitrary strings, so they stay out of the
 Prometheus labels and the exposition keeps a fixed shape.
-`allaiis tools
-show` names the data directory with its origin and the file it read — the
-directory comes from the environment, so a wrong one must not pass unnoticed, and
-both lines appear even when no record exists yet — states the retention and where
-it came from, prints the time each name was
-last seen and marks a name past retention as expired, so a stopped gateway cannot make the view lie; a running
+Both `allaiis tools
+show` and `allaiis tools reset` name the data directory with its origin, the file
+they act on and the retention, and do so before touching anything — the directory
+comes from the environment, so a wrong one must not pass unnoticed, and the lines
+appear even when no record exists yet. `show` then prints the time each name was
+last seen and marks a name past retention as expired, so a stopped gateway cannot
+make the view lie; a running
 gateway notices an outside edit or deletion within a couple of seconds. A name also expires after
 `tool_name_ttl_days` (default 30, `0` keeps names forever; the environment
 variable `ALLAIIS_TOOL_NAME_TTL` overrides it with a Go duration such as `90s`,
