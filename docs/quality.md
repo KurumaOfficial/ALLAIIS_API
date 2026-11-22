@@ -84,37 +84,45 @@ sweep carries one tool call so a parser regression surfaces as a failed row
 (marked `X-ALLAIIS-Probe`, so its own unknown name stays out of these counters); when
 the gateway reports names past retention they are counted in the detail instead
 of listed.
-The four tool counters continue across a restart: they and their name set live
-in `tool-names.json` in the data directory, written at most every three seconds
+
+### The unknown-name record
+
+The four tool counters continue across a restart: they and their name set live in
+`tool-names.json` in the data directory, written at most every three seconds
 through a temporary file and read at startup, so a doctor warning is not wiped by
-a restart. The card also breaks the sum into its kinds (unwrap, fold, trailing word), so a
-spike in one of them is visible without reading the log. The panel's **Reset**
-button on the Tool reshaping card (or
-`POST /api/tools/reset`, or `allaiis tools reset`) zeroes both and deletes the
-file; `allaiis tools reset --expired`, or the same endpoint with `{"expired": true}`,
-drops only the names past retention, which keeps the fresh evidence, which is how a fixed tool list stops carrying old blame. The counters and names also travel as JSON on `GET /tool-names` (name, count,
-age), so a doctor started in another process reads the running gateway instead
-of its own zeroes. The names are arbitrary strings, so they stay out of the
-Prometheus labels and the exposition keeps a fixed shape. With retention off, both commands say
+a restart. The panel's Tool reshaping card breaks the sum into its kinds (unwrap,
+fold, trailing word), so a spike in one of them is visible without reading the
+log.
+
+**Reset** on that card (or `POST /api/tools/reset`, or `allaiis tools reset`)
+zeroes the counters and deletes the file; `allaiis tools reset --expired`, or the
+same endpoint with `{"expired": true}`, drops only the names past retention. That
+keeps the fresh evidence, which is how a fixed tool list stops carrying old blame.
+
+Both `allaiis tools show` and `allaiis tools reset` name the data directory with
+its origin, the file they act on and the retention, and do so before touching
+anything — the directory comes from the environment, so a wrong one must not pass
+unnoticed, and the lines appear even when no record exists yet. `show` then prints
+the time each name was last seen and marks a name past retention as expired, so a
+stopped gateway cannot make the view lie; a running gateway notices an outside
+edit or deletion within a couple of seconds. With retention off, both commands say
 how to switch it on again — the config key and the environment override — instead
 of only that nothing expires.
-Both `allaiis tools
-show` and `allaiis tools reset` name the data directory with its origin, the file
-they act on and the retention, and do so before touching anything — the directory
-comes from the environment, so a wrong one must not pass unnoticed, and the lines
-appear even when no record exists yet. `show` then prints the time each name was
-last seen and marks a name past retention as expired, so a stopped gateway cannot
-make the view lie; a running
-gateway notices an outside edit or deletion within a couple of seconds. A name also expires after
-`tool_name_ttl_days` (default 30, `0` keeps names forever; the environment
-variable `ALLAIIS_TOOL_NAME_TTL` overrides it with a Go duration such as `90s`,
-which is how a demo sees it without waiting a day). The doctor states the same
-retention in its warning, so a name that vanished reads as expired rather than
-lost: a name past it stops being listed
-and stop counting as evidence, and the drop button or a restart removes it, so an
-alias fixed months ago does not keep the warning alive. Saving does not prune, so
-the drop has something to act on; the totals are cumulative and stay.
-Cardinality follows the configured aliases. Scrape it from a loopback collector.
+
+A name expires after `tool_name_ttl_days` (default 30, `0` keeps names forever;
+the environment variable `ALLAIIS_TOOL_NAME_TTL` overrides it with a Go duration
+such as `90s`, which is how a demo sees it without waiting a day). The doctor
+states the same retention in its warning, so a name that vanished reads as expired
+rather than lost: a name past it stops being listed and stops counting as
+evidence, and the drop button or a restart removes it, so an alias fixed months
+ago does not keep the warning alive. Saving does not prune, so the drop has
+something to act on; the totals are cumulative and stay.
+
+The counters and names also travel as JSON on `GET /tool-names` (name, count,
+age), so a doctor started in another process reads the running gateway instead of
+its own zeroes. The names are arbitrary strings, so they stay out of the Prometheus
+labels and the exposition keeps a fixed shape. Cardinality follows the configured
+aliases; scrape it from a loopback collector.
 
 ## Graceful shutdown
 
