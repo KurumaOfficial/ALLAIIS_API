@@ -1,0 +1,3 @@
+# Keep source files LF on every platform: gofmt flags CRLF, and the Windows CI
+# runner checks out with core.autocrlf=true unless a rule says otherwise.
+* text=auto eol=lf
