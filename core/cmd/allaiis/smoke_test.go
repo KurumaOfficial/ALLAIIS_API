@@ -23,7 +23,7 @@ func smokeFixture(t *testing.T, fail bool) (dir, configPath, vaultPath string) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if fail {
 			w.WriteHeader(http.StatusInternalServerError)
-			io.WriteString(w, `{"error":{"message":"boom"}}`)
+			io.WriteString(w, `{"error":{"message":"boom","code":"boom"}}`)
 			return
 		}
 		body, _ := io.ReadAll(r.Body)
@@ -68,7 +68,7 @@ func smokeFixture(t *testing.T, fail bool) (dir, configPath, vaultPath string) {
 func TestSmokePassesEveryAlias(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, false)
 	capture(t, func() {
-		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "", 2, 20*time.Second, false, false); err != nil {
+		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "", 2, 20*time.Second, false, false, nil); err != nil {
 			t.Fatalf("smoke failed: %v", err)
 		}
 	})
@@ -77,7 +77,7 @@ func TestSmokePassesEveryAlias(t *testing.T) {
 func TestSmokeReportsFailures(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, true)
 	capture(t, func() {
-		err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, false, false)
+		err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, false, false, nil)
 		if err == nil {
 			t.Fatal("failing upstream reported success")
 		}
@@ -108,13 +108,28 @@ func TestSmokeReportsAModelParkedForBalance(t *testing.T) {
 
 	var errRun error
 	out := capture(t, func() {
-		errRun = runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, false, true)
+		errRun = runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, false, true, nil)
 	})
 	if errRun == nil {
 		t.Fatal("a parked model reported success")
 	}
 	if !strings.Contains(out, "no balance until") {
 		t.Fatalf("the park is not named: %s", out)
+	}
+}
+
+func TestSmokeAllowsAnExpectedCode(t *testing.T) {
+	dir, configPath, vaultPath := smokeFixture(t, true)
+	var errRun error
+	out := capture(t, func() {
+		errRun = runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, false, true, []string{"upstream_error"})
+	})
+	t.Log(out)
+	if errRun != nil {
+		t.Fatalf("an expected code failed the run: %v", errRun)
+	}
+	if !strings.Contains(out, "1 expected") {
+		t.Fatalf("allowance not reported: %s", out)
 	}
 }
 
@@ -130,7 +145,7 @@ func TestSmokeCode(t *testing.T) {
 func TestSmokeRejectsUnknownAlias(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, false)
 	capture(t, func() {
-		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "missing", 1, 20*time.Second, false, false); err == nil {
+		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "missing", 1, 20*time.Second, false, false, nil); err == nil {
 			t.Fatal("unknown alias accepted")
 		}
 	})
@@ -160,7 +175,7 @@ func capture(t *testing.T, fn func()) string {
 func TestSmokeCarriesAToolProbe(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, false)
 	out := capture(t, func() {
-		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, true, false); err != nil {
+		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, true, false, nil); err != nil {
 			t.Fatalf("smoke failed: %v", err)
 		}
 	})
@@ -210,7 +225,7 @@ func TestSmokeToolProbeNeedsTheArgument(t *testing.T) {
 func TestSmokeCanSkipTheToolProbe(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, false)
 	out := capture(t, func() {
-		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, true, true); err != nil {
+		if err := runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, true, true, nil); err != nil {
 			t.Fatalf("smoke failed: %v", err)
 		}
 	})

@@ -38,7 +38,7 @@ type smokeResult struct {
 
 // runSmoke exercises every alias (or one alias, repeatedly) against an
 // in-process gateway, so a live gateway and its port are not disturbed.
-func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, attempts int, timeout time.Duration, asJSON, noToolProbe bool) error {
+func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, attempts int, timeout time.Duration, asJSON, noToolProbe bool, allow []string) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
@@ -72,8 +72,12 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 	if attempts < 1 {
 		attempts = 1
 	}
+	allowed := make(map[string]bool, len(allow))
+	for _, code := range allow {
+		allowed[code] = true
+	}
 	var results []smokeResult
-	passed, failed := 0, 0
+	passed, failed, expected := 0, 0, 0
 	var toolTarget config.Route
 	for _, target := range targets {
 		provider, _ := cfg.Provider(target.Provider)
@@ -103,6 +107,7 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 				result.Detail = "model has no balance until " + balance.Format("15:04:05")
 			case time.Now().Before(cooling):
 				result.Status = http.StatusTooManyRequests
+				result.Code = "rate_limit_exceeded"
 				result.Detail = "provider cooling until " + cooling.Format("15:04:05")
 			default:
 				result = smokeOne(ctx, client, server.URL, store.ClientKey(), target, attempt)
@@ -113,6 +118,9 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 				if toolTarget.ID == "" {
 					toolTarget = target
 				}
+			} else if allowed[result.Code] {
+				// An expected answer, such as the deliberate bogus alias.
+				expected++
 			} else {
 				failed++
 			}
@@ -141,19 +149,23 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 		}
 		if tool.OK {
 			passed++
+		} else if allowed[tool.Code] {
+			expected++
 		} else {
 			failed++
 		}
 	}
 	if asJSON {
-		if err := writeJSON(os.Stdout, map[string]any{"results": results, "passed": passed, "failed": failed}); err != nil {
+		if err := writeJSON(os.Stdout, map[string]any{
+			"results": results, "passed": passed, "failed": failed, "expected": expected,
+		}); err != nil {
 			return err
 		}
 	} else {
-		fmt.Fprintf(os.Stdout, "\n%d passed, %d failed\n", passed, failed)
+		fmt.Fprintf(os.Stdout, "\n%d passed, %d failed, %d expected\n", passed, failed, expected)
 	}
 	if failed > 0 {
-		return fmt.Errorf("%d of %d probe(s) failed", failed, passed+failed)
+		return fmt.Errorf("%d of %d probe(s) failed", failed, passed+failed+expected)
 	}
 	return nil
 }

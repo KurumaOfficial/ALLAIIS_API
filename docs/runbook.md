@@ -89,7 +89,7 @@ binary goes back on autostart.
 - `allaiis doctor` — local checks, no provider quota; parked labels and their wait are listed, so a `429` from a pool is explained.
 - `allaiis web quota` — remaining session counters and reset time.
 - the panel at `http://127.0.0.1:8431/` — quotas, probes, logs, aliases.
-- `allaiis smoke --json` — a full sweep through a throwaway gateway; each result carries an error `code`, so a parked model (`insufficient_balance`) is told apart from a real break.
+- `allaiis smoke --json` — a full sweep through a throwaway gateway; each result carries an error `code`, so a parked model (`insufficient_balance`) is told apart from a real break; `--allow <code>` (repeatable) counts an expected code, such as the deliberately bogus alias, without failing the run.
 
 A `403` with `cloudflare_challenge` means the attestation went stale: run
 `allaiis web chrome` and `web login` again for that label.
