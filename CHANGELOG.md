@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **`web login` says what it captured.** After a signed-in capture it prints the
+  plan, the chat allowance and the credits, and names the credit bucket when it
+  is empty instead of leaving that to the first paid call.
+
 - **Fuzzing in CI.** The guard, the event decoder and the three request builders
   each run for thirty seconds on every push in their own step, so a failure names
   the target, and a failing input is uploaded as an artifact; the builder target

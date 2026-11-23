@@ -133,6 +133,9 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 		fmt.Fprintln(os.Stdout, "Sign in at https://venice.ai in the capture Chrome, then run this again for your plan quota.")
 	} else {
 		fmt.Fprintln(os.Stdout, "Captured a signed-in session.")
+		if line := planLine(limits); line != "" {
+			fmt.Fprintln(os.Stdout, line)
+		}
 	}
 	if _, err := store.Import(ctx, []vault.Entry{{
 		Provider: providerID, Endpoint: provider.BaseURL, Label: label, Key: cred.Encode(),
@@ -141,6 +144,42 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 	}
 	fmt.Fprintf(os.Stdout, "Saved session %q. Restart a running gateway to reload its pool.\n", label)
 	return writeJSON(os.Stdout, limits)
+}
+
+// planLine says what the captured session can spend, so a zero credit balance
+// is visible at capture time rather than on the first paid call.
+func planLine(limits map[string]any) string {
+	chat := "?"
+	if limitsMap, ok := limits["chat"].(map[string]any); ok {
+		if remaining, ok := limitsMap["remaining"].(float64); ok {
+			chat = fmt.Sprintf("%.0f", remaining)
+		}
+	}
+	account, ok := limits["account"].(map[string]any)
+	if !ok {
+		return "Chat allowance: " + chat + "."
+	}
+	plan, _ := account["userType"].(string)
+	if plan == "" {
+		plan = "no plan"
+	}
+	credits, cap := "?", "?"
+	if usage, ok := account["bundledCreditsUsage"].(map[string]any); ok {
+		credits = planNumber(usage["availableCredits"])
+		cap = planNumber(usage["monthlyRefillCredits"])
+	}
+	line := fmt.Sprintf("Plan %s, %s chat(s), %s/%s credits.", plan, chat, credits, cap)
+	if credits == "0" {
+		line += " Paid models answer 402 until the credit bucket refills; free models still answer."
+	}
+	return line
+}
+
+func planNumber(value any) string {
+	if number, ok := value.(float64); ok {
+		return fmt.Sprintf("%.0f", number)
+	}
+	return "?"
 }
 
 func webQuota(ctx context.Context, store *vault.Store, provider config.Provider, providerID, label string, floor int) error {
