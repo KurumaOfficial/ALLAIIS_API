@@ -5,6 +5,12 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **The vault has its own tests.** A reopen, a wrong passphrase, a ciphertext
+  moved to another label (it must fail closed), a rotated client key and the
+  NUL-aware cooldown clear were only covered through other packages. Coverage of
+  the package went from 34% to 71%.
+
+
 - **The trust model is written down.** A security section in the quality dossier
   (both languages) states what binds where, how the vault is keyed, how the two
   tokens are compared, and where the web cookies go.
