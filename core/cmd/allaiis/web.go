@@ -83,7 +83,17 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 	}
 	defer store.Close()
 	if command == "quota" {
-		return webQuota(ctx, store, provider, providerID, label)
+		floor := config.DefaultQuotaFloor
+		if cfg, err := config.Load(configPath); err == nil {
+			if cfg.QuotaFloor == 0 {
+				floor = config.DefaultQuotaFloor
+			} else if cfg.QuotaFloor < 0 {
+				floor = 0
+			} else {
+				floor = cfg.QuotaFloor
+			}
+		}
+		return webQuota(ctx, store, provider, providerID, label, floor)
 	}
 	if label == "" {
 		return errors.New("--label is required")
@@ -120,7 +130,7 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 	return writeJSON(os.Stdout, limits)
 }
 
-func webQuota(ctx context.Context, store *vault.Store, provider config.Provider, providerID, label string) error {
+func webQuota(ctx context.Context, store *vault.Store, provider config.Provider, providerID, label string, floor int) error {
 	entries, err := store.Entries(ctx, providerID, provider.BaseURL)
 	if err != nil {
 		return err
@@ -144,7 +154,14 @@ func webQuota(ctx context.Context, store *vault.Store, provider config.Provider,
 			results[entry.Label] = err.Error()
 			continue
 		}
-		results[entry.Label] = map[string]any{"principal": client.Principal(ctx, cred), "limits": limits}
+		row := map[string]any{"principal": client.Principal(ctx, cred), "limits": limits}
+		// The same floor the panel uses, so a scripted check sees it too.
+		if chat, ok := limits["chat"].(map[string]any); ok && floor > 0 {
+			if remaining, ok := chat["remaining"].(float64); ok && remaining <= float64(floor) {
+				row["low"] = true
+			}
+		}
+		results[entry.Label] = row
 	}
 	if len(results) == 0 {
 		return errors.New("label was not found for this provider")
