@@ -406,15 +406,49 @@ func saveEntries(ctx context.Context, store *vault.Store, entries []vault.Entry)
 	return nil
 }
 
+// openCodeModel carries what the alias declares, so a generated config is as
+// capable as a hand-written one: limits, tools, vision and reasoning.
+func openCodeModel(model router.Model) map[string]any {
+	entry := map[string]any{"name": model.ID}
+	limit := map[string]int{}
+	if model.Context > 0 {
+		limit["context"] = model.Context
+	}
+	if model.MaxOutput > 0 {
+		limit["output"] = model.MaxOutput
+	}
+	if len(limit) > 0 {
+		entry["limit"] = limit
+	}
+	input := []string{"text"}
+	if model.Images > 0 {
+		input = append(input, "image")
+	}
+	capabilities := map[string]any{"input": input, "output": []string{"text"}}
+	if model.Tools > 0 {
+		capabilities["tools"] = true
+	}
+	if model.Reasoning {
+		capabilities["reasoning"] = map[string]any{"supported": true}
+	}
+	entry["capabilities"] = capabilities
+	if model.Reasoning {
+		entry["compatibility"] = map[string]string{
+			"reasoningField": "reasoning_content", "maxTokensField": "max_tokens",
+		}
+	}
+	return entry
+}
+
 func exportOpenCode(w io.Writer, listen string, models []router.Model) error {
 	chat := make(map[string]any, len(models))
 	messages := make(map[string]any, len(models))
 	for _, model := range models {
 		switch model.Protocol {
 		case config.Chat:
-			chat[model.ID] = map[string]string{"name": model.ID}
+			chat[model.ID] = openCodeModel(model)
 		case config.Messages:
-			messages[model.ID] = map[string]string{"name": model.ID}
+			messages[model.ID] = openCodeModel(model)
 		}
 	}
 	if len(chat) == 0 && len(messages) == 0 {

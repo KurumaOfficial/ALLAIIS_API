@@ -12,6 +12,48 @@ import (
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
 )
 
+// TestExportOpenCodeCarriesCapabilities pins what a generated config should not
+// lose next to a hand-written one: limits, tools, vision and reasoning.
+func TestExportOpenCodeCarriesCapabilities(t *testing.T) {
+	models := []router.Model{{
+		ID: "deep", Protocol: config.Chat, Context: 524288, MaxOutput: 131072,
+		Images: 10, Tools: 64, Reasoning: true,
+	}}
+	var buffer bytes.Buffer
+	if err := exportOpenCode(&buffer, "127.0.0.1:8420", models); err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		Providers map[string]struct {
+			Models map[string]struct {
+				Limit        map[string]int `json:"limit"`
+				Capabilities struct {
+					Tools     any      `json:"tools"`
+					Input     []string `json:"input"`
+					Reasoning struct {
+						Supported bool `json:"supported"`
+					} `json:"reasoning"`
+				} `json:"capabilities"`
+				Compatibility map[string]string `json:"compatibility"`
+			} `json:"models"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal(buffer.Bytes(), &config); err != nil {
+		t.Fatalf("%v: %s", err, buffer.String())
+	}
+	model := config.Providers["allaiis"].Models["deep"]
+	if model.Limit["context"] != 524288 || model.Limit["output"] != 131072 {
+		t.Fatalf("limits %+v", model.Limit)
+	}
+	if model.Capabilities.Tools != true || len(model.Capabilities.Input) != 2 ||
+		!model.Capabilities.Reasoning.Supported {
+		t.Fatalf("capabilities %+v", model.Capabilities)
+	}
+	if model.Compatibility["reasoningField"] != "reasoning_content" {
+		t.Fatalf("compatibility %+v", model.Compatibility)
+	}
+}
+
 func TestExportOpenCodeSplitsProtocols(t *testing.T) {
 	models := []router.Model{
 		{ID: "chat-alias", Protocol: config.Chat},

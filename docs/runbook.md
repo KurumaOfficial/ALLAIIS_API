@@ -107,7 +107,8 @@ A `403` with `cloudflare_challenge` means the attestation went stale: run
 ```
 
 `export opencode` prints the provider block for OpenCode's config with the local
-key. The gateway serves the OpenAI, Responses and Anthropic Messages shapes on
+key, and each alias carries the limits and capabilities it declares (context,
+output, tools, vision, reasoning), so the generated block needs no hand-tuning. The gateway serves the OpenAI, Responses and Anthropic Messages shapes on
 the same port, so any client that speaks one of them only needs the base URL
 `http://127.0.0.1:8420/v1` and the key from `allaiis key`.
 
