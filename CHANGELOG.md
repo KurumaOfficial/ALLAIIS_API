@@ -5,6 +5,11 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Two panel paths have tests.** A pasted plain API key for a web provider is
+  refused with the message that names `web login`, and the Export button's file
+  round-trips a route added through the same panel.
+
+
 - **The vault has its own tests.** A reopen, a wrong passphrase, a ciphertext
   moved to another label (it must fail closed), a rotated client key and the
   NUL-aware cooldown clear were only covered through other packages. Coverage of

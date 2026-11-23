@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -275,6 +276,69 @@ func TestPanelQuotaShowsPlanAndCredits(t *testing.T) {
 	if row.Label != "pro" || row.Plan != "PRO" || row.Credits != 0 || row.CreditCap != 100 ||
 		row.Chat != 9685 || row.RefillAt == 0 {
 		t.Fatalf("row %+v", row)
+	}
+}
+
+// TestPanelRefusesAWebKeyThatIsNotASession pins the one check that keeps a
+// pasted API key from becoming an unreadable web session.
+func TestPanelRefusesAWebKeyThatIsNotASession(t *testing.T) {
+	f := setup(t)
+	cfg, err := config.Load(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Providers = map[string]config.Provider{
+		"web": {BaseURL: "https://web.example/api", Transport: config.TransportVeniceWeb},
+	}
+	cfg.Models = []config.Route{{ID: "web-alias", Provider: "web", UpstreamModel: "m", Privacy: config.ZDR}}
+	body, _ := json.Marshal(cfg)
+	if err := os.WriteFile(f.path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	bad := f.call(t, http.MethodPost, "/api/keys",
+		`{"provider":"web","label":"pro","key":"sk-a-plain-api-key"}`, "")
+	if bad.Code != http.StatusBadRequest || !strings.Contains(bad.Body.String(), "web login") {
+		t.Fatalf("plain key accepted: %d %s", bad.Code, bad.Body)
+	}
+
+	cred := webprov.Credential{DistinctID: "device", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "clear"}}}
+	good := f.call(t, http.MethodPost, "/api/keys",
+		`{"provider":"web","label":"pro","key":`+strconv.Quote(cred.Encode())+`}`, "")
+	if good.Code != http.StatusOK {
+		t.Fatalf("session refused: %d %s", good.Code, good.Body)
+	}
+}
+
+// TestPanelExportsTheConfig pins the Export button's shape: the file's fields,
+// not a summary that a reader cannot paste back.
+func TestPanelExportsTheConfig(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/models",
+		`{"provider":"fake","upstream_model":"gpt-x","name":"x-alias"}`, "")
+	result := f.call(t, http.MethodGet, "/api/export", "", "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("export: %d %s", result.Code, result.Body)
+	}
+	var reply struct {
+		Listen    string           `json:"listen"`
+		Providers map[string]any   `json:"providers"`
+		Models    []map[string]any `json:"models"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	if reply.Listen == "" || len(reply.Providers) == 0 {
+		t.Fatalf("reply %+v", reply)
+	}
+	found := false
+	for _, model := range reply.Models {
+		if model["id"] == "x-alias" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("exported models %+v", reply.Models)
 	}
 }
 
