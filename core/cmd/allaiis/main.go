@@ -147,18 +147,20 @@ func run(ctx context.Context, args []string) error {
 	case "account remove":
 		flags.StringVar(&providerID, "provider", "", "configured provider ID")
 		flags.StringVar(&label, "label", "", "credential label within the pool")
-	case "up":
-		fallthrough
-	case "gui":
+	case "up", "gui":
+		// Only the flags this command reads: the shared chain used to advertise
+		// smoke and doctor options that were ignored here.
 		flags.StringVar(&logFile, "log-file", "", "append the log here, rotated")
 		flags.IntVar(&logMaxMB, "log-max-mb", 16, "rotate the log file at this size")
 		flags.IntVar(&logKeep, "log-keep", 3, "how many rotated log files to keep")
 		flags.StringVar(&listen, "listen", "", "gateway address (defaults to the configured one)")
-		flags.StringVar(&ui, "ui", "127.0.0.1:0", "control panel address")
-		flags.BoolVar(&noOpen, "no-open", false, "do not open a browser")
-		flags.DurationVar(&smokeEvery, "smoke-every", 0, "probe every alias on this interval (e.g. 15m)")
-		flags.StringVar(&smokeWebhook, "smoke-webhook", "", "POST failures and regressions to this URL")
-		fallthrough
+		if command == "gui" {
+			flags.StringVar(&ui, "ui", "127.0.0.1:0", "control panel address")
+			flags.BoolVar(&noOpen, "no-open", false, "do not open a browser")
+			flags.DurationVar(&smokeEvery, "smoke-every", 0, "probe every alias on this interval (e.g. 15m)")
+			flags.StringVar(&smokeWebhook, "smoke-webhook", "", "POST failures and regressions to this URL")
+			flags.BoolVar(&noToolProbe, "no-tools", false, "skip the tool parser probe")
+		}
 	case "smoke":
 		flags.StringVar(&label, "alias", "", "probe only this alias")
 		flags.IntVar(&attempts, "attempts", 1, "repeat every probe this many times")
@@ -169,9 +171,9 @@ func run(ctx context.Context, args []string) error {
 			allow = append(allow, code)
 			return nil
 		})
-		fallthrough
-	case "init", "key", "status", "doctor", "export opencode":
+	case "doctor":
 		flags.BoolVar(&offline, "offline", false, "skip the network enclave attestation")
+	case "init", "key", "status", "export opencode":
 	default:
 		return fmt.Errorf("unknown command %q. Run allaiis help", command)
 	}
