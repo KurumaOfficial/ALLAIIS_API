@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **A repeated `init` is pinned as safe.** It keeps an existing config and vault
+  and does not rotate the client key, which matters on a host where the first
+  command after an upgrade is often `init` again.
+
 ## v0.1.16
 
 The notes are written where people read them.
