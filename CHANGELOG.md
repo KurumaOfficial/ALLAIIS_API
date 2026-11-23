@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **Doctor warns at the quota floor.** `web plan` uses the same floor as the
+  panel badge and prints when the chat allowance resets, so a count of 3 is a
+  warning rather than only a number.
+
 ## v0.1.7
 
 The last open item closed: a sealed reply was opened live.

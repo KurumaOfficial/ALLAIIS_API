@@ -195,6 +195,46 @@ func TestDiagnoseReportsThePlanAndCredits(t *testing.T) {
 	t.Fatal("no plan check")
 }
 
+// TestDiagnoseWarnsWhenTheChatAllowanceIsNearlySpent pins the floor: the panel
+// badges the same count, so doctor must not stay quiet at 3 left.
+func TestDiagnoseWarnsWhenTheChatAllowanceIsNearlySpent(t *testing.T) {
+	f := setup(t)
+	cfg, err := config.Load(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Providers = map[string]config.Provider{
+		"web": {BaseURL: "https://web.example/api", Transport: config.TransportVeniceWeb},
+	}
+	cfg.Models = []config.Route{{ID: "web-alias", Provider: "web", UpstreamModel: "m", Privacy: config.ZDR}}
+	body, _ := json.Marshal(cfg)
+	if err := os.WriteFile(f.path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	cred := webprov.Credential{DistinctID: "device", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "clear"}}}
+	if _, err := f.store.Import(context.Background(), []vault.Entry{{
+		Provider: "web", Endpoint: "https://web.example/api", Label: "pro", Key: cred.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	saved := probePlan
+	probePlan = func(context.Context, webprov.Credential) (map[string]any, error) {
+		return map[string]any{"chat": map[string]any{"remaining": float64(3), "resetAt": float64(1795499466865)}}, nil
+	}
+	t.Cleanup(func() { probePlan = saved })
+
+	for _, check := range Diagnose(context.Background(), f.store, f.path) {
+		if check.Name == "web plan" {
+			if check.Status != "warn" || !strings.Contains(check.Detail, "3 chat") ||
+				!strings.Contains(check.Detail, "resets") {
+				t.Fatalf("plan check %+v", check)
+			}
+			return
+		}
+	}
+	t.Fatal("no plan check")
+}
+
 func TestDiagnoseWarnsAboutASmallBodyCap(t *testing.T) {
 	f := setup(t)
 	cfg, err := config.Load(f.path)

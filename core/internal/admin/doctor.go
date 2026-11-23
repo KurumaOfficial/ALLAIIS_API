@@ -133,16 +133,24 @@ func planCheck(ctx context.Context, cfg config.Config, store *vault.Store) (Chec
 				lines = append(lines, entry.Label+": "+err.Error())
 				continue
 			}
-			chat := "?"
+			// The same floor the panel uses, so both warn at the same count.
+			floor := cfg.QuotaFloor
+			if floor == 0 {
+				floor = config.DefaultQuotaFloor
+			}
+			chat, resetNote := "?", ""
 			if limitsMap, ok := limits["chat"].(map[string]any); ok {
 				if remaining, ok := limitsMap["remaining"].(float64); ok {
 					chat = fmt.Sprintf("%.0f", remaining)
-					if remaining <= 0 {
+					if floor > 0 && remaining <= float64(floor) {
 						low = true
+					}
+					if reset, ok := limitsMap["resetAt"].(float64); ok && reset > 0 {
+						resetNote = " (resets " + time.UnixMilli(int64(reset)).Local().Format("2006-01-02 15:04") + ")"
 					}
 				}
 			}
-			line := entry.Label + ": " + chat + " chat"
+			line := entry.Label + ": " + chat + " chat" + resetNote
 			if account, ok := limits["account"].(map[string]any); ok {
 				plan, _ := account["userType"].(string)
 				if plan == "" {
