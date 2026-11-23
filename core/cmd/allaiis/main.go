@@ -49,6 +49,7 @@ const usage = `Usage: allaiis <command>
   tools             Inspect or clear the tool name record
   smoke             Probe aliases through an in-process gateway
   key               Print the local gateway bearer key
+  version           Print the version (also -v or --version)
   export opencode   Print a custom provider config for OpenCode
   up                Start the loopback gateway
   gui               Start the gateway and open the control panel
@@ -69,6 +70,10 @@ var flagOutput io.Writer = os.Stderr
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 || slices.Contains([]string{"help", "-h", "--help"}, args[0]) {
 		fmt.Fprint(os.Stdout, usage)
+		return nil
+	}
+	if slices.Contains([]string{"version", "-v", "--version"}, args[0]) {
+		fmt.Fprintf(os.Stdout, "allaiis %s\n", version)
 		return nil
 	}
 	dir := os.Getenv("ALLAIIS_DATA_DIR")
