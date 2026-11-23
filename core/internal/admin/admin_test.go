@@ -153,6 +153,25 @@ func TestPanelAddKeyAndAlias(t *testing.T) {
 	}
 }
 
+func TestPanelShowsABalanceMark(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")
+	f.call(t, http.MethodPost, "/api/models",
+		`{"provider":"fake","upstream_model":"gpt-x","name":"x-alias","label":"work"}`, "")
+	// A balance mark is scoped to the model on that label, not to the label.
+	key := f.upward.URL + "\x00work\x00x-alias"
+	if err := f.store.SetCooldown(t.Context(), "fake", key, time.Now().Add(30*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	state := f.call(t, http.MethodGet, "/api/state", "", "")
+	if !strings.Contains(state.Body.String(), `"balance_until"`) {
+		t.Fatalf("state hides the balance mark: %s", state.Body)
+	}
+	if strings.Contains(state.Body.String(), `"cooldowns"`) {
+		t.Fatalf("a balance mark parked the whole label: %s", state.Body)
+	}
+}
+
 func TestPanelProbe(t *testing.T) {
 	f := setup(t)
 	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")

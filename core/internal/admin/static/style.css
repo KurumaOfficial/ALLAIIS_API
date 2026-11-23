@@ -88,6 +88,7 @@ td input[type="checkbox"] { width: auto; margin-right: 8px; vertical-align: midd
 .badge.api { background: #1c2620; color: #8fc8a2; }
 .badge.ok { background: #12301c; color: var(--ok); }
 .badge.bad { background: #34161a; color: var(--bad); }
+.badge.warn { background: #33280f; color: #e6b45c; }
 
 .streak { display: inline-flex; gap: 3px; align-items: center; }
 .streak .dot { width: 7px; height: 7px; border-radius: 50%; background: #37414f; }

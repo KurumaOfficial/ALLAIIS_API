@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -123,7 +124,7 @@ func (r *Router) Resolve(ctx context.Context, model string, protocol config.Prot
 	ready := false
 	if route.CredentialLabel == "" {
 		// A pool should not keep landing on a cooled label while another is ready.
-		if fresh, ok := r.freshEntry(ctx, p, route.Provider, session); ok {
+		if fresh, ok := r.freshEntry(ctx, p, route.Provider, session, model); ok {
 			entry, found, ready = fresh, true, true
 		}
 	}
@@ -131,6 +132,13 @@ func (r *Router) Resolve(ctx context.Context, model string, protocol config.Prot
 		return Target{}, time.Time{}, ErrCredentials
 	}
 	target := Target{Route: route, Provider: p.provider, Entry: entry}
+	// A balance mark names this model only: the same label may still serve a
+	// free one.
+	if until, err := r.balanceCooldown(ctx, route.Provider, p.provider, entry.Label, model); err != nil {
+		return Target{}, time.Time{}, err
+	} else if time.Now().Before(until) {
+		return target, until, ErrCooldown
+	}
 	if ready {
 		// The chosen label is not cooling, and so the pool wide mark does not
 		// apply to it either.
@@ -149,7 +157,7 @@ func (r *Router) Resolve(ctx context.Context, model string, protocol config.Prot
 // freshEntry picks a pool entry that is not cooling, starting from the session
 // position so load stays spread. Cooldowns survive a restart in the store, so
 // both views are consulted.
-func (r *Router) freshEntry(ctx context.Context, p pool, providerID string, session [32]byte) (vault.Entry, bool) {
+func (r *Router) freshEntry(ctx context.Context, p pool, providerID string, session [32]byte, model string) (vault.Entry, bool) {
 	if len(p.entries) < 2 {
 		return vault.Entry{}, false
 	}
@@ -167,6 +175,9 @@ func (r *Router) freshEntry(ctx context.Context, p pool, providerID string, sess
 		if stored, err := r.store.Cooldown(ctx, providerID, key); err == nil && now.Before(stored) {
 			continue
 		}
+		if stored, err := r.store.Cooldown(ctx, providerID, balanceKey(p.provider, entry.Label, model)); err == nil && now.Before(stored) {
+			continue
+		}
 		return entry, true
 	}
 	return vault.Entry{}, false
@@ -182,7 +193,6 @@ func (r *Router) SetCooldown(ctx context.Context, target Target, until time.Time
 	return r.store.SetCooldown(ctx, target.Route.Provider, key, until)
 }
 
-// ClearCooldown lifts a cooldown for one alias target or a whole provider.
 // SetLabelCooldown parks one label of an unpinned route, which the route's own
 // empty label cannot express.
 func (r *Router) SetLabelCooldown(ctx context.Context, providerID string, provider config.Provider, label string, until time.Time) error {
@@ -195,12 +205,52 @@ func (r *Router) SetLabelCooldown(ctx context.Context, providerID string, provid
 	return r.store.SetCooldown(ctx, providerID, key, until)
 }
 
+// balanceKey scopes a cooldown to one model on one label. An empty balance is a
+// fact about the model, and the label can keep serving a free one.
+func balanceKey(provider config.Provider, label, model string) string {
+	return cooldownKey(provider, label) + "\x00" + model
+}
+
+// SetBalanceCooldown parks one model on one label until the balance recovers.
+func (r *Router) SetBalanceCooldown(ctx context.Context, providerID string, provider config.Provider, label, model string, until time.Time) error {
+	key := balanceKey(provider, label, model)
+	r.mu.Lock()
+	if until.After(r.blocked[key]) {
+		r.blocked[key] = until
+	}
+	r.mu.Unlock()
+	return r.store.SetCooldown(ctx, providerID, key, until)
+}
+
+// balanceCooldown reads the model-scoped mark for one label.
+func (r *Router) balanceCooldown(ctx context.Context, providerID string, provider config.Provider, label, model string) (time.Time, error) {
+	key := balanceKey(provider, label, model)
+	until, err := r.store.Cooldown(ctx, providerID, key)
+	if err != nil {
+		return time.Time{}, err
+	}
+	r.mu.Lock()
+	if memory := r.blocked[key]; memory.After(until) {
+		until = memory
+	}
+	r.mu.Unlock()
+	return until, nil
+}
+
+// ClearCooldown lifts a cooldown for one alias target or a whole provider,
+// including the model-scoped marks below it.
 func (r *Router) ClearCooldown(ctx context.Context, provider config.Provider, providerID, label string) error {
 	key := cooldownKey(provider, label)
+	prefix := key + "\x00"
 	r.mu.Lock()
 	delete(r.blocked, key)
+	for blockedKey := range r.blocked {
+		if strings.HasPrefix(blockedKey, prefix) {
+			delete(r.blocked, blockedKey)
+		}
+	}
 	r.mu.Unlock()
-	return r.store.ClearCooldown(ctx, providerID, key)
+	return r.store.ClearCooldownPrefix(ctx, providerID, key)
 }
 
 // SaveResponse persists a Responses turn list for follow-ups.

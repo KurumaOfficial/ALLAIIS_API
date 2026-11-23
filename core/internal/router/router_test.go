@@ -36,6 +36,8 @@ func routerFixture(t *testing.T) (*Router, *vault.Store, config.Config) {
 	cfg.Models = []config.Route{
 		{ID: "pinned", Provider: "fixture", UpstreamModel: "m", CredentialLabel: "one", Privacy: config.Consumer},
 		{ID: "pool", Provider: "fixture", UpstreamModel: "m", Privacy: config.Consumer},
+		{ID: "paid", Provider: "fixture", UpstreamModel: "paid", CredentialLabel: "one", Privacy: config.Consumer},
+		{ID: "free", Provider: "fixture", UpstreamModel: "free", CredentialLabel: "one", Privacy: config.Consumer},
 	}
 	routes, err := New(t.Context(), cfg, store)
 	if err != nil {
@@ -143,5 +145,61 @@ func TestPoolFallsBackWhenEverythingCools(t *testing.T) {
 	}
 	if _, _, err := routes.Resolve(t.Context(), "pool", config.Chat, config.Consumer, [32]byte{}); err != nil {
 		t.Fatalf("no entry chosen when every label cools: %v", err)
+	}
+}
+
+func TestBalanceMarkNamesOneModel(t *testing.T) {
+	routes, _, cfg := routerFixture(t)
+	provider, ok := cfg.Provider("fixture")
+	if !ok {
+		t.Fatal("fixture provider missing")
+	}
+	if err := routes.SetBalanceCooldown(t.Context(), "fixture", provider, "one", "paid", time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	// The marked model waits, and the very same label still serves a free one.
+	if _, until, err := routes.Resolve(t.Context(), "paid", config.Chat, config.Consumer, [32]byte{}); !errors.Is(err, ErrCooldown) || until.IsZero() {
+		t.Fatalf("marked model resolved: %v %v", err, until)
+	}
+	target, _, err := routes.Resolve(t.Context(), "free", config.Chat, config.Consumer, [32]byte{})
+	if err != nil || target.Entry.Label != "one" {
+		t.Fatalf("free model left its label: %v %v", err, target.Entry)
+	}
+}
+
+func TestBalanceMarkMovesTheModelToAnotherLabel(t *testing.T) {
+	routes, _, cfg := routerFixture(t)
+	provider, ok := cfg.Provider("fixture")
+	if !ok {
+		t.Fatal("fixture provider missing")
+	}
+	if err := routes.SetBalanceCooldown(t.Context(), "fixture", provider, "one", "pool", time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	// The pool route's model is out of balance on "one", so only "two" is left.
+	chosen, _, err := routes.Resolve(t.Context(), "pool", config.Chat, config.Consumer, [32]byte{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chosen.Entry.Label != "two" {
+		t.Fatalf("pool stayed on the out-of-balance label: %s", chosen.Entry.Label)
+	}
+}
+
+func TestClearCooldownLiftsModelMarksToo(t *testing.T) {
+	routes, _, cfg := routerFixture(t)
+	provider, ok := cfg.Provider("fixture")
+	if !ok {
+		t.Fatal("fixture provider missing")
+	}
+	if err := routes.SetBalanceCooldown(t.Context(), "fixture", provider, "one", "paid", time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := routes.ClearCooldown(t.Context(), provider, "fixture", "one"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := routes.Resolve(t.Context(), "paid", config.Chat, config.Consumer, [32]byte{}); err != nil {
+		t.Fatalf("model mark survived the clear: %v", err)
 	}
 }

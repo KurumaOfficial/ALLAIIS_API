@@ -863,3 +863,60 @@ func TestUnpinnedPoolRetriesAnotherLabel(t *testing.T) {
 		t.Fatalf("second label answer missing: %s", result.Body)
 	}
 }
+
+// An empty balance is a fact about one model; a free model on the same session
+// must keep answering instead of waiting out the parking.
+func TestBalanceCooldownNamesOneModel(t *testing.T) {
+	var calls atomic.Int32
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		calls.Add(1)
+		if body["modelId"] == "paid-1" {
+			w.WriteHeader(http.StatusPaymentRequired)
+			fmt.Fprint(w, `{"error":"insufficientBalance"}`)
+			return
+		}
+		writeFrames(w, "free answer")
+	})
+	store, _ := setup(t, server.URL)
+	cfg := config.Default()
+	cfg.Providers = map[string]config.Provider{
+		"venice-web-fixture": {BaseURL: server.URL, Transport: config.TransportVeniceWeb},
+	}
+	label := "one"
+	cred := webprov.Credential{DistinctID: "device", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "one"}}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "venice-web-fixture", Endpoint: server.URL, Label: label, Key: cred.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Models = []config.Route{
+		{ID: "paid", Provider: "venice-web-fixture", UpstreamModel: "paid-1", CredentialLabel: label, Privacy: config.ZDR},
+		{ID: "free", Provider: "venice-web-fixture", UpstreamModel: "free-1", CredentialLabel: label, Privacy: config.ZDR},
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+
+	prompt := func(model string) string {
+		return `{"model":"` + model + `","messages":[{"role":"user","content":"hi"}]}`
+	}
+	if result := complete(handler, store.ClientKey(), "", prompt("paid")); result.Code != http.StatusPaymentRequired {
+		t.Fatalf("paid model answered %d", result.Code)
+	}
+	before := calls.Load()
+	if result := complete(handler, store.ClientKey(), "", prompt("free")); result.Code != http.StatusOK {
+		t.Fatalf("free model blocked by the balance mark: %d %s", result.Code, result.Body)
+	}
+	// The free call proves the session still works; the paid one is parked, so
+	// it does not reach the provider again.
+	afterFree := calls.Load()
+	if result := complete(handler, store.ClientKey(), "", prompt("paid")); result.Code != http.StatusTooManyRequests {
+		t.Fatalf("parked model answered %d", result.Code)
+	}
+	if calls.Load() != afterFree || afterFree != before+1 {
+		t.Fatalf("unexpected upstream calls: before=%d free=%d now=%d", before, afterFree, calls.Load())
+	}
+}

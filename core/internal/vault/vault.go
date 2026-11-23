@@ -289,6 +289,56 @@ func (s *Store) Cooldown(ctx context.Context, provider, endpoint string) (time.T
 	return time.UnixMilli(until), err
 }
 
+// Cooldowns lists every cooldown row of one provider by end key.
+func (s *Store) Cooldowns(ctx context.Context, provider string) (map[string]time.Time, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT endpoint, until_unix_ms FROM cooldowns WHERE provider = ?`, provider)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	all := map[string]time.Time{}
+	for rows.Next() {
+		var key string
+		var until int64
+		if err := rows.Scan(&key, &until); err != nil {
+			return nil, err
+		}
+		all[key] = time.UnixMilli(until)
+	}
+	return all, rows.Err()
+}
+
+// ClearCooldownPrefix drops a cooldown row and every row scoped below it, which
+// is how a label's model-scoped rows go with the label. Keys are read and
+// matched in Go because SQLite string functions stop at an embedded NUL.
+func (s *Store) ClearCooldownPrefix(ctx context.Context, provider, prefix string) error {
+	rows, err := s.db.QueryContext(ctx, `SELECT endpoint FROM cooldowns WHERE provider = ?`, provider)
+	if err != nil {
+		return err
+	}
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			rows.Close()
+			return err
+		}
+		if key == prefix || strings.HasPrefix(key, prefix+"\x00") {
+			keys = append(keys, key)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, key := range keys {
+		if _, err := s.db.ExecContext(ctx, `DELETE FROM cooldowns WHERE provider = ? AND endpoint = ?`, provider, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Store) SetCooldown(ctx context.Context, provider, endpoint string, until time.Time) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO cooldowns VALUES (?, ?, ?)

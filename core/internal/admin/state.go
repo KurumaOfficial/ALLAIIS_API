@@ -37,25 +37,27 @@ type modelView struct {
 	Privacy       config.Privacy  `json:"privacy"`
 	Label         string          `json:"label"`
 	Available     bool            `json:"available"`
-	Disabled      bool            `json:"disabled"`
-	Reasoning     *bool           `json:"reasoning,omitempty"`
-	MaxContext    int             `json:"max_context,omitempty"`
-	MaxResponse   int             `json:"max_response,omitempty"`
-	MaxImages     int             `json:"max_images,omitempty"`
-	MaxTools      int             `json:"max_tools,omitempty"`
-	WebSearch     bool            `json:"web_search,omitempty"`
-	LargeContext  bool            `json:"large_context,omitempty"`
-	StrictOrder   bool            `json:"strict_order,omitempty"`
-	InactivityMS  int             `json:"inactivity_ms,omitempty"`
-	NoSampling    bool            `json:"no_sampling,omitempty"`
-	Frequency     bool            `json:"frequency_penalty,omitempty"`
-	Presence      bool            `json:"presence_penalty,omitempty"`
-	Replacement   string          `json:"replacement,omitempty"`
-	RoundTrip     bool            `json:"reasoning_round_trip,omitempty"`
-	MaxVideos     int             `json:"max_videos,omitempty"`
-	MinP          bool            `json:"min_p,omitempty"`
-	AnonUserID    *bool           `json:"anon_user_id,omitempty"`
-	RateLimit     string          `json:"rate_limit,omitempty"`
+	// BalanceUntil marks this model parked for an empty balance on its label.
+	BalanceUntil *time.Time `json:"balance_until,omitempty"`
+	Disabled     bool       `json:"disabled"`
+	Reasoning    *bool      `json:"reasoning,omitempty"`
+	MaxContext   int        `json:"max_context,omitempty"`
+	MaxResponse  int        `json:"max_response,omitempty"`
+	MaxImages    int        `json:"max_images,omitempty"`
+	MaxTools     int        `json:"max_tools,omitempty"`
+	WebSearch    bool       `json:"web_search,omitempty"`
+	LargeContext bool       `json:"large_context,omitempty"`
+	StrictOrder  bool       `json:"strict_order,omitempty"`
+	InactivityMS int        `json:"inactivity_ms,omitempty"`
+	NoSampling   bool       `json:"no_sampling,omitempty"`
+	Frequency    bool       `json:"frequency_penalty,omitempty"`
+	Presence     bool       `json:"presence_penalty,omitempty"`
+	Replacement  string     `json:"replacement,omitempty"`
+	RoundTrip    bool       `json:"reasoning_round_trip,omitempty"`
+	MaxVideos    int        `json:"max_videos,omitempty"`
+	MinP         bool       `json:"min_p,omitempty"`
+	AnonUserID   *bool      `json:"anon_user_id,omitempty"`
+	RateLimit    string     `json:"rate_limit,omitempty"`
 }
 
 type stateView struct {
@@ -99,6 +101,7 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 		}
 	}
 	sort.Strings(ids)
+	balances := map[string]time.Time{}
 	for _, id := range ids {
 		provider, ok := cfg.Provider(id)
 		if !ok {
@@ -112,21 +115,35 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 			ID: id, BaseURL: provider.BaseURL, Web: provider.Web(),
 			CatalogPublic: provider.CatalogPublic, Labels: make([]string, 0, len(entries)),
 		}
+		rows, _ := s.options.Store.Cooldowns(ctx, id)
 		for _, entry := range entries {
 			record.Labels = append(record.Labels, entry.Label)
-			if until, err := s.options.Store.Cooldown(ctx, id, provider.BaseURL+"\x00"+entry.Label); err == nil && time.Now().Before(until) {
+			if until, ok := rows[provider.BaseURL+"\x00"+entry.Label]; ok && time.Now().Before(until) {
 				if record.Cooldowns == nil {
 					record.Cooldowns = map[string]time.Time{}
 				}
 				record.Cooldowns[entry.Label] = until
 			}
 		}
-		if until, err := s.options.Store.Cooldown(ctx, id, provider.BaseURL); err == nil && time.Now().Before(until) {
+		if until, ok := rows[provider.BaseURL]; ok && time.Now().Before(until) {
 			record.CooldownUntil = &until
+		}
+		for key, until := range rows {
+			if rest, found := strings.CutPrefix(key, provider.BaseURL+"\x00"); found {
+				parts := strings.Split(rest, "\x00")
+				if len(parts) == 2 && time.Now().Before(until) {
+					balances[parts[1]] = until
+				}
+			}
 		}
 		view.Providers = append(view.Providers, record)
 	}
 	for _, route := range cfg.Models {
+		var balance *time.Time
+		if until, ok := balances[route.ID]; ok {
+			value := until
+			balance = &value
+		}
 		record := modelView{
 			ID: route.ID, Provider: route.Provider, UpstreamModel: route.UpstreamModel,
 			Protocol: route.Protocol, Privacy: route.Privacy, Label: route.CredentialLabel,
@@ -136,7 +153,7 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 			LargeContext: route.LargeContext, StrictOrder: route.StrictOrder, InactivityMS: route.InactivityMS,
 			NoSampling: route.NoSampling, Frequency: route.Frequency, Presence: route.Presence,
 			Replacement: route.Replacement, RoundTrip: route.ReasoningRoundTrip, MaxVideos: route.MaxVideos,
-			MinP: route.MinP, AnonUserID: route.AnonUserID,
+			MinP: route.MinP, AnonUserID: route.AnonUserID, BalanceUntil: balance,
 		}
 		for _, provider := range view.Providers {
 			if provider.ID != route.Provider {

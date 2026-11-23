@@ -38,23 +38,32 @@ type webShape interface {
 }
 
 // webCompletion serves a route whose provider has no documented API.
-// labelPenalty is how long a label is skipped after a failure that is about the
-// label rather than the model.
-func labelPenalty(err error) (time.Duration, bool) {
+// penaltyScope says what a failure parks: a limited label or an empty balance
+// for one model, which leaves the label free to serve another.
+type penaltyScope int
+
+const (
+	labelParked penaltyScope = iota
+	modelParked
+)
+
+// labelPenalty is how long a label or one model on it is skipped after a
+// failure that is about the label rather than the transport.
+func labelPenalty(err error) (time.Duration, penaltyScope, bool) {
 	switch {
 	case errors.Is(err, webprov.ErrInsufficientBalance()):
-		return balanceCooldown, true
+		return balanceCooldown, modelParked, true
 	case errors.Is(err, webprov.ErrRateLimited):
 		if reset, ok := webprov.RateLimitReset(err); ok {
 			if until := time.Until(reset); until > 0 && until < maxRateCooldown {
-				return until, true
+				return until, labelParked, true
 			}
 		}
-		return maxRateCooldown, true
+		return maxRateCooldown, labelParked, true
 	case errors.Is(err, webprov.ErrUnauthorized), errors.Is(err, webprov.ErrCloudflare):
-		return 5 * time.Minute, true
+		return 5 * time.Minute, labelParked, true
 	}
-	return 0, false
+	return 0, labelParked, false
 }
 
 func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, target router.Target, payload []byte, stream bool, minimum config.Privacy, session [32]byte) (chars, callsOut int) {
@@ -258,10 +267,18 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		}
 		// A pool should try its other labels before failing the client: the
 		// label, not the model, was the problem.
-		if penalty, known := labelPenalty(err); known && !sent && attempts < 2 && target.Route.CredentialLabel == "" {
+		if penalty, scope, known := labelPenalty(err); known && !sent && attempts < 2 && target.Route.CredentialLabel == "" {
 			persist, cancelStore := context.WithTimeout(context.Background(), 5*time.Second)
-			if setErr := g.table().routes.SetLabelCooldown(persist, target.Route.Provider, target.Provider,
-				target.Entry.Label, time.Now().Add(penalty)); setErr != nil {
+			var setErr error
+			if scope == modelParked {
+				// Only this model is out of balance; a free one still answers here.
+				setErr = g.table().routes.SetBalanceCooldown(persist, target.Route.Provider, target.Provider,
+					target.Entry.Label, target.Route.ID, time.Now().Add(penalty))
+			} else {
+				setErr = g.table().routes.SetLabelCooldown(persist, target.Route.Provider, target.Provider,
+					target.Entry.Label, time.Now().Add(penalty))
+			}
+			if setErr != nil {
 				slog.Warn("could not persist provider cooldown", "provider", target.Route.Provider)
 			}
 			cancelStore()
@@ -598,13 +615,22 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 		}
 		persist, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if setErr := g.table().routes.SetCooldown(persist, target, until); setErr != nil {
+		var setErr error
+		if errors.Is(err, webprov.ErrInsufficientBalance()) {
+			// A balance mark is per model: the label may still serve a free one.
+			setErr = g.table().routes.SetBalanceCooldown(persist, target.Route.Provider, target.Provider,
+				target.Entry.Label, target.Route.ID, until)
+		} else {
+			setErr = g.table().routes.SetCooldown(persist, target, until)
+		}
+		if setErr != nil {
 			slog.Warn("could not persist provider cooldown", "provider", target.Route.Provider)
 		}
 		if errors.Is(err, webprov.ErrInsufficientBalance()) {
-			// The error code stays the same, but the pool is told to move on.
+			// The error code stays the same, but the model is parked for 30
+			// minutes so the pool moves on; a free model on the label still runs.
 			writeError(w, protocol, http.StatusPaymentRequired, "insufficient_balance",
-				"This session has no messages left; the label is parked for 30 minutes. Check `allaiis web quota` or use another label.")
+				"This model has no messages left on this label for 30 minutes. Check `allaiis web quota` or use another label.")
 			return
 		}
 		rateLimited(w, protocol, until)
