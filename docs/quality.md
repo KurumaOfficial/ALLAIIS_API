@@ -71,7 +71,7 @@ step.
 Errors share one shape per protocol: `{"error":{"message","type","code","request_id"}}`
 for OpenAI endpoints, `{"type":"error","error":{…}}` for Anthropic. Codes are
 stable and documented in [venice-web.md](venice-web.md#failure-codes): callers can
-branch on `code` instead of matching prose. `Retry-After` accompanies `429`.
+branch on `code` instead of matching prose. `Retry-After` accompanies `429` and a `402` balance park.
 
 ## CORS
 
