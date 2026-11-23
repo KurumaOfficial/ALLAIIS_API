@@ -386,27 +386,22 @@ func smokeToolAttempt(ctx context.Context, client *http.Client, base, key string
 	if result.Protocol == "" {
 		result.Protocol = "chat"
 	}
-	payload, _ := json.Marshal(map[string]any{
-		"model": route.ID, "max_tokens": 128, "stream": false,
-		"messages": []any{map[string]any{"role": "user", "content": prompt}},
-		"tools": []any{map[string]any{"type": "function", "function": map[string]any{
-			"name":        "list_files",
-			"description": "List the files in a directory",
-			"parameters": map[string]any{
-				"type":       "object",
-				"properties": map[string]any{"path": map[string]any{"type": "string"}},
-				"required":   []string{"path"},
-			},
-		}}},
-	})
+	// The probe speaks the route's own shape; asking a Messages alias through
+	// Chat Completions only ever answered model_not_found.
+	path, payload := smokeToolPayload(route, prompt)
 	requestCtx, cancel := context.WithTimeout(ctx, 150*time.Second)
 	defer cancel()
-	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, base+"/v1/chat/completions", bytes.NewReader(payload))
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, base+path, bytes.NewReader(payload))
 	if err != nil {
 		result.Detail = err.Error()
 		return result
 	}
-	request.Header.Set("Authorization", "Bearer "+key)
+	if route.Protocol == config.Messages {
+		request.Header.Set("x-api-key", key)
+		request.Header.Set("anthropic-version", "2023-06-01")
+	} else {
+		request.Header.Set("Authorization", "Bearer "+key)
+	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-ALLAIIS-Probe", "smoke")
 	start := time.Now()
@@ -439,7 +434,45 @@ func smokeToolAttempt(ctx context.Context, client *http.Client, base, key string
 	return result
 }
 
-// smokeToolCall reads the tool call out of a chat reply.
+// smokeToolPayload renders the same tool request in the route's own shape.
+func smokeToolPayload(route config.Route, prompt string) (string, []byte) {
+	schema := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"path": map[string]any{"type": "string"}},
+		"required":   []string{"path"},
+	}
+	var payload []byte
+	switch route.Protocol {
+	case config.Messages:
+		payload, _ = json.Marshal(map[string]any{
+			"model": route.ID, "max_tokens": 128, "stream": false,
+			"messages": []any{map[string]any{"role": "user", "content": prompt}},
+			"tools": []any{map[string]any{
+				"name": "list_files", "description": "List the files in a directory", "input_schema": schema,
+			}},
+		})
+		return "/v1/messages", payload
+	case config.Responses:
+		payload, _ = json.Marshal(map[string]any{
+			"model": route.ID, "max_output_tokens": 128, "stream": false,
+			"input": prompt,
+			"tools": []any{map[string]any{
+				"type": "function", "name": "list_files",
+				"description": "List the files in a directory", "parameters": schema,
+			}},
+		})
+		return "/v1/responses", payload
+	}
+	payload, _ = json.Marshal(map[string]any{
+		"model": route.ID, "max_tokens": 128, "stream": false,
+		"messages": []any{map[string]any{"role": "user", "content": prompt}},
+		"tools": []any{map[string]any{"type": "function", "function": map[string]any{
+			"name": "list_files", "description": "List the files in a directory", "parameters": schema,
+		}}},
+	})
+	return "/v1/chat/completions", payload
+}
+
 func smokeToolCall(raw []byte) (string, string) {
 	var reply struct {
 		Choices []struct {
@@ -453,12 +486,39 @@ func smokeToolCall(raw []byte) (string, string) {
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	if json.Unmarshal(raw, &reply) != nil || len(reply.Choices) == 0 {
-		return "", ""
+	if json.Unmarshal(raw, &reply) == nil && len(reply.Choices) > 0 {
+		if calls := reply.Choices[0].Message.ToolCalls; len(calls) > 0 {
+			return calls[0].Function.Name, calls[0].Function.Arguments
+		}
 	}
-	calls := reply.Choices[0].Message.ToolCalls
-	if len(calls) == 0 {
-		return "", ""
+	// Messages answers a tool_use block, Responses a function_call item.
+	var anthropic struct {
+		Content []struct {
+			Type  string          `json:"type"`
+			Name  string          `json:"name"`
+			Input json.RawMessage `json:"input"`
+		} `json:"content"`
 	}
-	return calls[0].Function.Name, calls[0].Function.Arguments
+	if json.Unmarshal(raw, &anthropic) == nil {
+		for _, block := range anthropic.Content {
+			if block.Type == "tool_use" && block.Name != "" {
+				return block.Name, string(block.Input)
+			}
+		}
+	}
+	var responses struct {
+		Output []struct {
+			Type      string `json:"type"`
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		} `json:"output"`
+	}
+	if json.Unmarshal(raw, &responses) == nil {
+		for _, item := range responses.Output {
+			if item.Type == "function_call" && item.Name != "" {
+				return item.Name, item.Arguments
+			}
+		}
+	}
+	return "", ""
 }

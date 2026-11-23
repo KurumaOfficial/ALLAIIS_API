@@ -222,6 +222,40 @@ func TestSmokeToolProbeNeedsTheArgument(t *testing.T) {
 	}
 }
 
+// TestSmokeToolProbeSpeaksTheRouteShape pins the endpoint per protocol: a
+// Messages alias asked through Chat Completions answered model_not_found, so the
+// tool probe proved nothing for that route.
+func TestSmokeToolProbeSpeaksTheRouteShape(t *testing.T) {
+	cases := map[config.Protocol]struct {
+		path string
+		body string
+	}{
+		config.Messages: {
+			path: "/v1/messages",
+			body: `{"content":[{"type":"tool_use","name":"list_files","input":{"path":"."}}]}`,
+		},
+		config.Responses: {
+			path: "/v1/responses",
+			body: `{"output":[{"type":"function_call","name":"list_files","arguments":"{\"path\":\".\"}"}]}`,
+		},
+	}
+	for protocol, want := range cases {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != want.path {
+				t.Errorf("%s asked %s", protocol, r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, want.body)
+		}))
+		result := smokeTools(t.Context(), &http.Client{Timeout: 5 * time.Second}, server.URL, "sk",
+			config.Route{ID: "one", Protocol: protocol})
+		server.Close()
+		if !result.OK {
+			t.Fatalf("%s: %+v", protocol, result)
+		}
+	}
+}
+
 func TestSmokeCanSkipTheToolProbe(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, false)
 	out := capture(t, func() {

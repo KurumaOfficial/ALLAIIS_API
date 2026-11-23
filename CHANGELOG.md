@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **Smoke tool probe** asks the route in its own shape. A Messages alias was sent
+  through Chat Completions, answered `model_not_found`, and the probe said
+  nothing about that route's tools.
+
 ## v0.1.3
 
 The quota a client sees is the quota the account really has.
