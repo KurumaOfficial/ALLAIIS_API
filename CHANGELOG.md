@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.14
+
+`up --listen` serves where it says.
+
 
 - **`up --listen` was accepted and ignored.** Only `gui` applied the flag, so
   `up -listen 127.0.0.1:9000` still served on the configured address; it now
