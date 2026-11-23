@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
 )
 
 func TestToolNameVerdict(t *testing.T) {
@@ -33,6 +34,35 @@ func TestToolNameVerdict(t *testing.T) {
 	}
 	if status, _, ok := toolNameVerdict(0, 3, nil); !ok || status != "warn" {
 		t.Fatalf("all names unknown: %q %v", status, ok)
+	}
+}
+
+func TestCooldownVerdict(t *testing.T) {
+	if _, _, ok := cooldownVerdict(nil); ok {
+		t.Fatal("an empty pool reported cooldowns")
+	}
+	until := time.Now().Add(90 * time.Minute)
+	one := []router.ProviderStatus{{
+		Provider: "venice-web", Credentials: []string{"guest", "pro"},
+		Cooldowns: map[string]time.Time{"guest": until},
+	}}
+	status, detail, ok := cooldownVerdict(one)
+	if !ok || status != "ok" || !strings.Contains(detail, "guest") || !strings.Contains(detail, "1h30m") {
+		t.Fatalf("a parked label is not reported: %q %q %v", status, detail, ok)
+	}
+	all := []router.ProviderStatus{{
+		Provider: "venice-web", Credentials: []string{"guest"},
+		Cooldowns: map[string]time.Time{"guest": until},
+	}}
+	if status, detail, ok := cooldownVerdict(all); !ok || status != "warn" || !strings.Contains(detail, "every label is parked") {
+		t.Fatalf("a fully parked pool is not a warning: %q %q %v", status, detail, ok)
+	}
+	expired := []router.ProviderStatus{{
+		Provider: "venice-web", Credentials: []string{"guest"},
+		Cooldowns: map[string]time.Time{"guest": time.Now().Add(-time.Minute)},
+	}}
+	if _, _, ok := cooldownVerdict(expired); ok {
+		t.Fatal("an elapsed cooldown was reported")
 	}
 }
 

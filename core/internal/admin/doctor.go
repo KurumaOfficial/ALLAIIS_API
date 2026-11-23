@@ -11,11 +11,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
 )
 
@@ -164,6 +166,14 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		add("alias credentials", "ok", "every alias resolves to a credential")
 	}
 
+	if routes, err := router.New(ctx, cfg, store); err != nil {
+		add("credential cooldowns", "warn", "the pool is unreadable: "+err.Error())
+	} else if statuses, err := routes.Status(ctx); err != nil {
+		add("credential cooldowns", "warn", "the cooldowns are unreadable: "+err.Error())
+	} else if status, detail, ok := cooldownVerdict(statuses); ok {
+		add("credential cooldowns", status, detail)
+	}
+
 	repaired, unknown, names := nameStats()
 	expired := 0
 	ttl := liveTTL(time.Duration(cfg.ToolNameTTLDays) * 24 * time.Hour)
@@ -191,6 +201,54 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		}
 	}
 	return results
+}
+
+// cooldownVerdict says which labels are parked and for how long, so a model
+// that fails over a long wait is explained instead of guessed at.
+func cooldownVerdict(statuses []router.ProviderStatus) (string, string, bool) {
+	if len(statuses) == 0 {
+		return "", "", false
+	}
+	var parked []string
+	longest := time.Duration(0)
+	blocked, pools := 0, 0
+	for _, status := range statuses {
+		if len(status.Cooldowns) == 0 {
+			continue
+		}
+		cooled := 0
+		for label, until := range status.Cooldowns {
+			left := time.Until(until)
+			if left <= 0 {
+				continue
+			}
+			cooled++
+			if left > longest {
+				longest = left
+			}
+			parked = append(parked, status.Provider+"/"+label+" "+left.Round(time.Minute).String())
+		}
+		if cooled == 0 {
+			continue
+		}
+		if cooled >= len(status.Credentials) {
+			blocked++
+		}
+		pools++
+	}
+	if len(parked) == 0 {
+		return "", "", false
+	}
+	sort.Strings(parked)
+	count := len(parked)
+	if len(parked) > 3 {
+		parked = parked[:3]
+	}
+	detail := fmt.Sprintf("%d label(s) parked, longest %s: %s", count, longest.Round(time.Minute), strings.Join(parked, ", "))
+	if blocked == pools {
+		return "warn", detail + "; every label is parked, so calls answer 429 until one frees", true
+	}
+	return "ok", detail, true
 }
 
 // toolNameVerdict turns the name counters into a cheap diagnostic: a name the

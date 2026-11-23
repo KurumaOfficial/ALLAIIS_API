@@ -86,7 +86,7 @@ binary goes back on autostart.
 
 ## When something breaks
 
-- `allaiis doctor` — local checks, no provider quota.
+- `allaiis doctor` — local checks, no provider quota; parked labels and their wait are listed, so a `429` from a pool is explained.
 - `allaiis web quota` — remaining session counters and reset time.
 - the panel at `http://127.0.0.1:8431/` — quotas, probes, logs, aliases.
 - `allaiis smoke --json` — a full sweep through a throwaway gateway.
