@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.19
+
+The version is one word away.
+
 
 - **`allaiis version` exists**, also as `-v` and `--version`. A bug report or a
   script reached for it and got "unknown command".
