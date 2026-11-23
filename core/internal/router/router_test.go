@@ -158,7 +158,7 @@ func TestBalanceMarkNamesOneModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The marked model waits, and the very same label still serves a free one.
-	if _, until, err := routes.Resolve(t.Context(), "paid", config.Chat, config.Consumer, [32]byte{}); !errors.Is(err, ErrCooldown) || until.IsZero() {
+	if _, until, err := routes.Resolve(t.Context(), "paid", config.Chat, config.Consumer, [32]byte{}); !errors.Is(err, ErrBalance) || until.IsZero() {
 		t.Fatalf("marked model resolved: %v %v", err, until)
 	}
 	target, _, err := routes.Resolve(t.Context(), "free", config.Chat, config.Consumer, [32]byte{})

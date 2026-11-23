@@ -947,7 +947,7 @@ func TestBalanceCooldownNamesOneModel(t *testing.T) {
 	// The free call proves the session still works; the paid one is parked, so
 	// it does not reach the provider again.
 	afterFree := calls.Load()
-	if result := complete(handler, store.ClientKey(), "", prompt("paid")); result.Code != http.StatusTooManyRequests {
+	if result := complete(handler, store.ClientKey(), "", prompt("paid")); result.Code != http.StatusPaymentRequired {
 		t.Fatalf("parked model answered %d", result.Code)
 	}
 	if calls.Load() != afterFree || afterFree != before+1 {

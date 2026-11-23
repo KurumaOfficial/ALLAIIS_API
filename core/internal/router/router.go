@@ -19,6 +19,9 @@ var (
 	ErrModel       = errors.New("model is unknown or restricted")
 	ErrCredentials = errors.New("no API key is configured for this model")
 	ErrCooldown    = errors.New("provider is temporarily rate limited")
+	// ErrBalance names one model out of messages on the chosen label, which a
+	// caller should answer with 402 rather than 429.
+	ErrBalance = errors.New("model has no balance on this label")
 )
 
 type Model struct {
@@ -137,7 +140,7 @@ func (r *Router) Resolve(ctx context.Context, model string, protocol config.Prot
 	if until, err := r.balanceCooldown(ctx, route.Provider, p.provider, entry.Label, model); err != nil {
 		return Target{}, time.Time{}, err
 	} else if time.Now().Before(until) {
-		return target, until, ErrCooldown
+		return target, until, ErrBalance
 	}
 	if ready {
 		// The chosen label is not cooling, and so the pool wide mark does not

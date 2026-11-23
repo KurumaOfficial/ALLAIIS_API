@@ -442,6 +442,9 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 	case errors.Is(err, router.ErrCredentials):
 		writeError(w, protocol, http.StatusServiceUnavailable, "key_unconfigured", "No provider key is configured for this model.")
 		return
+	case errors.Is(err, router.ErrBalance):
+		balanceError(w, protocol, until)
+		return
 	case errors.Is(err, router.ErrCooldown):
 		rateLimited(w, protocol, until)
 		return

@@ -98,7 +98,7 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 			}
 			switch {
 			case time.Now().Before(balance):
-				result.Status = http.StatusTooManyRequests
+				result.Status = http.StatusPaymentRequired
 				result.Code = "insufficient_balance"
 				result.Detail = "model has no balance until " + balance.Format("15:04:05")
 			case time.Now().Before(cooling):

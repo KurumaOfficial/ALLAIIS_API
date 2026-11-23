@@ -678,6 +678,16 @@ func writeStreamError(w http.ResponseWriter, protocol config.Protocol, err error
 // is usually hours away, so the label is parked and an unpinned pool moves on.
 const balanceCooldown = 30 * time.Minute
 
+// balanceError answers a model parked for an empty balance, with the delay so a
+// client can wait it out.
+func balanceError(w http.ResponseWriter, protocol config.Protocol, until time.Time) {
+	if seconds := (time.Until(until) + time.Second - 1) / time.Second; seconds > 0 {
+		w.Header().Set("Retry-After", strconv.FormatInt(int64(seconds), 10))
+	}
+	writeError(w, protocol, http.StatusPaymentRequired, "insufficient_balance",
+		"This model has no messages left on this label for 30 minutes. Check `allaiis web quota` or use another label.")
+}
+
 func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, target router.Target, err error) {
 	switch {
 	case errors.Is(err, webprov.ErrRateLimited), errors.Is(err, webprov.ErrInsufficientBalance()):
@@ -702,15 +712,9 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 			slog.Warn("could not persist provider cooldown", "provider", target.Route.Provider)
 		}
 		if errors.Is(err, webprov.ErrInsufficientBalance()) {
-			// The error code stays the same, but the model is parked for 30
-			// minutes so the pool moves on; a free model on the label still runs.
-			// The delay travels with the answer, so a client can wait it out.
-			seconds := (time.Until(until) + time.Second - 1) / time.Second
-			if seconds > 0 {
-				w.Header().Set("Retry-After", strconv.FormatInt(int64(seconds), 10))
-			}
-			writeError(w, protocol, http.StatusPaymentRequired, "insufficient_balance",
-				"This model has no messages left on this label for 30 minutes. Check `allaiis web quota` or use another label.")
+			// The model is parked for 30 minutes so the pool moves on; a free
+			// model on the label still runs.
+			balanceError(w, protocol, until)
 			return
 		}
 		rateLimited(w, protocol, until)
