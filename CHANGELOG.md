@@ -6,8 +6,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 ## Unreleased
 
 - **Fuzzing in CI.** The guard, the event decoder and the three request builders
-  each run for thirty seconds on every push; the builder target stubs the image
-  fetch so no run reaches the network. The quality dossier says what they cover.
+  each run for thirty seconds on every push in their own step, so a failure names
+  the target, and a failing input is uploaded as an artifact; the builder target
+  stubs the image fetch so no run reaches the network. The quality dossier says
+  what they cover.
 - **Line endings.** A `.gitattributes` pins LF, so the Windows CI runner's
   checkout no longer fails `gofmt`, and binaries are marked as such.
 
