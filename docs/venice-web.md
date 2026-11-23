@@ -413,9 +413,10 @@ append the schema to the system turn and add `json_mode` to
 `X-ALLAIIS-Emulated-Features`. The web endpoint has no switch behind it, so a
 reply can still drift — validate it if a wrong shape matters.
 
-A forced `tool_choice` is spelled out the same way: `required` becomes "call one
-of the tools now", a named function becomes a sentence naming it, and
-`parallel_tool_calls: false` asks for a single call. `"none"` drops the tools
+A forced `tool_choice` is spelled out the same way: Chat `required` and Messages
+`any` become "call one of the tools now", a named function becomes a sentence
+naming it, and `parallel_tool_calls: false` (or Messages
+`disable_parallel_tool_use`) asks for a single call. `"none"` drops the tools
 from the request altogether. None of it is enforced by the endpoint.
 
 Stop sequences are cut by the gateway, because the endpoint ignores them: Chat

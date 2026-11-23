@@ -5,9 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
-- **Forced tool choice.** `required`, a named function and
-  `parallel_tool_calls: false` become an instruction, and `"none"` drops the
-  tools from the request; the endpoint has no switch to enforce either.
+- **Forced tool choice.** `required` and Messages `any`, a named function and
+  the no-parallel switch become an instruction, and `"none"` drops the tools
+  from the request; the endpoint has no switch to enforce either.
 - **Stop sequences.** Chat `stop`, Messages `stop_sequences` and a `stop` on
   Responses are cut by the gateway, since the endpoint ignores them; the cut
   works on a stream and finds a sequence split across chunks. A route with tools

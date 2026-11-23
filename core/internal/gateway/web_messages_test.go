@@ -4,6 +4,7 @@ package gateway_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -116,6 +117,40 @@ func TestMessagesProtocolJSON(t *testing.T) {
 	}
 	if result.Code != http.StatusOK || reply.Type != "message" || reply.Content[0].Text != "plain answer" {
 		t.Fatalf("unexpected reply: %d %s", result.Code, result.Body)
+	}
+}
+
+func TestMessagesForcedToolChoiceIsSpelledOut(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		system := body["prompt"].([]any)[0].(map[string]any)["content"].(string)
+		if !strings.Contains(system, `"read_file"`) || !strings.Contains(system, "one call") {
+			t.Errorf("choice not spelled out: %q", system)
+		}
+		writeFrames(w, toolBlock("a.txt"))
+	})
+	handler, store := messagesGateway(t, server.URL)
+	result := anthropicCall(handler, store.ClientKey(), `{"model":"claude-venice-web-fixture","max_tokens":64,`+
+		`"messages":[{"role":"user","content":"read a.txt"}],`+
+		`"tools":[{"name":"read_file","input_schema":{"type":"object"}}],`+
+		`"tool_choice":{"type":"tool","name":"read_file","disable_parallel_tool_use":true}}`)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"tool_use"`) {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
+func TestMessagesToolChoiceNoneDropsTools(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		if strings.Contains(fmt.Sprint(body), "ALLAIIS_TOOL_CALL") {
+			t.Errorf("tool instructions still sent: %v", body["prompt"])
+		}
+		writeFrames(w, "plain")
+	})
+	handler, store := messagesGateway(t, server.URL)
+	result := anthropicCall(handler, store.ClientKey(), `{"model":"claude-venice-web-fixture","max_tokens":64,`+
+		`"messages":[{"role":"user","content":"hi"}],"tools":[{"name":"read_file","input_schema":{"type":"object"}}],`+
+		`"tool_choice":"none"}`)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
 	}
 }
 

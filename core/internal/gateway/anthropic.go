@@ -21,10 +21,11 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 			Role    string          `json:"role"`
 			Content json.RawMessage `json:"content"`
 		} `json:"messages"`
-		MaxTokens   int      `json:"max_tokens"`
-		Temperature *float64 `json:"temperature"`
-		TopP        *float64 `json:"top_p"`
-		Stops       []string `json:"stop_sequences"`
+		MaxTokens   int             `json:"max_tokens"`
+		Temperature *float64        `json:"temperature"`
+		TopP        *float64        `json:"top_p"`
+		Stops       []string        `json:"stop_sequences"`
+		ToolChoice  json.RawMessage `json:"tool_choice"`
 		Tools       []struct {
 			Name        string          `json:"name"`
 			Description string          `json:"description"`
@@ -74,11 +75,52 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 		spec.Function.Parameters = tool.Schema
 		tools = append(tools, spec)
 	}
+	note, drop, single := messagesToolChoice(input.ToolChoice)
+	if drop {
+		tools = nil
+	}
+	if len(tools) > 0 {
+		if single {
+			note += " Use exactly one call."
+		}
+		reason.note(note)
+	}
 	if len(reason.turns) == 0 {
 		reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: ""})
 	}
 	request.Messages = reason.messages(reason.system)
 	return request, reason, tools, nil
+}
+
+// messagesToolChoice reads the Anthropic form: "any" requires a call, a
+// {"type":"tool","name":...} forces that one, "none" drops the tools, and
+// disable_parallel_tool_use asks for a single call.
+func messagesToolChoice(raw json.RawMessage) (note string, drop, single bool) {
+	if len(raw) == 0 {
+		return "", false, false
+	}
+	var plain string
+	if json.Unmarshal(raw, &plain) == nil {
+		switch plain {
+		case "none":
+			return "", true, false
+		case "any":
+			return "You must call one of the tools now.", false, false
+		}
+		return "", false, false
+	}
+	var forced struct {
+		Type   string `json:"type"`
+		Name   string `json:"name"`
+		Single bool   `json:"disable_parallel_tool_use"`
+	}
+	if json.Unmarshal(raw, &forced) != nil {
+		return "", false, false
+	}
+	if forced.Type == "tool" && forced.Name != "" {
+		note = `Call the tool "` + forced.Name + `" now.`
+	}
+	return note, false, forced.Single
 }
 
 // effortFor maps a thinking budget onto the coarse effort scale.
