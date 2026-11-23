@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.12
+
+Each command shows only the flags it reads.
+
 
 - **Each command shows only its own flags.** A fallthrough chain registered the
   smoke and doctor options on `up`, `gui` and `smoke` alike, so `up --help` listed
