@@ -697,7 +697,7 @@ func (s *Server) webQuota(w http.ResponseWriter, r *http.Request) {
 			rows = append(rows, row)
 			continue
 		}
-		limits, err := client.Probe(r.Context(), credential)
+		limits, err := probeQuota(r.Context(), client, credential)
 		if err != nil {
 			row["error"] = err.Error()
 			rows = append(rows, row)
@@ -730,6 +730,11 @@ func (s *Server) webQuota(w http.ResponseWriter, r *http.Request) {
 		rows = append(rows, row)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"labels": rows})
+}
+
+// probeQuota is the network seam the panel's quota view uses.
+var probeQuota = func(ctx context.Context, client *webprov.Client, cred webprov.Credential) (map[string]any, error) {
+	return client.Probe(ctx, cred)
 }
 
 // recapture opens the capture browser and refreshes a session in one step.

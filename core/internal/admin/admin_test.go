@@ -4,6 +4,7 @@ package admin
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
 
 type fixture struct {
@@ -212,6 +214,67 @@ func TestPanelE2EEProbeExplainsAnUnreadableKey(t *testing.T) {
 		`{"provider":"fake","label":"bad","model":"e2ee-glm-5-3-flash"}`, "")
 	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "unreadable") {
 		t.Fatalf("unreadable key: %d %s", result.Code, result.Body)
+	}
+}
+
+// TestPanelQuotaShowsPlanAndCredits pins the row the Quota button renders: the
+// counters alone hid an empty credit bucket behind a healthy chat allowance.
+func TestPanelQuotaShowsPlanAndCredits(t *testing.T) {
+	f := setup(t)
+	cfg, err := config.Load(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Providers = map[string]config.Provider{
+		"web": {BaseURL: "https://web.example/api", Transport: config.TransportVeniceWeb},
+	}
+	cfg.Models = []config.Route{{ID: "web-alias", Provider: "web", UpstreamModel: "m", Privacy: config.ZDR}}
+	body, _ := json.Marshal(cfg)
+	if err := os.WriteFile(f.path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	cred := webprov.Credential{DistinctID: "device", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "clear"}}}
+	if _, err := f.store.Import(context.Background(), []vault.Entry{{
+		Provider: "web", Endpoint: "https://web.example/api", Label: "pro", Key: cred.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	saved := probeQuota
+	probeQuota = func(context.Context, *webprov.Client, webprov.Credential) (map[string]any, error) {
+		return map[string]any{
+			"chat": map[string]any{"remaining": float64(9685), "resetAt": float64(1795499466865)},
+			"account": map[string]any{
+				"userType": "PRO", "availableCredits": float64(0),
+				"bundledCreditsUsage": map[string]any{
+					"availableCredits": float64(0), "monthlyRefillCredits": float64(100),
+					"nextRefillAt": float64(1797412488000),
+				},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { probeQuota = saved })
+
+	result := f.call(t, http.MethodPost, "/api/web/quota", `{"provider":"web"}`, "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("quota: %d %s", result.Code, result.Body)
+	}
+	var reply struct {
+		Labels []struct {
+			Label     string  `json:"label"`
+			Plan      string  `json:"plan"`
+			Credits   float64 `json:"credits"`
+			CreditCap float64 `json:"credit_cap"`
+			Chat      float64 `json:"chat_remaining"`
+			RefillAt  float64 `json:"credit_refill_at"`
+		} `json:"labels"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	row := reply.Labels[0]
+	if row.Label != "pro" || row.Plan != "PRO" || row.Credits != 0 || row.CreditCap != 100 ||
+		row.Chat != 9685 || row.RefillAt == 0 {
+		t.Fatalf("row %+v", row)
 	}
 }
 
