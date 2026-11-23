@@ -218,6 +218,17 @@ A web route can be registered for Chat Completions or Anthropic Messages:
   --name cc --label pro --protocol messages
 ```
 
+Both shapes build the same turns from a history, a replayed tool result
+included, so an agent loop behaves the same whichever one it speaks. Register a
+free model for both if you want the fallback:
+
+```sh
+./allaiis models add --provider venice-web --upstream-model venice-uncensored-role-play \
+  --name cc-free --label pro --protocol messages
+./allaiis models add --provider venice-web --upstream-model venice-uncensored-role-play \
+  --name gpt-free --label pro --protocol responses
+```
+
 Messages routes translate `system`, `content[]` blocks (text, image, tool_use,
 tool_result) into web turns and answer with real Anthropic events
 (`message_start`, `content_block_delta`, `message_delta`, `message_stop`) or a
