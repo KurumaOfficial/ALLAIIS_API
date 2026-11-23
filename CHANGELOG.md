@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.6
+
+A capture now says what it can spend.
+
 
 - **`web login` says what it captured.** After a signed-in capture it prints the
   plan, the chat allowance and the credits, and names the credit bucket when it
