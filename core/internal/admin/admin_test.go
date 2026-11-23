@@ -4,7 +4,9 @@ package admin
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +16,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
@@ -37,6 +41,12 @@ var toolProseLeft atomic.Int32
 func setup(t *testing.T) *fixture {
 	t.Helper()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/v1/tee/attestation") {
+			key, _ := secp256k1.GeneratePrivateKey()
+			fmt.Fprintf(w, `{"verified":true,"nonce":%q,"signing_key":%q}`,
+				r.URL.Query().Get("nonce"), hex.EncodeToString(key.PubKey().SerializeUncompressed()))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := io.ReadAll(r.Body)
 		// The tool probe sends a tool list; answer it with a tool call, or with

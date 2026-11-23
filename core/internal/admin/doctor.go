@@ -19,6 +19,7 @@ import (
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
 
 // Check is one diagnostic result.
@@ -127,6 +128,7 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 	unpinned := 0
 	e2ee, e2eeOn := 0, 0
 	images := 0
+	var enclaves []enclaveTarget
 	for _, route := range cfg.Models {
 		if route.MaxImages > images {
 			images = route.MaxImages
@@ -157,6 +159,9 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 			} else if len(entries) > 1 {
 				unpinned++
 			}
+			if route.E2EE && len(entries) > 0 && len(enclaves) < 3 {
+				enclaves = append(enclaves, enclaveTarget{model: route.UpstreamModel, base: provider.BaseURL, entry: entries[0]})
+			}
 			continue
 		}
 		found := false
@@ -168,6 +173,14 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		}
 		if !found {
 			missing++
+		}
+		if route.E2EE && found && len(enclaves) < 3 {
+			for _, entry := range entries {
+				if entry.Label == route.CredentialLabel {
+					enclaves = append(enclaves, enclaveTarget{model: route.UpstreamModel, base: provider.BaseURL, entry: entry})
+					break
+				}
+			}
 		}
 	}
 	switch {
@@ -184,6 +197,14 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 	if capMB := cfg.MaxRequestBytes() >> 20; images > 1 && capMB < 16 {
 		add("request cap", "warn", fmt.Sprintf(
 			"an alias takes up to %d images but the request cap is %d MiB; inline data URLs grow by a third, consider 16 or more", images, capMB))
+	}
+
+	// An attestation costs no provider quota, so the enclave itself can be
+	// checked here; the reply path still needs balance.
+	if len(enclaves) > 0 {
+		if status, detail, ok := enclaveVerdict(enclavesToChecks(ctx, enclaves)); ok {
+			add("e2ee enclave", status, detail)
+		}
 	}
 
 	switch {
@@ -230,6 +251,64 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		}
 	}
 	return results
+}
+
+// enclaveTarget is one alias whose enclave can be attested.
+type enclaveTarget struct {
+	model string
+	base  string
+	entry vault.Entry
+}
+
+// enclaveCheck is one attestation result.
+type enclaveCheck struct {
+	model    string
+	provider string
+	hardware string
+	err      error
+}
+
+// enclavesToChecks attests every target; an attestation spends no quota.
+func enclavesToChecks(ctx context.Context, targets []enclaveTarget) []enclaveCheck {
+	checks := make([]enclaveCheck, 0, len(targets))
+	for _, target := range targets {
+		client := webprov.New(10 * time.Second)
+		// A loopback or dev endpoint speaks plain HTTP, which the Chrome
+		// transport would dial as TLS.
+		if strings.HasPrefix(target.base, "http://") {
+			client = client.WithHTTP(http.DefaultClient)
+		}
+		check := enclaveCheck{model: target.model}
+		cred, err := webprov.ParseCredential(target.entry.Key)
+		if err != nil {
+			check.err = err
+			checks = append(checks, check)
+			continue
+		}
+		probe, err := client.ProbeE2EE(ctx, cred, target.model)
+		check.provider, check.hardware, check.err = probe.Provider, probe.Hardware, err
+		checks = append(checks, check)
+	}
+	return checks
+}
+
+// enclaveVerdict summarises the attestations.
+func enclaveVerdict(checks []enclaveCheck) (string, string, bool) {
+	if len(checks) == 0 {
+		return "", "", false
+	}
+	var bad, good []string
+	for _, check := range checks {
+		if check.err != nil {
+			bad = append(bad, check.model+": "+check.err.Error())
+			continue
+		}
+		good = append(good, check.model+" ("+check.provider+"/"+check.hardware+")")
+	}
+	if len(bad) > 0 {
+		return "warn", fmt.Sprintf("%d of %d enclave(s) failed: %s", len(bad), len(checks), strings.Join(bad, "; ")), true
+	}
+	return "ok", fmt.Sprintf("%d enclave(s) attested, a reply is unverified: %s", len(good), strings.Join(good, ", ")), true
 }
 
 // cooldownVerdict says which labels are parked and for how long, so a model

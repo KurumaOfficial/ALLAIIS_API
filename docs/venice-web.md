@@ -192,6 +192,7 @@ Sessions are cached per model for five minutes and dropped when a chunk fails to
 open; the turn is then retried once with a fresh attestation while the client has
 seen nothing. A failure is answered `e2ee_failed`.
 
+`allaiis doctor` attests every e2ee alias (no quota spent), and
 `allaiis web e2ee --label <label> --model <e2ee model>` runs the checks by hand:
 it prints the enclave provider, hardware, signing key and whether the TDX verdict
 was checked, then sends one sealed canary and reports the reply text and any

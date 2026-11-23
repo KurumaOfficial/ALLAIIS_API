@@ -18,6 +18,7 @@ import (
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
 )
 
 func TestToolNameVerdict(t *testing.T) {
@@ -84,6 +85,36 @@ func TestDiagnoseNamesE2EEAliases(t *testing.T) {
 	if check = verdict(); check == nil || check.Status != "ok" || !strings.Contains(check.Detail, "encrypt") {
 		t.Fatalf("enabled alias not acknowledged: %+v", check)
 	}
+}
+
+func TestDiagnoseAttestsTheEnclave(t *testing.T) {
+	f := setup(t)
+	cfg, err := config.Load(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Models = append(cfg.Models, config.Route{
+		ID: "e2ee-alias", Provider: "fake", UpstreamModel: "e2ee-glm-5-3-flash", E2EE: true,
+	})
+	body, _ := json.Marshal(cfg)
+	if err := os.WriteFile(f.path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	provider, _ := cfg.Provider("fake")
+	if _, err := f.store.Import(context.Background(), []vault.Entry{{
+		Provider: "fake", Endpoint: provider.BaseURL, Label: "work", Key: "{}",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, check := range Diagnose(context.Background(), f.store, f.path) {
+		if check.Name == "e2ee enclave" {
+			if check.Status != "ok" || !strings.Contains(check.Detail, "attested") {
+				t.Fatalf("enclave not attested: %+v", check)
+			}
+			return
+		}
+	}
+	t.Fatal("no enclave check")
 }
 
 func TestDiagnoseWarnsAboutASmallBodyCap(t *testing.T) {
