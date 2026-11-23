@@ -77,7 +77,9 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   returns `cloudflare_challenge`; run `web login` again.
 - **Guest quota is tiny** (about 10 chats/day, one quota window per day). A spent
   plan answers `402 insufficientBalance`; `allaiis web quota` and the panel's
-  Quota button show the reset time without spending a message.
+  Quota button show the reset time without spending a message. The model is
+  parked on that label for 30 minutes, while a free model on the same session
+  keeps answering, as Venice still serves it with a spent plan.
   Attestation tokens are per-request, so the client mints in batches of five.
 - **Usage is estimated.** The web stream carries no token counters, so the reply
   marks `"estimated": true` and sets `X-ALLAIIS-Emulated-Features: usage_estimate`.
@@ -368,7 +370,7 @@ the name record, so probes and synthetic checks do not read as model mistakes.
 | `sign_in_required` | the model needs a signed-in session (guest cookie) |
 | `context_length_exceeded` | upstream `userPromptTooLong` |
 | `rate_limit_exceeded` | the pool hit a `429`; that credential cools until the reset header says |
-| `insufficient_balance` | the plan allowance is spent (`402 insufficientBalance`); no cooldown is set, check `web quota` for the reset |
+| `insufficient_balance` | the plan allowance is spent (`402 insufficientBalance`); the model is parked on the label for 30 minutes, other models are unaffected, check `web quota` for the reset |
 
 ## Implementation
 
