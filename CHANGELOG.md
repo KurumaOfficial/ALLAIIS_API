@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **The one-generation-per-account lock is pinned by tests**: two turns on one
+  credential never overlap on the wire, and a queued turn gives up when its caller
+  does instead of waiting for the first to finish.
+
 ## v0.1.15
 
 The model list speaks the usual limit names.
