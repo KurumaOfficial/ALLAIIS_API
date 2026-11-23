@@ -3,6 +3,13 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **The service script waits with `ping`, not `timeout`.** `timeout` needs a
+  console input handle and fails at once under `start /min`, so a crash could
+  become a tight restart loop; a kill now yields exactly one restart in thirty
+  seconds.
+
 ## v0.1.10
 
 `backup --help` no longer writes a directory.
