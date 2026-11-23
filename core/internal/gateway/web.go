@@ -1131,7 +1131,7 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 		}
 		if image, ok := decodeDataURL(url); ok {
 			images = append(images, image)
-		} else if image, ok := fetchImage(url); ok {
+		} else if image, ok := fetchImageForParts(url); ok {
 			images = append(images, image)
 		}
 		if strings.HasPrefix(part.Type, "tool_result") && part.ToolResult != nil {
@@ -1151,6 +1151,9 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 }
 
 // fetchImage downloads an http(s) image and returns its bytes.
+// fetchImageForParts is a seam: a fuzz run must not reach the network.
+var fetchImageForParts = fetchImage
+
 func fetchImage(raw string) (webprov.Image, bool) {
 	if !strings.HasPrefix(raw, "http://") && !strings.HasPrefix(raw, "https://") {
 		return webprov.Image{}, false

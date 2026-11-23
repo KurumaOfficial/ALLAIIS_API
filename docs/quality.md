@@ -145,10 +145,12 @@ seconds before the listener closes.
 
 ## Fuzzing
 
-Two `go test -fuzz` targets guard the code that parses untrusted shapes:
+Three `go test -fuzz` targets guard the code that parses untrusted shapes:
 `FuzzToolGuard` feeds arbitrary prose at arbitrary split points and fails if a
-sentinel marker reaches the client, and `FuzzDecodeEvents` feeds arbitrary frames
-one piece and one byte at a time and fails on a panic, a runaway loop or a
-non-terminating read. The first found a close marker that went out as prose; its
-input stays in `testdata/fuzz` and runs with every `go test`. CI fuzzes both for
-thirty seconds on each push.
+sentinel marker reaches the client; `FuzzDecodeEvents` feeds arbitrary frames one
+piece and one byte at a time and fails on a panic, a runaway loop or a
+non-terminating read; and `FuzzProtocolBuilders` feeds arbitrary JSON to the
+Chat, Messages and Responses request builders, with the image fetch stubbed so no
+run touches the network. The guard target found a close marker that went out as
+prose; its input stays in `testdata/fuzz` and runs with every `go test`. CI fuzzes
+all three for thirty seconds on each push.

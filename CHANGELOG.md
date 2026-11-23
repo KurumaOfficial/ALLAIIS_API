@@ -5,8 +5,11 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
-- **Fuzzing in CI.** The two parser targets run for thirty seconds on every push,
-  and the quality dossier says what they cover.
+- **Fuzzing in CI.** The guard, the event decoder and the three request builders
+  each run for thirty seconds on every push; the builder target stubs the image
+  fetch so no run reaches the network. The quality dossier says what they cover.
+- **Line endings.** A `.gitattributes` pins LF, so the Windows CI runner's
+  checkout no longer fails `gofmt`, and binaries are marked as such.
 
 ## v0.1.5
 

@@ -85,4 +85,5 @@ jobs:
       - name: Tool guard and event decoder
         run: |
           go test ./core/internal/gateway -run '^$' -fuzz FuzzToolGuard -fuzztime 30s
+          go test ./core/internal/gateway -run '^$' -fuzz FuzzProtocolBuilders -fuzztime 30s
           go test ./core/internal/webprov -run '^$' -fuzz FuzzDecodeEvents -fuzztime 30s
