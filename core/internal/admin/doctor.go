@@ -125,7 +125,7 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 	webAliases := 0
 	missing := 0
 	unpinned := 0
-	e2ee := 0
+	e2ee, e2eeOn := 0, 0
 	images := 0
 	for _, route := range cfg.Models {
 		if route.MaxImages > images {
@@ -133,7 +133,11 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		}
 		// The catalog has no flag for it; the vendor marks these with a prefix.
 		if strings.HasPrefix(route.UpstreamModel, "e2ee-") {
-			e2ee++
+			if route.E2EE {
+				e2eeOn++
+			} else {
+				e2ee++
+			}
 		}
 		provider, ok := cfg.Provider(route.Provider)
 		if !ok {
@@ -182,9 +186,13 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 			"an alias takes up to %d images but the request cap is %d MiB; inline data URLs grow by a third, consider 16 or more", images, capMB))
 	}
 
-	if e2ee > 0 {
+	switch {
+	case e2ee > 0:
 		add("e2ee models", "warn", fmt.Sprintf(
-			"%d alias(es) point at an e2ee model; the page-key transport for them is not implemented, so they are sent to the plain endpoint", e2ee))
+			"%d alias(es) point at an e2ee model without `e2ee: true`, so their prompts go out in plaintext", e2ee))
+	case e2eeOn > 0:
+		add("e2ee models", "ok", fmt.Sprintf(
+			"%d alias(es) encrypt to the model enclave; the live end-to-end result is not verified yet", e2eeOn))
 	}
 
 	if routes, err := router.New(ctx, cfg, store); err != nil {

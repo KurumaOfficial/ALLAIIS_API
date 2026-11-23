@@ -216,6 +216,7 @@ function render () {
     cell.append(remove)
     if (!model.available) row.firstElementChild.innerHTML = esc(model.id) + ' <span class="badge bad">no key</span>'
     if (model.disabled) row.firstElementChild.innerHTML += ' <span class="badge">muted</span>'
+    if (model.e2ee) row.firstElementChild.innerHTML += ' <span class="badge e2ee" title="messages are encrypted to the model enclave">e2ee</span>'
     if (model.balance_until && new Date(model.balance_until) > new Date()) {
       row.firstElementChild.innerHTML += ' <span class="badge warn" title="no messages left for this model on the label">no balance until ' + stamp(model.balance_until) + '</span>'
     }

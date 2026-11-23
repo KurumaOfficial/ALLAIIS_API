@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 )
 
 // retiringDate accepts a unix timestamp or an ISO date string; some catalog
@@ -53,6 +54,7 @@ type CatalogModel struct {
 	Replacement  string `json:"replacement,omitempty"`
 	Retiring     bool   `json:"retiring,omitempty"`
 	RoundTrip    bool   `json:"reasoning_round_trip,omitempty"`
+	E2EE         bool   `json:"e2ee,omitempty"`
 	Video        bool   `json:"video,omitempty"`
 	MaxVideos    int    `json:"max_videos,omitempty"`
 	MinP         bool   `json:"min_p,omitempty"`
@@ -110,15 +112,18 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 				Replacement  string       `json:"apiDeprecationReplacementModelId"`
 				RetiringDate retiringDate `json:"retiringSoonDate"`
 				RoundTrip    bool         `json:"supportsEncryptedReasoningRoundTrip"`
-				Forward      bool         `json:"forwardEncryptedReasoning"`
-				Video        bool         `json:"supportsVideoInput"`
-				MaxVideos    int          `json:"maxVideos"`
-				MinP         bool         `json:"supportsMinP"`
-				AnonUserID   *bool        `json:"includeAnonUserId"`
-				RateLimit    string       `json:"apiRateLimitSize"`
-				Reasoning    bool         `json:"supportsReasoning"`
-				Tools        bool         `json:"supportsFunctionCalling"`
-				Settings     struct {
+				// E2EE marks a model whose prompts can be encrypted client-side. The
+				// catalog has no flag for it; the vendor prefixes the ids instead.
+				E2EE       bool   `json:"-"`
+				Forward    bool   `json:"forwardEncryptedReasoning"`
+				Video      bool   `json:"supportsVideoInput"`
+				MaxVideos  int    `json:"maxVideos"`
+				MinP       bool   `json:"supportsMinP"`
+				AnonUserID *bool  `json:"includeAnonUserId"`
+				RateLimit  string `json:"apiRateLimitSize"`
+				Reasoning  bool   `json:"supportsReasoning"`
+				Tools      bool   `json:"supportsFunctionCalling"`
+				Settings   struct {
 					Temperature *float64 `json:"temperature"`
 					TopP        *float64 `json:"topP"`
 				} `json:"settings"`
@@ -146,6 +151,7 @@ func (c *Client) Catalog(ctx context.Context, cred Credential) ([]CatalogModel, 
 			ProOnly: model.ProOnly, ContextLimit: model.MaxContext, MaxResponse: model.MaxResponse,
 			MaxImages: model.MaxImages, MaxTools: model.MaxTools, WebSearch: model.WebSearch,
 			LargeContext: model.LargeContext, StrictOrder: model.StrictOrder, InactivityMS: model.InactivityMS,
+			E2EE:     strings.HasPrefix(model.ID, "e2ee-"),
 			Sampling: model.Sampling, Frequency: model.Frequency, Presence: model.Presence,
 			Replacement: model.Replacement, Retiring: model.RetiringDate.set,
 			RoundTrip: model.RoundTrip || model.Forward,

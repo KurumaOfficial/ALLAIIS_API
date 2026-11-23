@@ -54,6 +54,7 @@ type modelView struct {
 	Presence     bool       `json:"presence_penalty,omitempty"`
 	Replacement  string     `json:"replacement,omitempty"`
 	RoundTrip    bool       `json:"reasoning_round_trip,omitempty"`
+	E2EE         bool       `json:"e2ee,omitempty"`
 	MaxVideos    int        `json:"max_videos,omitempty"`
 	MinP         bool       `json:"min_p,omitempty"`
 	AnonUserID   *bool      `json:"anon_user_id,omitempty"`
@@ -152,7 +153,7 @@ func (s *Server) snapshot(ctx context.Context) (stateView, error) {
 			MaxTools: route.MaxTools, WebSearch: route.WebSearch,
 			LargeContext: route.LargeContext, StrictOrder: route.StrictOrder, InactivityMS: route.InactivityMS,
 			NoSampling: route.NoSampling, Frequency: route.Frequency, Presence: route.Presence,
-			Replacement: route.Replacement, RoundTrip: route.ReasoningRoundTrip, MaxVideos: route.MaxVideos,
+			Replacement: route.Replacement, RoundTrip: route.ReasoningRoundTrip, MaxVideos: route.MaxVideos, E2EE: route.E2EE,
 			MinP: route.MinP, AnonUserID: route.AnonUserID, BalanceUntil: balance,
 		}
 		for _, provider := range view.Providers {
@@ -258,7 +259,7 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 				MaxTools: model.MaxTools, WebSearch: model.WebSearch,
 				LargeContext: model.LargeContext, StrictOrder: model.StrictOrder, Inactivity: model.InactivityMS,
 				Sampling: model.Sampling, Frequency: model.Frequency, Presence: model.Presence,
-				Replacement: model.Replacement, Retiring: model.Retiring, RoundTrip: model.RoundTrip,
+				Replacement: model.Replacement, Retiring: model.Retiring, RoundTrip: model.RoundTrip, E2EE: model.E2EE,
 				Video: model.Video, MaxVideos: model.MaxVideos,
 				MinP: model.MinP, AnonUserID: model.AnonUserID, RateLimit: model.RateLimit,
 				Temperature: model.Temperature, TopP: model.TopP,

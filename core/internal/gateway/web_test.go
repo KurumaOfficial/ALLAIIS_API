@@ -4,6 +4,7 @@ package gateway_test
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
@@ -1060,5 +1063,60 @@ func TestReasoningRoutesGetALongerWatchdog(t *testing.T) {
 	}
 	if got := gateway.InactivityWindow(config.Route{Reasoning: &yes, InactivityMS: 3_600_000}); got != 10*time.Minute {
 		t.Fatalf("ceiling %v", got)
+	}
+}
+
+// The route flag must reach the provider, or the enclave gets plaintext.
+func TestE2EERRouteSendsTheEnclaveHeaders(t *testing.T) {
+	key, err := secp256k1.GeneratePrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyHex := hex.EncodeToString(key.PubKey().SerializeUncompressed())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app/user/client_attestation/mint":
+			fmt.Fprint(w, `{"tokens":[{"token":"attestation"}]}`)
+		case "/v1/tee/attestation":
+			fmt.Fprintf(w, `{"verified":true,"nonce":%q,"signing_key":%q}`,
+				r.URL.Query().Get("nonce"), keyHex)
+		case "/inference/chat":
+			if r.Header.Get("X-Venice-TEE-Client-Pub-Key") == "" ||
+				r.Header.Get("X-Venice-TEE-Signing-Algo") != "ecdsa" {
+				t.Errorf("enclave headers missing")
+			}
+			fmt.Fprint(w, `{"kind":"content","content":"plain answer"}`+"\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	store, _ := setup(t, server.URL)
+	cfg := config.Default()
+	cfg.Providers = map[string]config.Provider{
+		"venice-web-fixture": {BaseURL: server.URL, Transport: config.TransportVeniceWeb},
+	}
+	cfg.Models = []config.Route{{
+		ID: webModel, Provider: "venice-web-fixture", UpstreamModel: "e2ee-x",
+		Privacy: config.ZDR, E2EE: true,
+	}}
+	label := "one"
+	cred := webprov.Credential{DistinctID: "device"}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "venice-web-fixture", Endpoint: server.URL, Label: label, Key: cred.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+
+	result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`","messages":[{"role":"user","content":"hi"}]}`)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "plain answer") {
+		t.Fatalf("e2ee route failed: %d %s", result.Code, result.Body)
 	}
 }

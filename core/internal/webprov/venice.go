@@ -176,6 +176,8 @@ type Request struct {
 	MinP *float64
 	// IncludeAnonUserID forces or suppresses the anonymous user id.
 	IncludeAnonUserID *bool
+	// E2EE encrypts the messages to the model's verified enclave.
+	E2EE bool
 }
 
 // Event is one decoded upstream event. Kind is "content", "reasoning" or "meta".
@@ -195,6 +197,7 @@ type Client struct {
 	tokens    map[string]cached        // session JWTs by credential hash
 	attesting map[string][]cached      // client attestation token pool by user key
 	locks     map[string]chan struct{} // one generation per credential
+	e2ee      e2eeCache
 }
 
 type cached struct {
@@ -228,6 +231,7 @@ func New(timeout time.Duration) *Client {
 		tokens:    map[string]cached{},
 		attesting: map[string][]cached{},
 		locks:     map[string]chan struct{}{},
+		e2ee:      e2eeCache{sessions: map[string]*e2eeSession{}},
 	}
 }
 
@@ -262,7 +266,19 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 	readCtx, stall := newStallGuard(ctx, req.Inactivity)
 	defer stall.stop()
 	userID, signedIn, mintErr := c.resolveUser(ctx, cred)
-	body, err := json.Marshal(venicePayload(cred, req, userID))
+	payload := req
+	var session *e2eeSession
+	if req.E2EE {
+		session, err = c.e2eeSession(ctx, cred, req.Model)
+		if err != nil {
+			return err
+		}
+		payload.Messages, err = sealMessages(session, req.Messages)
+		if err != nil {
+			return err
+		}
+	}
+	body, err := json.Marshal(venicePayload(cred, payload, userID))
 	if err != nil {
 		return err
 	}
@@ -280,6 +296,12 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 		}
 		c.headers(httpReq, cred, attestation)
 		httpReq.Header.Set("Accept", "text/event-stream")
+		if session != nil {
+			// The enclave key and the client key let the TEE answer encrypted.
+			httpReq.Header.Set("X-Venice-TEE-Client-Pub-Key", session.clientPublicKey())
+			httpReq.Header.Set("X-Venice-TEE-Model-Pub-Key", hex.EncodeToString(session.modelKey))
+			httpReq.Header.Set("X-Venice-TEE-Signing-Algo", "ecdsa")
+		}
 		if cred.DistinctID != "" {
 			httpReq.Header.Set("x-venice-distinct-id", cred.DistinctID)
 		}
@@ -308,6 +330,15 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 				}
 			}
 			streamErr := decodeEvents(stall.wrap(stream), func(event Event) error {
+				if session != nil && (event.Kind == "content" || event.Kind == "reasoning") && looksSealed(event.Content) {
+					plain, err := session.open(event.Content)
+					if err != nil {
+						// The key may have rotated; the next turn asks again.
+						c.forgetE2EE(req.Model)
+						return err
+					}
+					event.Content = plain
+				}
 				delivered = true
 				return emit(event)
 			})

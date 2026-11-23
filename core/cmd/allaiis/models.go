@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
@@ -45,7 +46,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 	providerID := flags.String("provider", "", "provider ID")
 	var match, model, name, label, privacy, protocol, reasoning string
 	var maxContext, maxResponse, maxImages, maxTools, inactivity, maxVideos int
-	var webSearch, largeContext, strictOrder, roundTrip, minP bool
+	var webSearch, largeContext, strictOrder, roundTrip, minP, e2ee bool
 	var all, withKeys bool
 	switch command {
 	case "discover":
@@ -68,6 +69,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 		flags.BoolVar(&webSearch, "web-search", false, "enable the provider's web tool")
 		flags.BoolVar(&largeContext, "large-context", false, "ask for the extended-context mode")
 		flags.BoolVar(&strictOrder, "strict-order", false, "merge consecutive turns for strict models")
+		flags.BoolVar(&e2ee, "e2ee", false, "encrypt messages to the model's verified enclave")
 		flags.IntVar(&inactivity, "inactivity-ms", 0, "abort a stream that stays silent this long")
 		flags.BoolVar(&roundTrip, "reasoning-round-trip", false, "replay stored thinking with follow-ups")
 		flags.BoolVar(&minP, "min-p", false, "forward min_p to models that support it")
@@ -104,7 +106,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 			Reasoning: thinking, MaxContext: maxContext, MaxResponse: maxResponse, MaxImages: maxImages,
 			MaxTools: maxTools, WebSearch: webSearch, LargeContext: largeContext,
 			StrictOrder: strictOrder, InactivityMS: inactivity, ReasoningRoundTrip: roundTrip, MaxVideos: maxVideos,
-			MinP: minP,
+			MinP: minP, E2EE: e2ee || strings.HasPrefix(model, "e2ee-"),
 		}
 		added, err := config.AddModel(ctx, path, route)
 		if err != nil {

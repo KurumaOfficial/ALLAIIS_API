@@ -389,6 +389,7 @@ func (s *Server) addModel(w http.ResponseWriter, r *http.Request) {
 		AnonUserID    *bool           `json:"anon_user_id"`
 		Temperature   *float64        `json:"temperature"`
 		TopP          *float64        `json:"top_p"`
+		E2EE          bool            `json:"e2ee"`
 	}
 	if !decode(w, r, &input) {
 		return
@@ -414,7 +415,7 @@ func (s *Server) addModel(w http.ResponseWriter, r *http.Request) {
 		LargeContext: input.LargeContext, StrictOrder: input.StrictOrder, InactivityMS: input.InactivityMS,
 		NoSampling: input.NoSampling, Frequency: input.Frequency, Presence: input.Presence,
 		Replacement: input.Replacement, ReasoningRoundTrip: input.RoundTrip, MaxVideos: input.MaxVideos,
-		MinP: input.MinP, AnonUserID: input.AnonUserID,
+		MinP: input.MinP, AnonUserID: input.AnonUserID, E2EE: input.E2EE,
 		Temperature: input.Temperature, TopP: input.TopP,
 	}
 	added, err := config.AddModel(r.Context(), s.options.ConfigPath, route)

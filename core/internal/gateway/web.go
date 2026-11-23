@@ -587,6 +587,7 @@ func toolLimit(route config.Route) int {
 func applyCapabilities(request *webprov.Request, route config.Route) error {
 	request.LargeContext = route.LargeContext
 	request.Inactivity = inactivity(route)
+	request.E2EE = route.E2EE
 	if route.Reasoning != nil {
 		request.Reasoning = *route.Reasoning
 	}
@@ -744,6 +745,9 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 			message += " Try " + target.Route.Replacement + "."
 		}
 		writeError(w, protocol, http.StatusNotFound, "model_not_found", message)
+	case errors.Is(err, webprov.ErrE2EE):
+		writeError(w, protocol, http.StatusBadGateway, "e2ee_failed",
+			"The end-to-end encryption layer failed: "+err.Error()+". Retry, or clear `e2ee` on the alias to send plaintext.")
 	default:
 		writeError(w, protocol, http.StatusBadGateway, "upstream_error", "The web provider failed: "+err.Error())
 	}

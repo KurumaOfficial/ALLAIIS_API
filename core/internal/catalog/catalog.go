@@ -43,6 +43,7 @@ type Model struct {
 	Replacement  string `json:"replacement,omitempty"`
 	Retiring     bool   `json:"retiring,omitempty"`
 	RoundTrip    bool   `json:"reasoning_round_trip,omitempty"`
+	E2EE         bool   `json:"e2ee,omitempty"`
 	Video        bool   `json:"video,omitempty"`
 	MaxVideos    int    `json:"max_videos,omitempty"`
 	MinP         bool   `json:"min_p,omitempty"`

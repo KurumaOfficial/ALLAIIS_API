@@ -7,10 +7,10 @@ Anthropic Messages and OpenAI Responses. The control panel manages keys, aliases
 probes and logs against a live gateway with hot reload. Inline attachments are
 bounded by the configurable `max_request_mb`.
 
-- **E2EE models.** An `e2ee-*` alias is sent to the plain endpoint, so the reply
-  is not decrypted in the page; the key exchange and the client-side crypto are
-  not implemented. Doctor warns while an alias points at one, and smoke reports
-  the model like any other, so the gap is visible rather than silent.
+- **E2EE models, reply check.** Attestation, sealing and opening are implemented
+  and covered offline; live, a request clears the enclave attestation and reaches
+  the chat endpoint with the TEE headers, but the label answered `402` before a
+  sealed reply could be decrypted.
 - A second web provider on the same capture flow.
 
 ## B1b. Current environment notes
@@ -38,7 +38,7 @@ message.
 | Pro capture and replay | done | — |
 | Tool emulation on web routes | done | live check passed |
 | Attachments (images, files) | done | live colour and text-file answers |
-| E2EE models | open | page key exchange and client-side field encryption |
+| E2EE models | implemented | a live check with Pro allowance |
 | Control panel and hot reload | done | — |
 | Gateway key rotation | done | — |
 | Second web provider | open | per-provider protocol capture |
@@ -53,7 +53,7 @@ message.
 - [x] Verify a tool call round trip (`read_file`).
 - [x] Capture a Pro session and replay a Pro-only model.
 - [x] Verify a tool call on a Pro model.
-- [ ] Verify an `e2ee-*` model with credits and a page-side decrypt.
+- [ ] Verify an `e2ee-*` model live: attestation passes, a sealed prompt and answer round-trip.
 - [x] Run two sessions side by side and confirm isolation.
 - [x] Record the test name, provider, model, and result in the README status matrix.
 - [x] Add and delete an alias through the panel and confirm the live gateway picks

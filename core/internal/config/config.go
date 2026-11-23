@@ -144,25 +144,27 @@ type Route struct {
 	// Disabled keeps the alias configured but out of `/v1/models` and routing.
 	Disabled bool `json:"disabled,omitempty"`
 	// Capabilities come from catalog discovery and shape the upstream request.
-	Reasoning          *bool    `json:"reasoning,omitempty"`
-	MaxContext         int      `json:"max_context,omitempty"`
-	MaxResponse        int      `json:"max_response,omitempty"`
-	MaxImages          int      `json:"max_images,omitempty"`
-	MaxTools           int      `json:"max_tools,omitempty"`
-	WebSearch          bool     `json:"web_search,omitempty"`
-	LargeContext       bool     `json:"large_context,omitempty"`
-	StrictOrder        bool     `json:"strict_order,omitempty"`
-	InactivityMS       int      `json:"inactivity_ms,omitempty"`
-	NoSampling         bool     `json:"no_sampling,omitempty"`
-	Frequency          bool     `json:"frequency_penalty,omitempty"`
-	Presence           bool     `json:"presence_penalty,omitempty"`
-	Replacement        string   `json:"replacement,omitempty"`
-	ReasoningRoundTrip bool     `json:"reasoning_round_trip,omitempty"`
-	MaxVideos          int      `json:"max_videos,omitempty"`
-	MinP               bool     `json:"min_p,omitempty"`
-	AnonUserID         *bool    `json:"anon_user_id,omitempty"`
-	Temperature        *float64 `json:"temperature,omitempty"`
-	TopP               *float64 `json:"top_p,omitempty"`
+	Reasoning          *bool  `json:"reasoning,omitempty"`
+	MaxContext         int    `json:"max_context,omitempty"`
+	MaxResponse        int    `json:"max_response,omitempty"`
+	MaxImages          int    `json:"max_images,omitempty"`
+	MaxTools           int    `json:"max_tools,omitempty"`
+	WebSearch          bool   `json:"web_search,omitempty"`
+	LargeContext       bool   `json:"large_context,omitempty"`
+	StrictOrder        bool   `json:"strict_order,omitempty"`
+	InactivityMS       int    `json:"inactivity_ms,omitempty"`
+	NoSampling         bool   `json:"no_sampling,omitempty"`
+	Frequency          bool   `json:"frequency_penalty,omitempty"`
+	Presence           bool   `json:"presence_penalty,omitempty"`
+	Replacement        string `json:"replacement,omitempty"`
+	ReasoningRoundTrip bool   `json:"reasoning_round_trip,omitempty"`
+	// E2EE encrypts messages to the model's verified enclave.
+	E2EE        bool     `json:"e2ee,omitempty"`
+	MaxVideos   int      `json:"max_videos,omitempty"`
+	MinP        bool     `json:"min_p,omitempty"`
+	AnonUserID  *bool    `json:"anon_user_id,omitempty"`
+	Temperature *float64 `json:"temperature,omitempty"`
+	TopP        *float64 `json:"top_p,omitempty"`
 }
 
 func ValidCredentialLabel(label string) bool { return credentialLabel.MatchString(label) }

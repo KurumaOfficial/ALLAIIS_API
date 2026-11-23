@@ -171,6 +171,32 @@ the web payload as `reasoningEffort`; a budget under 2048 becomes `low`, under
 8192 `medium`, under 32000 `high`, and larger `max`. The provider advertises the
 options it accepts.
 
+### End-to-end encryption
+
+An `e2ee-*` model takes client-encrypted messages and answers with sealed
+chunks. Set `"e2ee": true` on the route (or pass `--e2ee` to `models add`; an
+`e2ee-` upstream id turns it on by itself). Per turn the transport:
+
+1. generates a secp256k1 key pair and a 32-byte nonce;
+2. asks `/tee/attestation`, and rejects the enclave unless `verified` is true,
+   the nonce comes back unchanged, debug mode is off, and a signing key is
+   present;
+3. derives an AES-256-GCM key with ECDH and HKDF-SHA256 (`ecdsa_encryption`);
+4. seals every message into `ephemeral key ‖ nonce ‖ ciphertext` hex and sends
+   the `X-Venice-TEE-Client-Pub-Key`, `X-Venice-TEE-Model-Pub-Key` and
+   `X-Venice-TEE-Signing-Algo: ecdsa` headers;
+5. opens every sealed chunk of the reply with the session key.
+
+Sessions are cached per model for five minutes and dropped when a chunk fails to
+open. A failure is answered `e2ee_failed`. Tools work through the same path
+because the call block travels inside the encrypted content.
+
+Attestation lives at `{base}/v1/tee/attestation` and answers without a key. Live,
+the request now clears attestation and reaches `/inference/chat` with the TEE
+headers; the label answered `402` before a reply could be decrypted, so a sealed
+answer is still unverified. Keep `e2ee` off on a plain model; a failure is loud,
+not silent.
+
 ## Inbound protocols
 
 A web route can be registered for Chat Completions or Anthropic Messages:
@@ -375,10 +401,12 @@ the name record, so probes and synthetic checks do not read as model mistakes.
 | `context_length_exceeded` | upstream `userPromptTooLong` |
 | `rate_limit_exceeded` | the pool hit a `429`; that credential cools until the reset header says |
 | `insufficient_balance` | the plan allowance is spent (`402 insufficientBalance`); the model is parked on the label for 30 minutes with a `Retry-After`, other models are unaffected, check `web quota` for the reset |
+| `e2ee_failed` | the enclave attestation or a sealed chunk failed; retry, or clear `e2ee` to send plaintext |
 
 ## Implementation
 
 - `core/internal/webprov/venice.go` — transport, attestation pool, Clerk mint, NDJSON decoding, error typing
+- `core/internal/webprov/e2ee.go` — enclave attestation, ECDH/HKDF/AES-GCM seal and open, session cache
 - `core/internal/webprov/cdp.go` — one-time cookie/User-Agent capture over DevTools
 - `core/internal/webprov/catalog.go` — text-model discovery
 - `core/internal/gateway/web.go` — OpenAI translation, streaming guard, estimated usage

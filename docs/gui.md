@@ -16,7 +16,7 @@ port, `--listen 127.0.0.1:9000` overrides the gateway address for this run and
 |---|---|
 | Overview | Gateway health, served alias count, request counters with the count of label switches and repaired calls, tool reshaping with a per-kind breakdown (unwrap, fold, trailing word) and unknown names, their retention and Drop expired / Reset all buttons; the drop button shows how many names are past retention and hides at zero or when retention is off (then the card explains how to switch retention on), recent requests with their label, provider readiness with a quota-low badge after a probe, Quota,
 Recapture and Resume, gateway key reveal/copy |
-| Aliases | Register, mute and delete model aliases, including protocol and privacy; each row marks its transport (`web` for tier C, `api` for an official route) so the two are told apart at a glance |
+| Aliases | Register, mute and delete model aliases, including protocol and privacy; each row marks its transport (`web` for tier C, `api` for an official route) and `e2ee` when the alias encrypts to the enclave so the two are told apart at a glance |
 | Keys | Add API keys, remove credentials, capture a Venice web session, rotate the gateway key |
 | Discovery | Browse an upstream catalog with a stored credential and create an alias from a model |
 | Playground | Send a real probe, or probe every alias at once with status, latency and the upstream model |

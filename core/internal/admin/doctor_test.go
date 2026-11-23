@@ -63,16 +63,27 @@ func TestDiagnoseNamesE2EEAliases(t *testing.T) {
 	if err := os.WriteFile(f.path, body, 0600); err != nil {
 		t.Fatal(err)
 	}
-	checks := Diagnose(context.Background(), f.store, f.path)
-	for _, check := range checks {
-		if check.Name == "e2ee models" {
-			if check.Status != "warn" || !strings.Contains(check.Detail, "not implemented") {
-				t.Fatalf("e2ee alias not flagged honestly: %+v", check)
+	verdict := func() *Check {
+		for _, check := range Diagnose(context.Background(), f.store, f.path) {
+			if check.Name == "e2ee models" {
+				return &check
 			}
-			return
 		}
+		return nil
 	}
-	t.Fatal("e2ee alias not reported")
+	check := verdict()
+	if check == nil || check.Status != "warn" || !strings.Contains(check.Detail, "plaintext") {
+		t.Fatalf("e2ee alias not flagged honestly: %+v", check)
+	}
+	// Turning the alias on changes the report to a pass.
+	cfg.Models[len(cfg.Models)-1].E2EE = true
+	body, _ = json.Marshal(cfg)
+	if err := os.WriteFile(f.path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if check = verdict(); check == nil || check.Status != "ok" || !strings.Contains(check.Detail, "encrypt") {
+		t.Fatalf("enabled alias not acknowledged: %+v", check)
+	}
 }
 
 func TestDiagnoseWarnsAboutASmallBodyCap(t *testing.T) {
