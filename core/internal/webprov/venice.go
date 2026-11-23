@@ -365,7 +365,7 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 			if attempt == 1 && (signedIn || mintErr != nil || cred.clerkCookie("__client") != "") {
 				if refreshed, _, err := c.remint(ctx, cred); err == nil {
 					userID = refreshed
-					if body, err = json.Marshal(venicePayload(cred, req, userID)); err != nil {
+					if body, err = json.Marshal(venicePayload(cred, payload, userID)); err != nil {
 						return err
 					}
 					continue
