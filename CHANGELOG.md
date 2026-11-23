@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **Each command shows only its own flags.** A fallthrough chain registered the
+  smoke and doctor options on `up`, `gui` and `smoke` alike, so `up --help` listed
+  `--alias` and `--json` it ignores. The sets are separate now.
+
 ## v0.1.11
 
 The service supervisor waits properly.
