@@ -75,6 +75,36 @@ func TestDiagnoseNamesE2EEAliases(t *testing.T) {
 	t.Fatal("e2ee alias not reported")
 }
 
+func TestDiagnoseWarnsAboutASmallBodyCap(t *testing.T) {
+	f := setup(t)
+	cfg, err := config.Load(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxRequestBytes() != config.DefaultMaxRequestMB<<20 {
+		t.Fatalf("default cap %d", cfg.MaxRequestBytes())
+	}
+	cfg.Models = append(cfg.Models, config.Route{
+		ID: "album", Provider: "fake", UpstreamModel: "m", MaxImages: 10,
+	})
+	body, _ := json.Marshal(cfg)
+	if err := os.WriteFile(f.path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, check := range Diagnose(context.Background(), f.store, f.path) {
+		if check.Name == "request cap" {
+			found = true
+			if check.Status != "warn" || !strings.Contains(check.Detail, "16") {
+				t.Fatalf("cap warning: %+v", check)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no cap warning")
+	}
+}
+
 func TestCooldownVerdict(t *testing.T) {
 	if _, _, ok := cooldownVerdict(nil); ok {
 		t.Fatal("an empty pool reported cooldowns")

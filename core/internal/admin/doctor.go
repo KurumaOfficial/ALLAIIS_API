@@ -126,7 +126,11 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 	missing := 0
 	unpinned := 0
 	e2ee := 0
+	images := 0
 	for _, route := range cfg.Models {
+		if route.MaxImages > images {
+			images = route.MaxImages
+		}
 		// The catalog has no flag for it; the vendor marks these with a prefix.
 		if strings.HasPrefix(route.UpstreamModel, "e2ee-") {
 			e2ee++
@@ -169,6 +173,13 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		add("alias credentials", "warn", fmt.Sprintf("%d alias(es) use an unpinned multi-key pool", unpinned))
 	default:
 		add("alias credentials", "ok", "every alias resolves to a credential")
+	}
+
+	// Base64 costs a third on top of the file, so a body cap barely above a
+	// single image rejects an album the model would take.
+	if capMB := cfg.MaxRequestBytes() >> 20; images > 1 && capMB < 16 {
+		add("request cap", "warn", fmt.Sprintf(
+			"an alias takes up to %d images but the request cap is %d MiB; inline data URLs grow by a third, consider 16 or more", images, capMB))
 	}
 
 	if e2ee > 0 {
