@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.15
+
+The model list speaks the usual limit names.
+
 
 - **`/v1/models` carries the limits under the usual names.** `context_length` and
   `max_output_tokens` are what a client looks for when sizing a prompt; the alias
