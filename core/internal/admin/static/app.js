@@ -168,7 +168,8 @@ function render () {
   recent.replaceChildren()
   for (const event of state.usage.recent || []) {
     const row = recent.insertRow()
-    row.innerHTML = '<td>' + stamp(event.time) + '</td><td>' + esc(event.model) + '</td><td>' + esc(event.protocol || 'chat') +
+    row.innerHTML = '<td>' + stamp(event.time) + '</td><td>' + esc(event.model) +
+      (event.credential ? ' <span class="muted tiny">' + esc(event.credential) + '</span>' : '') + '</td><td>' + esc(event.protocol || 'chat') +
       '</td><td><span class="badge ' + (event.status < 400 ? 'ok' : 'bad') + '">' + event.status + '</span></td><td>' + event.millis + '</td><td>' + event.chars + '</td>'
   }
 

@@ -379,8 +379,11 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 	recorder := &statusWriter{ResponseWriter: w}
 	w = recorder
 	model, provider, stream, chars, calls := "", "", false, 0, 0
+	credential := ""
 	defer func() {
-		g.recordCompletion(recorder, start, protocol, stream, func() (string, string) { return model, provider }, chars, calls)
+		g.recordCompletion(recorder, start, protocol, stream, func() (string, string, string) {
+			return model, provider, credential
+		}, chars, calls)
 	}()
 	minimum, ok := g.privacy(r)
 	if !ok {
@@ -426,6 +429,7 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 	session := g.sessionID(sessionHeader, prefix)
 	target, until, err := g.table().routes.Resolve(r.Context(), model, protocol, minimum, session)
 	provider = target.Route.Provider
+	credential = target.Entry.Label
 	if target.Route.ID != "" {
 		w.Header().Set(tierHeader, "tier_a")
 		w.Header().Set("X-ALLAIIS-Provider", target.Route.Provider)

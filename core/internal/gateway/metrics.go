@@ -21,11 +21,13 @@ type metricEvent struct {
 	Protocol string `json:"protocol"`
 	Model    string `json:"model"`
 	Provider string `json:"provider"`
-	Status   int    `json:"status"`
-	Millis   int64  `json:"millis"`
-	Chars    int    `json:"chars"`
-	Calls    int    `json:"calls"`
-	Stream   bool   `json:"stream"`
+	// Credential names the key label, which a pool of labels makes worth knowing.
+	Credential string `json:"credential"`
+	Status     int    `json:"status"`
+	Millis     int64  `json:"millis"`
+	Chars      int    `json:"chars"`
+	Calls      int    `json:"calls"`
+	Stream     bool   `json:"stream"`
 }
 
 type metrics struct {
@@ -134,14 +136,14 @@ func (w *statusWriter) Write(body []byte) (int, error) {
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // recordCompletion stores one metric after a handler returns.
-func (g *Gateway) recordCompletion(w http.ResponseWriter, start time.Time, protocol config.Protocol, stream bool, target func() (string, string), chars, calls int) {
+func (g *Gateway) recordCompletion(w http.ResponseWriter, start time.Time, protocol config.Protocol, stream bool, target func() (string, string, string), chars, calls int) {
 	status := http.StatusOK
 	if recorder, ok := w.(*statusWriter); ok && recorder.status != 0 {
 		status = recorder.status
 	}
-	model, provider := target()
+	model, provider, credential := target()
 	g.metrics.add(metricEvent{
-		Time: time.Now().UnixMilli(), Model: model, Provider: provider, Protocol: protocolName(protocol),
+		Time: time.Now().UnixMilli(), Model: model, Provider: provider, Credential: credential, Protocol: protocolName(protocol),
 		Status: status, Millis: time.Since(start).Milliseconds(),
 		Chars: chars, Calls: calls, Stream: stream,
 	})
