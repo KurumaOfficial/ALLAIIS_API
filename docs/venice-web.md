@@ -188,8 +188,8 @@ chunks. Set `"e2ee": true` on the route (or pass `--e2ee` to `models add`; an
 5. opens every sealed chunk of the reply with the session key.
 
 Sessions are cached per model for five minutes and dropped when a chunk fails to
-open. A failure is answered `e2ee_failed`. Tools work through the same path
-because the call block travels inside the encrypted content.
+open. A failure is answered `e2ee_failed`. Tools and attachments work through the same path: the call block travels inside
+the encrypted content, and the multipart agent path seals the text the same way.
 
 Attestation lives at `{base}/v1/tee/attestation` and answers without a key. Live,
 the request now clears attestation and reaches `/inference/chat` with the TEE

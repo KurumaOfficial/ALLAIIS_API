@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -184,4 +186,93 @@ func openWith(key, nonce, body []byte) (string, error) {
 		return "", err
 	}
 	return string(plain), nil
+}
+
+// The attachment path must seal too, or an image turn leaks its text.
+func TestE2EEImagesSealsAndOpens(t *testing.T) {
+	private, err := secp256k1.GeneratePrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	signing := hex.EncodeToString(private.PubKey().SerializeUncompressed())
+	var got string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/mint") {
+			fmt.Fprint(w, `{"tokens":[{"token":"t"}]}`)
+			return
+		}
+		switch r.URL.Path {
+		case "/v1/tee/attestation":
+			fmt.Fprintf(w, `{"verified":true,"nonce":%q,"signing_key":%q}`, r.URL.Query().Get("nonce"), signing)
+		case "/inference/chat/agents/venice":
+			clientKey, err := parseSecpKey(r.Header.Get("X-Venice-TEE-Client-Pub-Key"))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			_, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(1 << 20)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var body struct {
+				Input struct {
+					Messages []struct {
+						Content []struct {
+							Text string `json:"text"`
+						} `json:"content"`
+					} `json:"messages"`
+				} `json:"input"`
+			}
+			if err := json.Unmarshal([]byte(form.Value["request"][0]), &body); err != nil {
+				t.Fatal(err)
+			}
+			raw, _ := hex.DecodeString(body.Input.Messages[0].Content[0].Text)
+			ephemeral, err := secp256k1.ParsePubKey(raw[:65])
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			key, err := deriveE2EEKey(private, ephemeral)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			plain, err := openWith(key, raw[65:77], raw[77:])
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			got = plain
+			answer, err := sealTo(private, clientKey, "sealed image answer")
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			fmt.Fprintf(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":%q}\n\n", answer)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client := New(5 * time.Second).WithHTTP(server.Client()).WithBase(server.URL)
+	var text strings.Builder
+	err = client.Chat(context.Background(), Credential{UserAgent: "t"}, Request{
+		Model: "e2ee-x", E2EE: true,
+		Messages: []Message{{
+			Role: "user", Content: "what is this pls",
+			Images: []Image{{Data: []byte("png"), MIME: "image/png"}},
+		}},
+	}, func(event Event) error {
+		text.WriteString(event.Content)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "what is this pls" || text.String() != "sealed image answer" {
+		t.Fatalf("image turn: enclave %q, client %q", got, text.String())
+	}
 }

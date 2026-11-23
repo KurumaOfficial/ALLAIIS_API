@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,7 +42,19 @@ func (c *Client) ChatImages(ctx context.Context, cred Credential, req Request, e
 	readCtx, stall := newStallGuard(ctx, req.Inactivity)
 	defer stall.stop()
 	userID, signedIn, mintErr := c.resolveUser(ctx, cred)
-	body, parts := agentBody(req)
+	payload := req
+	var session *e2eeSession
+	if req.E2EE {
+		session, err = c.e2eeSession(ctx, cred, req.Model)
+		if err != nil {
+			return err
+		}
+		payload.Messages, err = sealMessages(session, req.Messages)
+		if err != nil {
+			return err
+		}
+	}
+	body, parts := agentBody(payload)
 	var buffer bytes.Buffer
 	writer := multipart.NewWriter(&buffer)
 	field, err := writer.CreateFormField("request")
@@ -82,6 +95,11 @@ func (c *Client) ChatImages(ctx context.Context, cred Credential, req Request, e
 		c.headers(httpReq, cred, attestation)
 		httpReq.Header.Set("Content-Type", writer.FormDataContentType())
 		httpReq.Header.Set("Accept", "text/event-stream")
+		if session != nil {
+			httpReq.Header.Set("X-Venice-TEE-Client-Pub-Key", session.clientPublicKey())
+			httpReq.Header.Set("X-Venice-TEE-Model-Pub-Key", hex.EncodeToString(session.modelKey))
+			httpReq.Header.Set("X-Venice-TEE-Signing-Algo", "ecdsa")
+		}
 		if cred.DistinctID != "" {
 			httpReq.Header.Set("x-venice-distinct-id", cred.DistinctID)
 		}
@@ -102,6 +120,14 @@ func (c *Client) ChatImages(ctx context.Context, cred Credential, req Request, e
 		if response.StatusCode == http.StatusOK {
 			delivered := false
 			streamErr := decodeAgentStream(stall.wrap(response.Body), func(event Event) error {
+				if session != nil && looksSealed(event.Content) {
+					plain, err := session.open(event.Content)
+					if err != nil {
+						c.forgetE2EE(req.Model)
+						return err
+					}
+					event.Content = plain
+				}
 				delivered = true
 				return emit(event)
 			})
