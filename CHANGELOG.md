@@ -1,0 +1,33 @@
+# Changelog
+
+Releases are tagged from `main`; the binaries are on the release page with
+`SHA256SUMS`.
+
+## v0.1.1
+
+Recovery before the client sees a failure, and the last transport gap.
+
+- **Tools.** A call short of a required argument is held to the end of the stream
+  and replaced by a repair turn that names the field, also after prose has
+  streamed; the prose is not repeated. Label switches, empty replies and repairs
+  each have their own single retry budget.
+- **Pools.** A failing label (429, 402, expired or challenged session) is parked
+  and the request retried on another label while nothing was streamed. The
+  response names the serving label.
+- **Balance.** A `402` parks one model on its label, not the label: free models on
+  the same session keep answering. Later calls answer `402` with `Retry-After`.
+- **End-to-end encryption.** `e2ee` routes seal every message to the attested
+  enclave (secp256k1, HKDF-SHA256, AES-256-GCM) after checking the nonce, the
+  verified flag, debug mode and the TDX verdict; replies are opened per chunk.
+  Doctor, the panel and `allaiis web e2ee` attest without quota. Tools and
+  attachments travel the same path. A live sealed reply is still unverified.
+- **Observation.** `: ping` keep-alives, failover/repair/enclave counters,
+  doctor cooldown and guest-enclave warnings, smoke codes with `--allow`.
+- **Ops.** `--offline` for doctor, Go 1.26.11, no known vulnerabilities,
+  `staticcheck` and `govulncheck` in CI.
+
+## v0.1.0
+
+First public release: the Venice web transport, all three inbound protocol
+shapes, tool emulation with repairs, attachments, quotas and cooldowns, the
+control panel, service autostart, backup/restore and self-update.

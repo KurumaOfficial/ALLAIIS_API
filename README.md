@@ -255,6 +255,8 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 
 ## Status
 
+Release history: [CHANGELOG.md](CHANGELOG.md).
+
 **Live provider tests recorded for this matrix: 1 (Venice web).**
 
 | Feature | Implemented | Tested offline | Tested live | Blocked |

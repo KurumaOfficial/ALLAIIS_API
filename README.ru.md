@@ -246,6 +246,8 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 
 ## Статус
 
+История версий: [CHANGELOG.md](CHANGELOG.md).
+
 **Записанных live-проверок для этой матрицы: 1 (Venice web).**
 
 | Возможность | Реализовано | Офлайн-тест | Live-тест | Блокер |
