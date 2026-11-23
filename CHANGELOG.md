@@ -3,6 +3,13 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **Stray close marker.** A `<<<END_TOOL_CALL>>>` that arrived without its block
+  was passed to the client as prose, and a split marker could leak its prefix.
+  The guard now holds a close tag like an open one and drops it. A new fuzz
+  target found it; the event decoder has one too.
+
 ## v0.1.4
 
 Small fixes that keep the checks honest.

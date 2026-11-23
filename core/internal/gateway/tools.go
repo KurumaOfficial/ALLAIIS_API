@@ -405,6 +405,8 @@ func nameKey(name string) string {
 // Write consumes a chunk and returns text that is safe to emit. A parsed block
 // is returned through calls. A block that is still arriving stays buffered.
 func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err error) {
+	// A lone close marker is not content; the client only ever sees prose.
+	defer func() { text = stripCloseMarker(text) }()
 	g.buf.WriteString(chunk)
 	for {
 		current := g.buf.String()
@@ -514,7 +516,8 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 }
 
 // Flush emits the remaining buffer, parsing a final block if present.
-func (g *toolGuard) Flush() (string, []toolCall, error) {
+func (g *toolGuard) Flush() (text string, calls []toolCall, err error) {
+	defer func() { text = stripCloseMarker(text) }()
 	current := g.buf.String()
 	g.buf.Reset()
 	for {
@@ -553,7 +556,7 @@ func (g *toolGuard) Flush() (string, []toolCall, error) {
 		return current, nil, nil
 	}
 	rest := trimPartialClose(current[start+len(toolOpen):], toolClose)
-	calls, err := g.parse(rest)
+	calls, err = g.parse(rest)
 	if err == nil {
 		calls = g.unique(calls)
 	}
@@ -869,7 +872,7 @@ func buildCallFromValues(name string, values map[string]any) (toolCall, error) {
 // buffered.
 func markerKeep(current string) int {
 	keep := 0
-	markers := append([]string{toolOpen}, invokeMarkers...)
+	markers := append([]string{toolOpen, toolClose}, invokeMarkers...)
 	markers = append(markers, "<|DSML|", "<|/DSML|", "</|DSML|")
 	for _, marker := range markers {
 		for n := min(len(marker)-1, len(current)); n > keep; n-- {
@@ -881,6 +884,15 @@ func markerKeep(current string) int {
 	}
 	keep = max(keep, dsmlTailKeep(current))
 	return keep
+}
+
+// stripCloseMarker drops a close tag that arrived without its block, so a
+// client scanning for markers never sees half of one.
+func stripCloseMarker(text string) string {
+	if !strings.Contains(text, toolClose) {
+		return text
+	}
+	return strings.ReplaceAll(text, toolClose, "")
 }
 
 func invokeIndex(current string) int { return invokeIndexFrom(current, 0) }
