@@ -69,7 +69,7 @@ CLI `models discover` всегда без кеша; кеш каталога ис
 У ошибок один формат на протокол: `{"error":{"message","type","code","request_id"}}`
 для OpenAI-эндпоинтов, `{"type":"error","error":{…}}` для Anthropic. Коды
 стабильны и описаны в [venice-web.md](venice-web.md#failure-codes): клиент может
-ветвиться по `code`, а не по тексту. К `429` прилагается `Retry-After`.
+ветвиться по `code`, а не по тексту. `Retry-After` прилагается к `429` и к парковке по `402`.
 
 ## CORS
 
