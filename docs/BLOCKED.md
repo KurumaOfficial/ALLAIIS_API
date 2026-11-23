@@ -5,17 +5,21 @@
 Venice web works live as a guest and on a Pro session, over Chat Completions,
 Anthropic Messages and OpenAI Responses. The control panel manages keys, aliases,
 probes and logs against a live gateway with hot reload. Inline attachments are
-bounded by the configurable `max_request_mb`; the remaining gap is a second
-provider.
+bounded by the configurable `max_request_mb`.
 
+- **E2EE models.** An `e2ee-*` alias is sent to the plain endpoint, so the reply
+  is not decrypted in the page; the key exchange and the client-side crypto are
+  not implemented. Doctor warns while an alias points at one, and smoke reports
+  the model like any other, so the gap is visible rather than silent.
 - A second web provider on the same capture flow.
 
 ## B1b. Current environment notes
 
-Both captured Venice sessions spent their daily chat allowance on 2026-11-22 and
-reset at 2026-11-23 13:33. Premium models answer `402 insufficient_balance`
-until then; the free uncensored and role-play models still answer. `web quota` and
-the panel's Quota button show the remaining count and reset without spending a
+The guest session is out of its daily allowance until 2026-11-23 13:33 and the
+Pro session reports a zero chat counter. Premium models answer
+`402 insufficient_balance` and are parked per model; the free uncensored,
+role-play and DeepSeek uncensored models still answer. `web quota` and the
+panel's Quota button show the remaining count and reset without spending a
 message.
 
 ## B2. Handoff
@@ -34,7 +38,7 @@ message.
 | Pro capture and replay | done | — |
 | Tool emulation on web routes | done | live check passed |
 | Attachments (images, files) | done | live colour and text-file answers |
-| E2EE models | done (server-side path) | client-side field encryption is open |
+| E2EE models | open | page key exchange and client-side field encryption |
 | Control panel and hot reload | done | — |
 | Gateway key rotation | done | — |
 | Second web provider | open | per-provider protocol capture |
@@ -48,7 +52,8 @@ message.
 - [x] Verify catalog discovery and the quota probe.
 - [x] Verify a tool call round trip (`read_file`).
 - [x] Capture a Pro session and replay a Pro-only model.
-- [x] Verify a tool call on a Pro model and an `e2ee-*` model.
+- [x] Verify a tool call on a Pro model.
+- [ ] Verify an `e2ee-*` model with credits and a page-side decrypt.
 - [x] Run two sessions side by side and confirm isolation.
 - [x] Record the test name, provider, model, and result in the README status matrix.
 - [x] Add and delete an alias through the panel and confirm the live gateway picks
