@@ -215,10 +215,11 @@ answer once a label has balance. Tools and attachments work through the same pat
 the encrypted content, and the multipart agent path seals the text the same way.
 
 Attestation lives at `{base}/v1/tee/attestation` and answers without a key. Live,
-the request now clears attestation and reaches `/inference/chat` with the TEE
-headers; the label answered `402` before a reply could be decrypted, so a sealed
-answer is still unverified. Keep `e2ee` off on a plain model; a failure is loud,
-not silent.
+a sealed turn on `e2ee-gpt-oss-120b-p` (a free, Pro-only E2EE model) came back
+decrypted, and a tool call inside the sealed content parsed: the end-to-end path
+is verified on 2026-11-23. The credit-priced `e2ee-*` models still need credits;
+the free ones need a Pro session only. Keep `e2ee` off on a plain model; a failure
+is loud, not silent.
 
 ## Inbound protocols
 

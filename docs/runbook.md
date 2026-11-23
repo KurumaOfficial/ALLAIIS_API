@@ -113,6 +113,6 @@ the same port, so any client that speaks one of them only needs the base URL
 
 Pick an alias that answers: free models keep working when the plan is spent,
 while a paid or `e2ee` alias answers `402` until the label has balance. An `e2ee`
-alias also needs a signed-in label and spends an attestation round trip, and its
-sealed reply is still unverified — start with a free alias and move over when the
-first `allaiis web e2ee` canary decrypts.
+alias also needs a signed-in label and spends an attestation round trip; its
+sealed reply is verified on a free `e2ee-*` model, so start with a free alias and
+move over when the first `allaiis web e2ee` canary decrypts.

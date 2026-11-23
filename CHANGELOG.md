@@ -3,6 +3,13 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **E2EE verified live.** The catalogue carries free, Pro-only `e2ee-*` models;
+  a sealed turn on `e2ee-gpt-oss-120b-p` came back decrypted and a tool call
+  inside it parsed. Doctor and the docs stop calling the reply unverified.
+- **Free e2ee route.** `e2ee-oss` seals to that model on the `pro` label.
+
 ## v0.1.6
 
 A capture now says what it can spend.

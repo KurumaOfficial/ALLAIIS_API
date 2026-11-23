@@ -7,10 +7,11 @@ Anthropic Messages and OpenAI Responses. The control panel manages keys, aliases
 probes and logs against a live gateway with hot reload. Inline attachments are
 bounded by the configurable `max_request_mb`.
 
-- **E2EE models, reply check.** Attestation, sealing and opening are implemented
-  and covered offline; live, doctor and the panel's Test enclave attest the
-  production enclave, and a request reaches the chat endpoint with the TEE
-  headers, but the label answered `402` before a sealed reply could be decrypted.
+- **E2EE models: verified.** Attestation, sealing and opening are implemented and
+  covered offline; live, a sealed turn on `e2ee-gpt-oss-120b-p` came back
+  decrypted and a tool call inside the sealed content parsed, with the TEE
+  headers on the wire. The credit-priced `e2ee-*` models still wait on credits;
+  the free ones need a Pro session only.
 - A second web provider on the same capture flow.
 
 ## B1b. Current environment notes
@@ -31,6 +32,8 @@ Checked 2026-11-23 with the stored Pro session's own claims:
 - An unattested programmatic call to the agent endpoint answers `403` with a
   Terms-of-Service warning; attested calls are answered normally. The warning is
   worth knowing about for a long-running automation on a personal account.
+- Free E2EE route: `e2ee-oss` on `venice-web` with `e2ee-gpt-oss-120b-p`, sealed
+  and opened live, tools included.
 - Working free route for the model in the browser: `venice-deepseek` on
   `venice-web` with `deepseek-v4-1-flash-uncensored` (vision, tools, 524K
   context), pinned to the `pro` label so the pool does not land on the spent
@@ -67,7 +70,7 @@ Checked 2026-11-23 with the stored Pro session's own claims:
 - [x] Verify a tool call round trip (`read_file`).
 - [x] Capture a Pro session and replay a Pro-only model.
 - [x] Verify a tool call on a Pro model.
-- [ ] Verify an `e2ee-*` model live: attestation passes, a sealed prompt and answer round-trip.
+- [x] Verify an `e2ee-*` model live: attestation passes, a sealed prompt and answer round-trip.
 - [x] Run two sessions side by side and confirm isolation.
 - [x] Record the test name, provider, model, and result in the README status matrix.
 - [x] Add and delete an alias through the panel and confirm the live gateway picks

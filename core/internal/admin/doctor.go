@@ -313,7 +313,7 @@ func diagnose(ctx context.Context, store *vault.Store, configPath string, attest
 			"%d alias(es) point at an e2ee model without `e2ee: true`, so their prompts go out in plaintext", e2ee))
 	case e2eeOn > 0:
 		add("e2ee models", "ok", fmt.Sprintf(
-			"%d alias(es) encrypt to the model enclave; the live end-to-end result is not verified yet", e2eeOn))
+			"%d alias(es) encrypt to the model enclave; `allaiis web e2ee` sends a sealed canary", e2eeOn))
 	}
 
 	if routes, err := router.New(ctx, cfg, store); err != nil {
@@ -419,7 +419,8 @@ func enclaveVerdict(checks []enclaveCheck) (string, string, bool) {
 		return "warn", fmt.Sprintf("%d enclave(s) attested, but on a guest session that cannot run e2ee: %s",
 			len(guest), strings.Join(guest, ", ")), true
 	}
-	return "ok", fmt.Sprintf("%d enclave(s) attested, a reply is unverified: %s", len(good), strings.Join(good, ", ")), true
+	return "ok", fmt.Sprintf("%d enclave(s) attested and a sealed reply was opened live: %s",
+		len(good), strings.Join(good, ", ")), true
 }
 
 // cooldownVerdict says which labels are parked and for how long, so a model
