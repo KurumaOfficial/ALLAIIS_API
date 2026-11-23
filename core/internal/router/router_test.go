@@ -37,7 +37,7 @@ func routerFixture(t *testing.T) (*Router, *vault.Store, config.Config) {
 		{ID: "pinned", Provider: "fixture", UpstreamModel: "m", CredentialLabel: "one", Privacy: config.Consumer},
 		{ID: "pool", Provider: "fixture", UpstreamModel: "m", Privacy: config.Consumer},
 		{ID: "paid", Provider: "fixture", UpstreamModel: "paid", CredentialLabel: "one", Privacy: config.Consumer},
-		{ID: "free", Provider: "fixture", UpstreamModel: "free", CredentialLabel: "one", Privacy: config.Consumer},
+		{ID: "free", Provider: "fixture", UpstreamModel: "free", CredentialLabel: "one", Privacy: config.Consumer, E2EE: true},
 	}
 	routes, err := New(t.Context(), cfg, store)
 	if err != nil {
@@ -201,5 +201,26 @@ func TestClearCooldownLiftsModelMarksToo(t *testing.T) {
 
 	if _, _, err := routes.Resolve(t.Context(), "paid", config.Chat, config.Consumer, [32]byte{}); err != nil {
 		t.Fatalf("model mark survived the clear: %v", err)
+	}
+}
+
+func TestModelsCarryTheE2EEFlag(t *testing.T) {
+	routes, _, _ := routerFixture(t)
+	found := false
+	for _, model := range routes.Models(config.Public) {
+		switch model.ID {
+		case "free":
+			found = true
+			if !model.E2EE {
+				t.Fatal("e2ee alias not marked")
+			}
+		case "pinned":
+			if model.E2EE {
+				t.Fatal("plain alias marked e2ee")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("alias missing from the list")
 	}
 }

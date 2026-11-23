@@ -30,6 +30,8 @@ type Model struct {
 	Created  int64           `json:"created"`
 	Provider string          `json:"owned_by"`
 	Protocol config.Protocol `json:"allaiis_protocol,omitempty"`
+	// E2EE tells a client the messages will be sealed to the enclave.
+	E2EE bool `json:"allaiis_e2ee,omitempty"`
 }
 
 type Target struct {
@@ -110,7 +112,8 @@ func (r *Router) Models(minimum config.Privacy) []Model {
 		}
 		_, available := r.pools[route.Provider].credential(route.CredentialLabel, [32]byte{})
 		if route.Privacy.Meets(minimum) && available {
-			models = append(models, Model{ID: route.ID, Object: "model", Provider: route.Provider, Protocol: route.Protocol})
+			models = append(models, Model{ID: route.ID, Object: "model", Provider: route.Provider,
+				Protocol: route.Protocol, E2EE: route.E2EE})
 		}
 	}
 	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
