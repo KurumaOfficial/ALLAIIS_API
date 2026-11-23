@@ -159,7 +159,10 @@ function render () {
             (row.error ? row.error : (row.low ? 'LOW, ' : '') + (row.chat_remaining ?? '?') + ' chat left' +
               (row.plan ? ', ' + row.plan : '') +
               (row.credits !== undefined && row.credits !== null
-                ? ', ' + row.credits + (row.credit_cap ? '/' + row.credit_cap : '') + ' credits'
+                ? ', ' + row.credits + (row.credit_cap ? '/' + row.credit_cap : '') + ' credits' +
+                  (row.credits === 0 && row.credit_refill_at
+                    ? ' (refill ' + new Date(row.credit_refill_at).toLocaleDateString() + ')'
+                    : '')
                 : '') +
               (row.reset_at ? ', resets ' + new Date(row.reset_at).toLocaleString() : '') +
               (row.principal === 'anonymous' ? ' (anonymous)' : ''))).join(' · ')

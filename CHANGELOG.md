@@ -5,6 +5,8 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Quota button** shows the plan, the credits and the refill date beside the chat
+  counter, so an empty credit bucket is visible without a CLI.
 - **Smoke tool probe** asks the route in its own shape. A Messages alias was sent
   through Chat Completions, answered `model_not_found`, and the probe said
   nothing about that route's tools.
