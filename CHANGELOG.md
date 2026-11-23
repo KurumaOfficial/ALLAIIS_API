@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.8
+
+The plan line warns before the allowance is gone.
+
 
 - **Doctor warns at the quota floor.** `web plan` uses the same floor as the
   panel badge and prints when the chat allowance resets, so a count of 3 is a
