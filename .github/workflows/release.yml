@@ -61,6 +61,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -68,7 +69,21 @@ jobs:
       - name: Checksums
         working-directory: dist
         run: sha256sum * > SHA256SUMS
+      # The changelog already groups a release by theme; the auto-generated
+      # commit list buries that under merge noise.
+      - name: Notes from the changelog
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          awk -v want="## v$tag" '
+            $0 == want {inside = 1; next}
+            /^## v/ {inside = 0}
+            inside
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "See [CHANGELOG.md](CHANGELOG.md) for this release." > notes.md
+          fi
+          cat notes.md
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: notes.md

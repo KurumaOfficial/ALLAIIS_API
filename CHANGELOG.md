@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Release notes come from the changelog.** The workflow extracts the matching
+  `## vX.Y.Z` section and uses it as the release body, instead of a generated
+  list of commit subjects.
+
 - **The one-generation-per-account lock is pinned by tests**: two turns on one
   credential never overlap on the wire, and a queued turn gives up when its caller
   does instead of waiting for the first to finish.
