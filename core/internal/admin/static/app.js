@@ -61,6 +61,11 @@ function render () {
   $('ov-models').textContent = state.models.length
   $('ov-requests').textContent = state.usage.total || 0
   $('ov-errors').textContent = (state.usage.errors || 0) + ' errors'
+  // Repairs are wins, not errors: a label switch or a refilled call the client
+  // never had to see.
+  const repaired = (state.usage.arg_repairs || 0) + (state.usage.block_repairs || 0)
+  $('ov-repairs').textContent = (state.usage.failover || 0) + ' label switches · ' + repaired + ' calls repaired'
+  $('ov-repairs').hidden = !(state.usage.failover || repaired)
   $('ov-chars').textContent = (state.usage.chars || 0).toLocaleString()
   const reshaped = (state.usage.tool_unwrap || 0) + (state.usage.tool_fold || 0) + (state.usage.tool_suffix || 0)
   $('ov-tools').textContent = reshaped.toLocaleString()
