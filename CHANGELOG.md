@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.7
+
+The last open item closed: a sealed reply was opened live.
+
 
 - **E2EE verified live.** The catalogue carries free, Pro-only `e2ee-*` models;
   a sealed turn on `e2ee-gpt-oss-120b-p` came back decrypted and a tool call
