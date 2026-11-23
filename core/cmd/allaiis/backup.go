@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -115,20 +114,4 @@ func restoreBackup(dir, source string, force bool) error {
 	}
 	fmt.Fprintln(os.Stdout, "Stop the gateway before restoring, then start it again.")
 	return nil
-}
-
-// copyFile is used by tests and keeps the copy small.
-func copyFile(source, target string) error {
-	in, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(target)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
 }

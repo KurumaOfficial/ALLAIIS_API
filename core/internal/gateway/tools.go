@@ -402,15 +402,6 @@ func nameKey(name string) string {
 	return folded.String()
 }
 
-func (g *toolGuard) knownCalls(calls []toolCall) bool {
-	for _, call := range calls {
-		if !g.known(call.Function.Name) {
-			return false
-		}
-	}
-	return true
-}
-
 // Write consumes a chunk and returns text that is safe to emit. A parsed block
 // is returned through calls. A block that is still arriving stays buffered.
 func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err error) {

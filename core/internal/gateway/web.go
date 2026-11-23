@@ -51,8 +51,6 @@ func (w *lockedWriter) Flush() {
 	}
 }
 
-var errTooManyImages = errors.New("too many attachments for this model")
-
 var webDebug = os.Getenv("ALLAIIS_WEB_DEBUG") != ""
 
 // webShape renders a web reply in one inbound protocol.
@@ -652,7 +650,7 @@ func checkContext(system string, messages []webprov.Message, tools []toolSpec, r
 		size += len(tool.Function.Description) + len(tool.Function.Parameters)
 	}
 	if estimateChars(size) > route.MaxContext {
-		return fmt.Errorf("The prompt is about %d tokens; the model accepts %d.",
+		return fmt.Errorf("the prompt is about %d tokens; the model accepts %d",
 			estimateChars(size), route.MaxContext)
 	}
 	return nil

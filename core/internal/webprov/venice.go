@@ -207,7 +207,9 @@ type cached struct {
 
 // New builds a client with a Chrome TLS fingerprint and HTTP/2.
 func New(timeout time.Duration) *Client {
+	//lint:ignore SA1019 the uTLS dialer needs this hook, which the stdlib transport lacks
 	transport := &http2.Transport{
+		//lint:ignore SA1019 same hook, kept for the fingerprint
 		DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
 			raw, err := net.DialTimeout(network, addr, 15*time.Second)
 			if err != nil {

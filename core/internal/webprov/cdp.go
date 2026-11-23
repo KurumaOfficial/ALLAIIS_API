@@ -56,7 +56,7 @@ func LaunchChrome(profileDir, url string) error {
 		}
 	}
 	if binary == "" {
-		return errors.New("Google Chrome was not found; install Chrome or pass --chrome")
+		return errors.New("google Chrome was not found; install Chrome or pass --chrome")
 	}
 	if err := os.MkdirAll(profileDir, 0o700); err != nil {
 		return err
@@ -106,7 +106,7 @@ func dialCDP(ctx context.Context) (*cdpSession, error) {
 		}
 	}
 	if wsURL == "" {
-		return nil, errors.New("Chrome has no open page; open https://venice.ai")
+		return nil, errors.New("chrome has no open page; open https://venice.ai")
 	}
 	conn, err := websocket.Dial(wsURL, "", cdpEndpoint)
 	if err != nil {

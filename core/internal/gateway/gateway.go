@@ -522,7 +522,7 @@ func messagesVersion(values []string) (string, error) {
 			return values[0], nil
 		}
 	}
-	return "", errors.New("Anthropic-Version must be a single date in YYYY-MM-DD format.")
+	return "", errors.New("Anthropic-Version must be a single date in YYYY-MM-DD format")
 }
 
 func parseCompletion(body []byte, protocol config.Protocol) (map[string]json.RawMessage, string, bool, []byte, error) {

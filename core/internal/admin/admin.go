@@ -147,15 +147,17 @@ func (s *Server) Listen(ctx context.Context, address string, ready func(url stri
 		return err
 	}
 	defer listener.Close()
-	if host, _, err := net.SplitHostPort(listener.Addr().String()); err == nil && host == "" {
-		address = net.JoinHostPort("127.0.0.1", portOf(listener.Addr().String()))
+	// A wildcard listen prints as 127.0.0.1 in the reported URL.
+	bound := listener.Addr().String()
+	if host, _, err := net.SplitHostPort(bound); err == nil && host == "" {
+		bound = net.JoinHostPort("127.0.0.1", portOf(bound))
 	}
 	server := &http.Server{
 		Handler: s, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 120 * time.Second,
 		MaxHeaderBytes: 32 << 10,
 		BaseContext:    func(net.Listener) context.Context { return ctx },
 	}
-	url := "http://" + listener.Addr().String() + "/"
+	url := "http://" + bound + "/"
 	if ready != nil {
 		ready(url)
 	}
