@@ -1119,6 +1119,9 @@ func TestE2EERRouteSendsTheEnclaveHeaders(t *testing.T) {
 	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "plain answer") {
 		t.Fatalf("e2ee route failed: %d %s", result.Code, result.Body)
 	}
+	if got := result.Header().Get("X-ALLAIIS-E2EE"); got != "envelope" {
+		t.Fatalf("route not marked encrypted: %q", got)
+	}
 }
 
 func TestE2EEFailureIsCounted(t *testing.T) {

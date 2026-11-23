@@ -43,7 +43,7 @@ func setup(t *testing.T) *fixture {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/v1/tee/attestation") {
 			key, _ := secp256k1.GeneratePrivateKey()
-			fmt.Fprintf(w, `{"verified":true,"nonce":%q,"signing_key":%q}`,
+			fmt.Fprintf(w, `{"verified":true,"nonce":%q,"signing_key":%q,"tee_provider":"fixture","tee_hardware":"intel-tdx"}`,
 				r.URL.Query().Get("nonce"), hex.EncodeToString(key.PubKey().SerializeUncompressed()))
 			return
 		}
@@ -189,6 +189,19 @@ func TestPanelShowsABalanceMark(t *testing.T) {
 	}
 	if strings.Contains(state.Body.String(), `"cooldowns"`) {
 		t.Fatalf("a balance mark parked the whole label: %s", state.Body)
+	}
+}
+
+func TestPanelAttestsAnEnclave(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"{}"}`, "")
+	result := f.call(t, http.MethodPost, "/api/e2ee/probe",
+		`{"provider":"fake","label":"work","model":"e2ee-glm-5-3-flash"}`, "")
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "attestation") {
+		t.Fatalf("probe failed: %d %s", result.Code, result.Body)
+	}
+	if !strings.Contains(result.Body.String(), "intel-tdx") {
+		t.Fatalf("attestation not reported: %s", result.Body)
 	}
 }
 

@@ -189,6 +189,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	w.Header().Set("X-ALLAIIS-Credential", target.Entry.Label)
 	w.Header().Set("X-ALLAIIS-Model", target.Route.ID)
 	w.Header().Set("X-ALLAIIS-Emulated-Features", emulated)
+	if target.Route.E2EE {
+		w.Header().Set("X-ALLAIIS-E2EE", "envelope")
+	}
 
 	id := replyID(protocol)
 	created := time.Now().Unix()

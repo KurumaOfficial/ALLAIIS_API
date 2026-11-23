@@ -94,6 +94,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/discover", s.guard(s.discover))
 	mux.HandleFunc("POST /api/probe", s.guard(s.probe))
 	mux.HandleFunc("POST /api/probe/tools", s.guard(s.probeTools))
+	mux.HandleFunc("POST /api/e2ee/probe", s.guard(s.e2eeProbe))
 	mux.HandleFunc("POST /api/smoke", s.guard(s.smoke))
 	mux.HandleFunc("GET /api/smoke/history", s.guard(s.smokeHistory))
 	mux.HandleFunc("GET /api/logs", s.guard(s.logsPage))
@@ -563,6 +564,57 @@ func (s *Server) webLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"output": strings.TrimSpace(out)})
+}
+
+// e2eeProbe attests one model enclave through a stored label. An attestation
+// spends no quota, so this works on a spent session.
+func (s *Server) e2eeProbe(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Provider string `json:"provider"`
+		Label    string `json:"label"`
+		Model    string `json:"model"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	cfg, err := s.loadConfig()
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	provider, ok := cfg.Provider(input.Provider)
+	if !ok {
+		fail(w, http.StatusBadRequest, "unknown provider")
+		return
+	}
+	entries, err := s.options.Store.Entries(r.Context(), input.Provider, provider.BaseURL)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	credential, found := webprov.Credential{}, false
+	for _, entry := range entries {
+		if entry.Label == input.Label {
+			if credential, err = webprov.ParseCredential(entry.Key); err == nil {
+				found = true
+			}
+			break
+		}
+	}
+	if !found {
+		fail(w, http.StatusNotFound, "that label is not stored for this provider")
+		return
+	}
+	client := webprov.New(15 * time.Second)
+	if strings.HasPrefix(provider.BaseURL, "http://") {
+		client = client.WithHTTP(http.DefaultClient)
+	}
+	probe, err := client.ProbeE2EE(r.Context(), credential, input.Model)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"attestation": probe})
 }
 
 // resetLabel drops cached session state and cooldowns for a fresh capture.

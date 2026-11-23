@@ -220,6 +220,20 @@ function render () {
     if (!model.available) row.firstElementChild.innerHTML = esc(model.id) + ' <span class="badge bad">no key</span>'
     if (model.disabled) row.firstElementChild.innerHTML += ' <span class="badge">muted</span>'
     if (model.e2ee) row.firstElementChild.innerHTML += ' <span class="badge e2ee" title="messages are encrypted to the model enclave">e2ee</span>'
+    if (model.e2ee) {
+      const test = document.createElement('button')
+      test.className = 'ghost tiny'
+      test.textContent = 'Test enclave'
+      test.onclick = async () => {
+        try {
+          const result = await api('/api/e2ee/probe', { method: 'POST', body: JSON.stringify({ provider: model.provider, label: model.label, model: model.upstream_model }) })
+          if (result.error) return toast(result.error, true)
+          const a = result.attestation || {}
+          toast('Enclave attested: ' + (a.tee_provider || '?') + '/' + (a.tee_hardware || '?') + (a.tdx_checked ? ' (TDX checked)' : ''))
+        } catch (error) { toast(error.message, true) }
+      }
+      row.lastElementChild.append(test)
+    }
     if (model.balance_until && new Date(model.balance_until) > new Date()) {
       row.firstElementChild.innerHTML += ' <span class="badge warn" title="no messages left for this model on the label">no balance until ' + stamp(model.balance_until) + '</span>'
     }

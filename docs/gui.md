@@ -70,6 +70,9 @@ is available as `"disabled": true` on a route in `config.json`.
 A row also carries `no balance until …` when a `402` parked that model on its
 label, while the label itself keeps serving other models.
 
+An e2ee row has **Test enclave**: it attests the enclave through the alias's own
+label (no quota spent) and reports the provider and hardware, or the failure.
+
 ## Probes and smoke
 
 **Probe tool** next to it asks the chosen alias to call `list_files` and judges the
