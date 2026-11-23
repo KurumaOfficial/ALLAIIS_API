@@ -377,14 +377,16 @@ func (g *toolGuard) argumentProblem(call toolCall) string {
 	return "misses " + strings.Join(missing, ",")
 }
 
-// incompleteCalls reports whether every call has an argument problem.
-func (g *toolGuard) incompleteCalls(calls []toolCall) bool {
+// argumentProblems names every call short of a required field and is empty
+// when all of them are acceptable.
+func (g *toolGuard) argumentProblems(calls []toolCall) []string {
+	var problems []string
 	for _, call := range calls {
-		if g.argumentProblem(call) == "" {
-			return false
+		if problem := g.argumentProblem(call); problem != "" {
+			problems = append(problems, call.Function.Name+" "+problem)
 		}
 	}
-	return len(calls) > 0
+	return problems
 }
 
 // nameKey folds case and drops the separators models sprinkle into tool names.

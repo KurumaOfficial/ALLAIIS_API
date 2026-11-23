@@ -303,12 +303,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		// A call short of an argument is worth a repair turn: the model has the
 		// block in front of it and only has to fill the gap. The turn names the
 		// field, and the call is replaced before the client runs it.
-		var problems []string
-		for _, call := range heldCalls {
-			if problem := guard.argumentProblem(call); problem != "" {
-				problems = append(problems, call.Function.Name+" "+problem)
-			}
-		}
+		problems := guard.argumentProblems(heldCalls)
 		if err == nil && len(problems) > 0 && attempts < 2 {
 			request.Messages = repairMessages(reason.messages(envelope), renderCallList("", heldCalls), strings.Join(problems, "; "))
 			reason.reasoningText.Reset()
