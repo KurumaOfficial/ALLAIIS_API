@@ -345,6 +345,36 @@ func TestResponsesStoreFalseKeepsTurnsOut(t *testing.T) {
 	}
 }
 
+// TestResponsesStoreFalseKeepsTurnsOutOfTheVault pins the switch: a client that
+// asks for no storage must not have its prompts replayed from disk later.
+func TestResponsesStoreFalseKeepsTurnsOutOfTheVault(t *testing.T) {
+	var bodies []map[string]any
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		bodies = append(bodies, body)
+		if len(bodies) == 1 {
+			writeFrames(w, "first answer")
+			return
+		}
+		if strings.Contains(fmt.Sprint(body["prompt"]), "first answer") {
+			t.Errorf("stored turns replayed: %v", body["prompt"])
+		}
+		writeFrames(w, "second answer")
+	})
+	handler, rebuild, store := responsesGatewayRebuild(t, server.URL)
+	first := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"one","store":false}`)
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &created); err != nil || created.ID == "" {
+		t.Fatalf("no response id: %s", first.Body)
+	}
+	second := responsesCall(rebuild(), store.ClientKey(),
+		`{"model":"gpt-venice-web-fixture","previous_response_id":"`+created.ID+`","input":"two"}`)
+	if second.Code != http.StatusOK {
+		t.Fatalf("follow-up failed: %d %s", second.Code, second.Body)
+	}
+}
+
 func TestResponsesFollowUpByPreviousId(t *testing.T) {
 	var bodies []map[string]any
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
