@@ -98,10 +98,18 @@ A `403` with `cloudflare_challenge` means the attestation went stale: run
 ## Switching a client over
 
 ```powershell
+.\allaiis.exe service status     # the gateway must already be up
+.\allaiis.exe doctor             # no errors, and the alias you want is listed
 .\allaiis.exe export opencode
 ```
 
-That prints the provider block for OpenCode's config with the local key. The
-gateway serves the OpenAI, Responses and Anthropic Messages shapes on the same
-port, so any client that speaks one of them only needs the base URL
+`export opencode` prints the provider block for OpenCode's config with the local
+key. The gateway serves the OpenAI, Responses and Anthropic Messages shapes on
+the same port, so any client that speaks one of them only needs the base URL
 `http://127.0.0.1:8420/v1` and the key from `allaiis key`.
+
+Pick an alias that answers: free models keep working when the plan is spent,
+while a paid or `e2ee` alias answers `402` until the label has balance. An `e2ee`
+alias also needs a signed-in label and spends an attestation round trip, and its
+sealed reply is still unverified — start with a free alias and move over when the
+first `allaiis web e2ee` canary decrypts.
