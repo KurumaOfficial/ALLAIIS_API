@@ -3,6 +3,11 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **`allaiis version` exists**, also as `-v` and `--version`. A bug report or a
+  script reached for it and got "unknown command".
+
 ## v0.1.18
 
 Anthropic clients can ask how big a turn is before sending it.
