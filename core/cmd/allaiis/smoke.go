@@ -28,9 +28,12 @@ type smokeResult struct {
 	Protocol string `json:"protocol"`
 	Attempt  int    `json:"attempt"`
 	Status   int    `json:"status"`
-	Millis   int64  `json:"millis"`
-	OK       bool   `json:"ok"`
-	Detail   string `json:"detail"`
+	// Code is the machine-readable error code, so a script can tell a cooling
+	// pool from a model the app does not offer.
+	Code   string `json:"code,omitempty"`
+	Millis int64  `json:"millis"`
+	OK     bool   `json:"ok"`
+	Detail string `json:"detail"`
 }
 
 // runSmoke exercises every alias (or one alias, repeatedly) against an
@@ -87,10 +90,21 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 			if result.Protocol == "" {
 				result.Protocol = "chat"
 			}
-			if time.Now().Before(cooling) {
+			// A balance mark is per model, so a pinned route can read it; an
+			// unpinned one lets the call report itself.
+			var balance time.Time
+			if target.CredentialLabel != "" {
+				balance, _ = store.Cooldown(ctx, target.Provider, key+"\x00"+target.ID)
+			}
+			switch {
+			case time.Now().Before(balance):
+				result.Status = http.StatusTooManyRequests
+				result.Code = "insufficient_balance"
+				result.Detail = "model has no balance until " + balance.Format("15:04:05")
+			case time.Now().Before(cooling):
 				result.Status = http.StatusTooManyRequests
 				result.Detail = "provider cooling until " + cooling.Format("15:04:05")
-			} else {
+			default:
 				result = smokeOne(ctx, client, server.URL, store.ClientKey(), target, attempt)
 			}
 			results = append(results, result)
@@ -189,6 +203,20 @@ func containsString(list []string, value string) bool {
 	return false
 }
 
+// smokeCode reads the machine code out of an error body, empty when there is
+// none or the body is not JSON.
+func smokeCode(raw []byte) string {
+	var body struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(raw, &body) != nil {
+		return ""
+	}
+	return body.Error.Code
+}
+
 func smokeOne(ctx context.Context, client *http.Client, base, key string, route config.Route, attempt int) smokeResult {
 	result := smokeResult{Alias: route.ID, Protocol: string(route.Protocol), Attempt: attempt}
 	if result.Protocol == "" {
@@ -238,6 +266,7 @@ func smokeOne(ctx context.Context, client *http.Client, base, key string, route 
 		result.Detail = "upstream " + readable
 	}
 	if response.StatusCode != http.StatusOK {
+		result.Code = smokeCode(raw)
 		result.Detail = strings.TrimSpace(smokeFailure(raw))
 		return result
 	}
@@ -379,6 +408,7 @@ func smokeToolAttempt(ctx context.Context, client *http.Client, base, key string
 	raw, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	result.Status = response.StatusCode
 	if response.StatusCode != http.StatusOK {
+		result.Code = smokeCode(raw)
 		result.Detail = strings.TrimSpace(smokeFailure(raw))
 		return result
 	}

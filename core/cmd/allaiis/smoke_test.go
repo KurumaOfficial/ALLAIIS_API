@@ -84,6 +84,49 @@ func TestSmokeReportsFailures(t *testing.T) {
 	})
 }
 
+func TestSmokeReportsAModelParkedForBalance(t *testing.T) {
+	dir, configPath, vaultPath := smokeFixture(t, false)
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A pinned route, so the park belongs to a label the check can name.
+	cfg.Models[0].CredentialLabel = "work"
+	body, _ := json.Marshal(cfg)
+	if err := os.WriteFile(configPath, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	provider, _ := cfg.Provider("fixture")
+	store, err := vault.Open(t.Context(), vaultPath, []byte(os.Getenv("ALLAIIS_VAULT_PASSPHRASE")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetCooldown(t.Context(), "fixture", provider.BaseURL+"\x00work\x00one", time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	store.Close()
+
+	var errRun error
+	out := capture(t, func() {
+		errRun = runSmoke(t.Context(), dir, configPath, vaultPath, "one", 1, 20*time.Second, false, true)
+	})
+	if errRun == nil {
+		t.Fatal("a parked model reported success")
+	}
+	if !strings.Contains(out, "no balance until") {
+		t.Fatalf("the park is not named: %s", out)
+	}
+}
+
+func TestSmokeCode(t *testing.T) {
+	if code := smokeCode([]byte(`{"error":{"code":"model_not_found"}}`)); code != "model_not_found" {
+		t.Fatalf("code %q", code)
+	}
+	if code := smokeCode([]byte("not json")); code != "" {
+		t.Fatalf("garbage gave %q", code)
+	}
+}
+
 func TestSmokeRejectsUnknownAlias(t *testing.T) {
 	dir, configPath, vaultPath := smokeFixture(t, false)
 	capture(t, func() {
