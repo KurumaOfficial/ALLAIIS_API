@@ -954,11 +954,8 @@ func (c *Client) Probe(ctx context.Context, cred Credential) (map[string]any, er
 		return nil, err
 	}
 	if token != "" {
-		account, err := c.account(ctx, cred, attestation, token)
-		if err == nil {
+		if account, err := c.account(ctx, cred, attestation, token); err == nil {
 			limits["account"] = account
-		} else if os.Getenv("ALLAIIS_WEB_DEBUG") != "" {
-			os.WriteFile(os.TempDir()+"/venice-account-error.txt", []byte(err.Error()), 0o600)
 		}
 	}
 	return limits, nil
