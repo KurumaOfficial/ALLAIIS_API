@@ -266,19 +266,28 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 	readCtx, stall := newStallGuard(ctx, req.Inactivity)
 	defer stall.stop()
 	userID, signedIn, mintErr := c.resolveUser(ctx, cred)
-	payload := req
 	var session *e2eeSession
-	if req.E2EE {
-		session, err = c.e2eeSession(ctx, cred, req.Model)
-		if err != nil {
-			return err
+	// build renders the payload, sealing it when the route is encrypted; a
+	// rotated enclave key gets a fresh session and a rebuilt body.
+	build := func() ([]byte, error) {
+		payload := req
+		if req.E2EE {
+			if session == nil {
+				created, err := c.e2eeSession(ctx, cred, req.Model)
+				if err != nil {
+					return nil, err
+				}
+				session = created
+			}
+			sealed, err := sealMessages(session, req.Messages)
+			if err != nil {
+				return nil, err
+			}
+			payload.Messages = sealed
 		}
-		payload.Messages, err = sealMessages(session, req.Messages)
-		if err != nil {
-			return err
-		}
+		return json.Marshal(venicePayload(cred, payload, userID))
 	}
-	body, err := json.Marshal(venicePayload(cred, payload, userID))
+	body, err := build()
 	if err != nil {
 		return err
 	}
@@ -348,6 +357,14 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 			}
 			// A stream that dies before the first event is worth one retry.
 			if streamErr != nil && attempt == 1 && ctx.Err() == nil && !delivered {
+				// A rotated enclave key needs a new session, not a replay.
+				if errors.Is(streamErr, ErrE2EE) {
+					c.forgetE2EE(req.Model)
+					session = nil
+					if body, err = build(); err != nil {
+						return err
+					}
+				}
 				continue
 			}
 			return streamErr
@@ -365,7 +382,7 @@ func (c *Client) Chat(ctx context.Context, cred Credential, req Request, emit fu
 			if attempt == 1 && (signedIn || mintErr != nil || cred.clerkCookie("__client") != "") {
 				if refreshed, _, err := c.remint(ctx, cred); err == nil {
 					userID = refreshed
-					if body, err = json.Marshal(venicePayload(cred, payload, userID)); err != nil {
+					if body, err = build(); err != nil {
 						return err
 					}
 					continue

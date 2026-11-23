@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -305,5 +306,62 @@ func TestE2EEAcceptsAGoodTDXVerdict(t *testing.T) {
 	})
 	if err != nil || text.String() != "fine" {
 		t.Fatalf("good verdict rejected: %v %q", err, text.String())
+	}
+}
+
+// A chunk that will not open must be re-attested, not replayed: the first one is
+// sealed for another client key.
+func TestE2EERetriesWhenAChunkWillNotOpen(t *testing.T) {
+	private, err := secp256k1.GeneratePrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	signing := hex.EncodeToString(private.PubKey().SerializeUncompressed())
+	other, err := secp256k1.GeneratePrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app/user/client_attestation/mint":
+			fmt.Fprint(w, `{"tokens":[{"token":"t"}]}`)
+		case "/v1/tee/attestation":
+			fmt.Fprintf(w, `{"verified":true,"nonce":%q,"signing_key":%q}`, r.URL.Query().Get("nonce"), signing)
+		case "/inference/chat":
+			clientKey, err := parseSecpKey(r.Header.Get("X-Venice-TEE-Client-Pub-Key"))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			peer := clientKey
+			if calls.Add(1) == 1 {
+				// A chunk sealed for a different client key will not open.
+				peer = other.PubKey()
+			}
+			answer, err := sealTo(private, peer, "second try")
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			fmt.Fprintf(w, "{\"kind\":\"content\",\"content\":%q}\n", answer)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client := New(5 * time.Second).WithHTTP(server.Client()).WithBase(server.URL)
+	var text strings.Builder
+	err = client.Chat(context.Background(), Credential{}, Request{
+		Model: "e2ee-x", E2EE: true,
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	}, func(event Event) error {
+		text.WriteString(event.Content)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text.String() != "second try" || calls.Load() != 2 {
+		t.Fatalf("no retry after rotation: %q calls=%d", text.String(), calls.Load())
 	}
 }
