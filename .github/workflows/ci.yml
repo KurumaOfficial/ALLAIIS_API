@@ -83,11 +83,11 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Tool guard
-        run: go test ./core/internal/gateway -run '^$' -fuzz FuzzToolGuard -fuzztime 30s -timeout 180s
+        run: go test ./core/internal/gateway -run '^$' -fuzz FuzzToolGuard -fuzztime 30s -fuzzminimizetime 2s -timeout 180s
       - name: Request builders
-        run: go test ./core/internal/gateway -run '^$' -fuzz FuzzProtocolBuilders -fuzztime 30s -timeout 180s
+        run: go test ./core/internal/gateway -run '^$' -fuzz FuzzProtocolBuilders -fuzztime 30s -fuzzminimizetime 2s -timeout 180s
       - name: Event decoder
-        run: go test ./core/internal/webprov -run '^$' -fuzz FuzzDecodeEvents -fuzztime 30s -timeout 180s
+        run: go test ./core/internal/webprov -run '^$' -fuzz FuzzDecodeEvents -fuzztime 30s -fuzzminimizetime 2s -timeout 180s
       - name: Keep a failing input
         if: failure()
         uses: actions/upload-artifact@v4

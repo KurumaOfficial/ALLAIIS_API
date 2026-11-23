@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **Fuzz runs stop when they say.** The minimization tail is capped in CI: a
+  five-minute local run spent twenty more minutes minimizing a corpus of
+  hundreds of inputs, and two gigabytes, without failing anything.
+
 ## v0.1.9
 
 The generated client block no longer loses what an alias can do.
