@@ -66,6 +66,7 @@
         <label>Alias<input name="name" id="model-name" placeholder="auto from model"></label>
         <label>Protocol<select name="protocol"><option value="">chat</option><option value="messages">messages</option><option value="responses">responses</option></select></label>
         <label>Privacy<select name="privacy"><option value="consumer_cloud">consumer_cloud</option><option value="zdr">zdr</option><option value="e2ee">e2ee</option><option value="public_research">public_research</option></select></label>
+        <label class="check"><input type="checkbox" name="e2ee" id="model-e2ee"> Encrypt to enclave</label>
         <div class="form-foot"><button type="submit" class="primary">Add alias</button><span class="muted tiny" id="model-caps">responses routes need a credential</span></div>
       </form>
     </div>

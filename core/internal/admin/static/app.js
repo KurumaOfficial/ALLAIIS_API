@@ -346,6 +346,8 @@ function bind () {
   $('model-form').onsubmit = async event => {
     event.preventDefault()
     const data = Object.fromEntries(new FormData(event.target))
+    // A checkbox arrives as "on"; the API wants a boolean.
+    data.e2ee = $('model-e2ee').checked
     try {
       if (pickedModel && pickedModel.id === data.upstream_model) {
         data.reasoning = pickedModel.reasoning
@@ -461,6 +463,7 @@ function bind () {
           $('model-label').value = $('discover-label').value
           $('model-upstream').value = model.id
           $('model-name').value = ''
+          $('model-e2ee').checked = !!model.e2ee
           const caps = []
           if (model.reasoning) caps.push('thinking')
           if (model.vision) caps.push('vision ×' + (model.max_images || 10))

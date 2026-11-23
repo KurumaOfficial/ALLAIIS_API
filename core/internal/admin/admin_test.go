@@ -109,7 +109,7 @@ func (f *fixture) call(t *testing.T, method, path, body string, token string) *h
 func TestPanelShowsTheRepairCounters(t *testing.T) {
 	f := setup(t)
 	result := f.call(t, http.MethodGet, "/", "", "")
-	for _, id := range []string{"ov-repairs"} {
+	for _, id := range []string{"ov-repairs", "model-e2ee"} {
 		if !strings.Contains(result.Body.String(), id) {
 			t.Fatalf("overview lacks %s", id)
 		}
