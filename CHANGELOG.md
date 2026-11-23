@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.11
+
+The service supervisor waits properly.
+
 
 - **The service script waits with `ping`, not `timeout`.** `timeout` needs a
   console input handle and fails at once under `start /min`, so a crash could
