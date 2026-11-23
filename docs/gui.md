@@ -29,9 +29,10 @@ the binary.
 ## Quota
 
 **Quota** probes the remaining chat allowance of every stored session for a web
-provider and shows the reset time, without spending a message. It also reveals
-whether a session actually resolves to a signed-in account or fell back to
-anonymous, which is the first thing to check when a plan quota looks wrong.
+provider, without spending a message, and shows the reset time, the plan and the
+credit bucket the paid models draw on, with the refill date when that bucket is
+empty. It also reveals whether a session resolves to a signed-in account or fell
+back to anonymous, which is the first thing to check when a counter looks wrong.
 
 ## Cooldowns
 
