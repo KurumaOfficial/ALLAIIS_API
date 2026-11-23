@@ -31,13 +31,16 @@ type metricEvent struct {
 }
 
 type metrics struct {
-	mu      sync.Mutex
-	total   int64
-	errors  int64
-	chars   int64
-	recent  []metricEvent
-	byModel map[string]int64
-	series  map[seriesKey]*seriesValue
+	mu       sync.Mutex
+	total    int64
+	errors   int64
+	chars    int64
+	failover int64
+	argFix   int64
+	blockFix int64
+	recent   []metricEvent
+	byModel  map[string]int64
+	series   map[seriesKey]*seriesValue
 }
 
 type seriesKey struct{ model, protocol, status string }
@@ -85,6 +88,26 @@ func (m *metrics) add(event metricEvent) {
 	}
 }
 
+// failover, argFix and blockFix count the repairs done before the client ran
+// anything, so their rate is visible without the log.
+func (m *metrics) noteFailover() {
+	m.mu.Lock()
+	m.failover++
+	m.mu.Unlock()
+}
+
+func (m *metrics) noteArgFix() {
+	m.mu.Lock()
+	m.argFix++
+	m.mu.Unlock()
+}
+
+func (m *metrics) noteBlockFix() {
+	m.mu.Lock()
+	m.blockFix++
+	m.mu.Unlock()
+}
+
 // summary reports totals and the newest events first.
 func (m *metrics) summary() map[string]any {
 	m.mu.Lock()
@@ -102,6 +125,7 @@ func (m *metrics) summary() map[string]any {
 	}
 	return map[string]any{
 		"total": m.total, "errors": m.errors, "chars": m.chars,
+		"failover": m.failover, "arg_repairs": m.argFix, "block_repairs": m.blockFix,
 		"models": models, "recent": recent,
 		"tool_unwrap":      toolCounters.unwrap.Load(),
 		"tool_fold":        toolCounters.fold.Load(),
@@ -227,6 +251,15 @@ func (m *metrics) prometheus(models int) string {
 	}
 	// Counters for the reshaping the tool parser did, so its effect is visible
 	// without reading the log.
+	out.WriteString("# HELP allaiis_label_failover_total Requests retried on another pool label before any byte.\n")
+	out.WriteString("# TYPE allaiis_label_failover_total counter\n")
+	fmt.Fprintf(&out, "allaiis_label_failover_total %d\n", m.failover)
+	out.WriteString("# HELP allaiis_tool_argument_repair_total Calls replaced after missing a required argument.\n")
+	out.WriteString("# TYPE allaiis_tool_argument_repair_total counter\n")
+	fmt.Fprintf(&out, "allaiis_tool_argument_repair_total %d\n", m.argFix)
+	out.WriteString("# HELP allaiis_tool_block_repair_total Replies retried after a malformed tool block.\n")
+	out.WriteString("# TYPE allaiis_tool_block_repair_total counter\n")
+	fmt.Fprintf(&out, "allaiis_tool_block_repair_total %d\n", m.blockFix)
 	out.WriteString("# HELP allaiis_tool_unwrap_total Calls whose arguments had a wrapper removed.\n")
 	out.WriteString("# TYPE allaiis_tool_unwrap_total counter\n")
 	fmt.Fprintf(&out, "allaiis_tool_unwrap_total %d\n", toolCounters.unwrap.Load())

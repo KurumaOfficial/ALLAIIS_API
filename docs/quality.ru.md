@@ -79,7 +79,10 @@ loopback-гейтвей напрямую.
 
 `GET /metrics` отдаёт текст Prometheus без ключа: `allaiis_requests_total` по
 алиасу, протоколу и статусу, суммы длительности и символов, гейдж обслуженных
-моделей и `allaiis_up`. Парсер инструментов добавляет
+моделей и `allaiis_up`. Починки до того, как клиент что-то выполнил, считаются
+как `allaiis_label_failover_total`, `allaiis_tool_argument_repair_total` и
+`allaiis_tool_block_repair_total`, так что сбойная метка или небрежная модель
+видны без чтения лога. Парсер инструментов добавляет
 `allaiis_tool_unwrap_total`, `allaiis_tool_name_fold_total`,
 `allaiis_tool_name_suffix_total` и `allaiis_tool_unknown_total`, поэтому
 переформирование видно без лога, плюс гейджи `allaiis_tool_name_ttl_seconds` и

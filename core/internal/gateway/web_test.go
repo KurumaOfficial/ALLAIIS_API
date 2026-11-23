@@ -882,6 +882,16 @@ func TestUnpinnedPoolRetriesAnotherLabel(t *testing.T) {
 	if got, want := result.Header().Get("X-ALLAIIS-Credential"), served.Load(); got == "" || got != want {
 		t.Fatalf("header names %q, the answer came from %q", got, want)
 	}
+	if scrape := metricsOf(handler); !strings.Contains(scrape, "allaiis_label_failover_total 1") {
+		t.Fatalf("failover not counted: %s", scrape)
+	}
+}
+
+// metricsOf scrapes the handler's Prometheus text.
+func metricsOf(handler http.Handler) string {
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	return result.Body.String()
 }
 
 // An empty balance is a fact about one model; a free model on the same session

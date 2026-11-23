@@ -80,7 +80,10 @@ loopback gateway directly.
 
 `GET /metrics` serves Prometheus text without a key: `allaiis_requests_total`
 per alias, protocol and status, duration and character sums, the served-model
-gauge and `allaiis_up`. The tool parser adds `allaiis_tool_unwrap_total`,
+gauge and `allaiis_up`. Repairs before the client ran anything are counted as
+`allaiis_label_failover_total`, `allaiis_tool_argument_repair_total` and
+`allaiis_tool_block_repair_total`, so a failing label or a sloppy model shows
+up without reading the log. The tool parser adds `allaiis_tool_unwrap_total`,
 `allaiis_tool_name_fold_total`, `allaiis_tool_name_suffix_total` and
 `allaiis_tool_unknown_total`, so reshaping is visible without the log, plus the
 `allaiis_tool_name_ttl_seconds` and `allaiis_tool_name_expired` gauges, so a

@@ -351,6 +351,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				fresh.Entry.Label != target.Entry.Label {
 				if parsed, parseErr := webprov.ParseCredential(fresh.Entry.Key); parseErr == nil {
 					target, credential = fresh, parsed
+					g.metrics.noteFailover()
 					w.Header().Set("X-ALLAIIS-Credential", target.Entry.Label)
 					reason.text.Reset()
 					reason.reasoningText.Reset()
@@ -362,6 +363,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			}
 		}
 		if errors.Is(err, errToolRepair) && attempts < 2 {
+			g.metrics.noteBlockFix()
 			request.Messages = repairMessages(reason.messages(envelope), reason.text.String(), "")
 			reason.reasoningText.Reset()
 			guard.reset()
@@ -386,6 +388,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		// field, and the call is replaced before the client runs it.
 		problems := guard.argumentProblems(heldCalls)
 		if err == nil && len(problems) > 0 && attempts < 2 {
+			g.metrics.noteArgFix()
 			request.Messages = repairMessages(reason.messages(envelope), renderCallList("", heldCalls), strings.Join(problems, "; "))
 			reason.reasoningText.Reset()
 			guard.reset()

@@ -446,4 +446,7 @@ func TestWebCallWithoutArgumentsAfterProseIsRepaired(t *testing.T) {
 	if calls.Load() != 2 {
 		t.Fatalf("expected one repair turn, got %d calls", calls.Load())
 	}
+	if scrape := metricsOf(handler); !strings.Contains(scrape, "allaiis_tool_argument_repair_total 1") {
+		t.Fatalf("repair not counted: %s", scrape)
+	}
 }
