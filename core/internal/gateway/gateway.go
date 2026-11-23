@@ -692,8 +692,10 @@ func writeError(w http.ResponseWriter, protocol config.Protocol, status int, cod
 		case http.StatusRequestEntityTooLarge:
 			kind = "request_too_large"
 		}
+		// Anthropic has no code field of its own, but a stable code is what a
+		// script branches on, so it rides along.
 		writeJSON(w, status, map[string]any{
-			"type": "error", "error": map[string]string{"type": kind, "message": message},
+			"type": "error", "error": map[string]string{"type": kind, "message": message, "code": code},
 		})
 		return
 	}

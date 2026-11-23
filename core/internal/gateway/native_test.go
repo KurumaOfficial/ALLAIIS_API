@@ -102,21 +102,22 @@ func TestNativeProtocols(t *testing.T) {
 		name, path, body, errorType string
 		headers                     http.Header
 		status                      int
+		code                        string
 	}{
 		{"Responses requires bearer", "/v1/responses", responseRequest, "invalid_api_key",
-			http.Header{"X-Api-Key": {store.ClientKey()}}, http.StatusUnauthorized},
+			http.Header{"X-Api-Key": {store.ClientKey()}}, http.StatusUnauthorized, ""},
 		{"Messages requires the local key", "/v1/messages", messageRequest, "authentication_error",
-			http.Header{"X-Api-Key": {"fixture-secret-1"}}, http.StatusUnauthorized},
+			http.Header{"X-Api-Key": {"fixture-secret-1"}}, http.StatusUnauthorized, ""},
 		{"two credential headers", "/v1/messages", messageRequest, "authentication_error",
-			http.Header{"Authorization": {"Bearer " + store.ClientKey()}, "X-Api-Key": {store.ClientKey()}}, http.StatusUnauthorized},
+			http.Header{"Authorization": {"Bearer " + store.ClientKey()}, "X-Api-Key": {store.ClientKey()}}, http.StatusUnauthorized, ""},
 		{"repeated version", "/v1/messages", messageRequest, "invalid_request_error",
-			http.Header{"X-Api-Key": {store.ClientKey()}, "Anthropic-Version": {"2023-06-01", "2026-10-21"}}, http.StatusBadRequest},
+			http.Header{"X-Api-Key": {store.ClientKey()}, "Anthropic-Version": {"2023-06-01", "2026-10-21"}}, http.StatusBadRequest, ""},
 		{"Responses on a chat route", "/v1/responses", strings.Replace(responseRequest, `"response"`, `"demo"`, 1),
-			"model_not_found", http.Header{"Authorization": {"Bearer " + store.ClientKey()}}, http.StatusNotFound},
+			"model_not_found", http.Header{"Authorization": {"Bearer " + store.ClientKey()}}, http.StatusNotFound, ""},
 		{"Messages privacy floor", "/v1/messages", messageRequest, "not_found_error",
-			http.Header{"X-Api-Key": {store.ClientKey()}, "X-Allaiis-Min-Privacy": {"zdr"}}, http.StatusNotFound},
+			http.Header{"X-Api-Key": {store.ClientKey()}, "X-Allaiis-Min-Privacy": {"zdr"}}, http.StatusNotFound, "model_not_found"},
 		{"background Responses", "/v1/responses", `{"model":"response","background":true,"input":"hello"}`,
-			"background generation", http.Header{"Authorization": {"Bearer " + store.ClientKey()}}, http.StatusBadRequest},
+			"background generation", http.Header{"Authorization": {"Bearer " + store.ClientKey()}}, http.StatusBadRequest, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
@@ -125,6 +126,14 @@ func TestNativeProtocols(t *testing.T) {
 			handler.ServeHTTP(w, r)
 			if w.Code != tc.status || !strings.Contains(w.Body.String(), tc.errorType) {
 				t.Fatalf("got %d %s, want %d with %q", w.Code, w.Body.String(), tc.status, tc.errorType)
+			}
+			// An Anthropic body still has to carry the stable code.
+			if tc.code != "" && !strings.Contains(w.Body.String(), `"code":"`+tc.code+`"`) {
+				t.Fatalf("no code in %s", w.Body)
+			}
+			// An Anthropic body still has to carry the stable code.
+			if tc.code != "" && !strings.Contains(w.Body.String(), `"code":"`+tc.code+`"`) {
+				t.Fatalf("no code in %s", w.Body)
 			}
 		})
 	}
