@@ -3,7 +3,9 @@
 package gateway_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -166,6 +168,36 @@ func TestResponsesToolResultMatchesMessages(t *testing.T) {
 	right, _ := json.Marshal(fromResponses["prompt"])
 	if string(left) != string(right) {
 		t.Fatalf("prompt differs\nmessages: %s\nresponses: %s", left, right)
+	}
+}
+
+// TestResponsesVisionSendsTheImage pins the flat image_url that the Responses
+// shape uses; it used to be decoded as an object, which dropped the whole part
+// list and sent the model JSON text instead of a picture.
+func TestResponsesVisionSendsTheImage(t *testing.T) {
+	png := base64.StdEncoding.EncodeToString([]byte("pngbytes"))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/mint"):
+			io.WriteString(w, `{"tokens":[{"token":"t"}]}`)
+		case r.URL.Path == "/inference/chat/agents/venice":
+			body, _ := io.ReadAll(r.Body)
+			if !strings.Contains(string(body), "input_image") || !strings.Contains(string(body), "pngbytes") {
+				t.Errorf("image missing from body")
+			}
+			io.WriteString(w, "event: response.output_text.delta\ndata: {\"delta\":\"Red\"}\n\ndata: [DONE]\n\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	handler, store := responsesGateway(t, server.URL)
+	payload := `{"model":"gpt-venice-web-fixture","input":[{"role":"user","content":[` +
+		`{"type":"input_text","text":"colour?"},` +
+		`{"type":"input_image","image_url":"data:image/png;base64,` + png + `"}]}]}`
+	result := responsesCall(handler, store.ClientKey(), payload)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "Red") {
+		t.Fatalf("got %d %s", result.Code, result.Body.String())
 	}
 }
 

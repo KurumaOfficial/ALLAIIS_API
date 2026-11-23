@@ -880,6 +880,29 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	return request, reason, tools, nil
 }
 
+// imageRef is an image pointer in either shape: Chat sends
+// {"image_url":{"url":...}} and Responses sends {"image_url":"..."}, so a bare
+// object here made the whole part list fail to decode and dropped the image.
+type imageRef struct {
+	URL string
+}
+
+func (i *imageRef) UnmarshalJSON(raw []byte) error {
+	var text string
+	if json.Unmarshal(raw, &text) == nil {
+		i.URL = text
+		return nil
+	}
+	var object struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return err
+	}
+	i.URL = object.URL
+	return nil
+}
+
 // messageParts joins text parts and decodes inline data-URL images.
 func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 	var text string
@@ -887,12 +910,10 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 		return text, nil
 	}
 	var parts []struct {
-		Type     string `json:"type"`
-		Text     string `json:"text"`
-		ImageURL *struct {
-			URL string `json:"url"`
-		} `json:"image_url"`
-		File *struct {
+		Type     string    `json:"type"`
+		Text     string    `json:"text"`
+		ImageURL *imageRef `json:"image_url"`
+		File     *struct {
 			Name string `json:"filename"`
 			Data string `json:"file_data"`
 		} `json:"file"`

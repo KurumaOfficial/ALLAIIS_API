@@ -5,6 +5,11 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Responses images.** `input_image` carries `image_url` as a bare string, but
+  the part decoder only knew the `{"url": ...}` object Chat uses. The decode
+  failed, so the whole part list came through as JSON text and the model saw no
+  picture. Both shapes decode now, and a test sends a real upload through
+  `/v1/responses`.
 - **Responses history.** A tool result replayed through `/v1/responses` reached
   the model without the blank line the Messages shape puts in front of it, so
   the model tended to call the same tool again. Both shapes now produce the same
