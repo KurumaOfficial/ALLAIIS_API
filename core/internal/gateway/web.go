@@ -322,7 +322,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	attempts := 0
 	// One label switch and one repair are separate budgets, so a bad label does
 	// not eat the repair a sloppy first answer needs.
-	failovers, repairs := 0, 0
+	failovers, repairs, empties := 0, 0, 0
 	for {
 		attempts++
 		ctx, cancel := context.WithCancel(r.Context())
@@ -382,7 +382,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		}
 		// A 200 with no content at all is worth one more try, like a bad block.
 		empty := reason.text.Len() == 0 && len(calls) == 0 && len(heldCalls) == 0 && (held == "" || held == "processing")
-		if err == nil && empty && attempts < 2 && !sent {
+		if err == nil && empty && empties < 1 && attempts < 3 && !sent {
+			empties++
 			reason.reasoningText.Reset()
 			guard.reset()
 			firstSeen, held = false, ""

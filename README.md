@@ -260,7 +260,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | Model routing, privacy and cooldowns | ✓ | `TestRoutingAndProviderCooldown` | — | — |
 | Cooldown scoped to a credential label | ✓ | `TestCooldownIsScopedToThePinnedLabel`, `TestCooldownOnUnpinnedPoolCoolsEveryLabel` | guest kept working while Pro cooled | — |
 | Lift a cooldown from the panel | ✓ | `TestClearCooldownEndpoint`, `TestClearCooldownLiftsModelMarksToo` | — | — |
-| Unpinned pool retries a failing label before the client sees a byte | ✓ | `TestUnpinnedPoolRetriesAnotherLabel`, `TestPoolSkipsACooledLabel` | a 429 label was parked and the next one answered; a switch does not spend the repair budget | — |
+| Unpinned pool retries a failing label before the client sees a byte | ✓ | `TestUnpinnedPoolRetriesAnotherLabel`, `TestPoolSkipsACooledLabel` | a 429 label was parked and the next one answered; a switch does not spend the repair or empty-retry budget | — |
 | An empty balance parks one model, not the label | ✓ | `TestBalanceCooldownNamesOneModel`, `TestBalanceMarkNamesOneModel`, `TestBalanceMarkMovesTheModelToAnotherLabel`, `TestPanelShowsABalanceMark` | marked model `429`, DeepSeek `200` on the same label | — |
 | Doctor names parked labels and their wait | ✓ | `TestCooldownVerdict` | `credential cooldowns` check on a parked guest label | — |
 | A call short of an argument is repaired after prose | ✓ | `TestWebCallWithoutArgumentsAfterProseIsRepaired` | two agent runs: 0 tool errors (22 steps/30 tools, 6 steps/7 tools) | — |
