@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.9
+
+The generated client block no longer loses what an alias can do.
+
 
 - **`export opencode` carries capabilities.** Each generated model entry now has
   its limits (context, output) and capabilities (tools, vision, reasoning) plus
