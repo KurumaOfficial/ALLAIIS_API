@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **`/v1/messages/count_tokens` answers.** Anthropic clients ask for a count
+  before a turn; it returns the same character-based estimate the context guard
+  uses and spends no message.
+
 ## v0.1.17
 
 A wrong passphrase is refused where it used to look like success.
