@@ -373,7 +373,7 @@ the name record, so probes and synthetic checks do not read as model mistakes.
 | `sign_in_required` | the model needs a signed-in session (guest cookie) |
 | `context_length_exceeded` | upstream `userPromptTooLong` |
 | `rate_limit_exceeded` | the pool hit a `429`; that credential cools until the reset header says |
-| `insufficient_balance` | the plan allowance is spent (`402 insufficientBalance`); the model is parked on the label for 30 minutes, other models are unaffected, check `web quota` for the reset |
+| `insufficient_balance` | the plan allowance is spent (`402 insufficientBalance`); the model is parked on the label for 30 minutes with a `Retry-After`, other models are unaffected, check `web quota` for the reset |
 
 ## Implementation
 

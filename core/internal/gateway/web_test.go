@@ -933,8 +933,12 @@ func TestBalanceCooldownNamesOneModel(t *testing.T) {
 	prompt := func(model string) string {
 		return `{"model":"` + model + `","messages":[{"role":"user","content":"hi"}]}`
 	}
-	if result := complete(handler, store.ClientKey(), "", prompt("paid")); result.Code != http.StatusPaymentRequired {
-		t.Fatalf("paid model answered %d", result.Code)
+	paid := complete(handler, store.ClientKey(), "", prompt("paid"))
+	if paid.Code != http.StatusPaymentRequired {
+		t.Fatalf("paid model answered %d", paid.Code)
+	}
+	if paid.Header().Get("Retry-After") == "" {
+		t.Fatal("the 402 carries no delay")
 	}
 	before := calls.Load()
 	if result := complete(handler, store.ClientKey(), "", prompt("free")); result.Code != http.StatusOK {

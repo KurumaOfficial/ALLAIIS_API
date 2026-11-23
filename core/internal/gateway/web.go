@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -703,6 +704,11 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 		if errors.Is(err, webprov.ErrInsufficientBalance()) {
 			// The error code stays the same, but the model is parked for 30
 			// minutes so the pool moves on; a free model on the label still runs.
+			// The delay travels with the answer, so a client can wait it out.
+			seconds := (time.Until(until) + time.Second - 1) / time.Second
+			if seconds > 0 {
+				w.Header().Set("Retry-After", strconv.FormatInt(int64(seconds), 10))
+			}
 			writeError(w, protocol, http.StatusPaymentRequired, "insufficient_balance",
 				"This model has no messages left on this label for 30 minutes. Check `allaiis web quota` or use another label.")
 			return
