@@ -5,6 +5,12 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **`init` refuses a passphrase that does not open the existing vault.** `Init`
+  on an existing file is a no-op whatever the passphrase, so a wrong one reported
+  success and every later command failed instead; the command now opens the vault
+  first and says so.
+
+
 - **A repeated `init` is pinned as safe.** It keeps an existing config and vault
   and does not rotate the client key, which matters on a host where the first
   command after an upgrade is often `init` again.

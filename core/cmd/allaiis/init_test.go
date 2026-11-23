@@ -14,6 +14,28 @@ import (
 
 // TestInitKeepsWhatIsAlreadyThere pins the safety of a repeated first run: init
 // must not overwrite a config or a vault that already exists.
+// TestInitWithTheWrongPassphraseFails pins the other half of a repeated init:
+// Init on an existing vault ignores the passphrase, so a wrong one used to look
+// like success and every later command failed instead.
+func TestInitWithTheWrongPassphraseFails(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+	vaultPath := filepath.Join(dir, "vault.sqlite")
+	right := []byte("local-dev-passphrase-right")
+	if err := initialize(context.Background(), dir, configPath, vaultPath, right); err != nil {
+		t.Fatal(err)
+	}
+	err := initialize(context.Background(), dir, configPath, vaultPath, []byte("local-dev-passphrase-wrong"))
+	if err == nil || !strings.Contains(err.Error(), "does not open") {
+		t.Fatalf("a wrong passphrase looked like success: %v", err)
+	}
+	store, openErr := vault.Open(context.Background(), vaultPath, right)
+	if openErr != nil {
+		t.Fatalf("the original passphrase stopped working: %v", openErr)
+	}
+	store.Close()
+}
+
 func TestInitKeepsWhatIsAlreadyThere(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")

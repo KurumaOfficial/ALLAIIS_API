@@ -360,6 +360,15 @@ func initialize(ctx context.Context, dir, configPath, vaultPath string, passphra
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
+	// Init on an existing vault is a no-op whatever the passphrase, so a wrong
+	// one used to look like success and every later command failed instead.
+	if _, err := os.Stat(vaultPath); err == nil {
+		existing, err := vault.Open(ctx, vaultPath, passphrase)
+		if err != nil {
+			return fmt.Errorf("a vault already exists here and this passphrase does not open it: %w", err)
+		}
+		existing.Close()
+	}
 	if err := vault.Init(ctx, vaultPath, passphrase); err != nil {
 		return err
 	}
