@@ -111,8 +111,10 @@ func serviceWindows(ctx context.Context, dir string, action string) error {
 	for name, value := range env {
 		fmt.Fprintf(&script, "set \"%s=%s\"\r\n", name, value)
 	}
-	// Restart on exit: an unattended gateway that died must come back.
-	script.WriteString(":run\r\n" + line + "\r\ntimeout /t 5 /nobreak >nul\r\ngoto run\r\n")
+	// Restart on exit: an unattended gateway that died must come back. The wait
+	// is a ping, not `timeout`: timeout needs a console input handle and fails at
+	// once under `start /min`, which would turn a crash into a tight loop.
+	script.WriteString(":run\r\n" + line + "\r\nping -n 6 127.0.0.1 >nul\r\ngoto run\r\n")
 	scriptPath := filepath.Join(dir, "service.cmd")
 	if err := os.WriteFile(scriptPath, []byte(script.String()), 0o600); err != nil {
 		return err
