@@ -170,6 +170,48 @@ func TestMessagesToolChoiceObjectNoneDropsTools(t *testing.T) {
 	}
 }
 
+// TestMessagesCountTokensAnswersWithoutUpstream pins the endpoint Anthropic
+// clients call before a turn: it must not spend a message.
+func TestMessagesCountTokensAnswersWithoutUpstream(t *testing.T) {
+	called := false
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		called = true
+	})
+	handler, store := messagesGateway(t, server.URL)
+	request := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens",
+		strings.NewReader(`{"model":"claude-venice-web-fixture","messages":[{"role":"user","content":"read go.mod"}],`+
+			`"system":"be terse","tools":[{"name":"read_file","input_schema":{"type":"object"}}]}`))
+	request.Header.Set("x-api-key", store.ClientKey())
+	request.Header.Set("anthropic-version", "2023-06-01")
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusOK {
+		t.Fatalf("count: %d %s", result.Code, result.Body)
+	}
+	var reply struct {
+		InputTokens int `json:"input_tokens"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil || reply.InputTokens <= 0 {
+		t.Fatalf("reply %s", result.Body)
+	}
+	if called {
+		t.Fatal("count_tokens called upstream")
+	}
+}
+
+func TestMessagesCountTokensRefusesAnUnknownModel(t *testing.T) {
+	server := veniceFixture(t, func(http.ResponseWriter, map[string]any) {})
+	handler, store := messagesGateway(t, server.URL)
+	request := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens",
+		strings.NewReader(`{"model":"nope","messages":[]}`))
+	request.Header.Set("x-api-key", store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusNotFound || !strings.Contains(result.Body.String(), "model_not_found") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestMessagesProtocolHistory(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		messages := body["prompt"].([]any)

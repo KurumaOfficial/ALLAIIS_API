@@ -96,6 +96,9 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 	mux.HandleFunc("POST /v1/chat/completions", g.completion(config.Chat, "/chat/completions"))
 	mux.HandleFunc("POST /v1/responses", g.completion(config.Responses, "/responses"))
 	mux.HandleFunc("POST /v1/messages", g.completion(config.Messages, "/messages"))
+	// Anthropic clients ask for a token count before sending; the answer is the
+	// same estimate the context guard uses, not a tokenizer.
+	mux.HandleFunc("POST /v1/messages/count_tokens", g.authorize(config.Messages, g.countTokens))
 	mux.HandleFunc("GET /metrics", g.metricsPage)
 	mux.HandleFunc("GET /tool-names", g.toolNamesPage)
 	g.mux = g.instrument(mux)
@@ -366,6 +369,57 @@ func (g *Gateway) models(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": g.table().routes.Models(minimum)})
+}
+
+// countTokens answers Anthropic's count_tokens without calling upstream.
+func (g *Gateway) countTokens(w http.ResponseWriter, r *http.Request) {
+	minimum, ok := g.privacy(r)
+	if !ok {
+		writeError(w, config.Messages, http.StatusBadRequest, "invalid_privacy", "Invalid X-ALLAIIS-Min-Privacy value.")
+		return
+	}
+	if _, err := messagesVersion(r.Header.Values("Anthropic-Version")); err != nil {
+		writeError(w, config.Messages, http.StatusBadRequest, "invalid_version", err.Error())
+		return
+	}
+	limit := g.table().config.MaxRequestBytes()
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
+	if err != nil {
+		writeError(w, config.Messages, http.StatusBadRequest, "invalid_request", "Could not read the request body.")
+		return
+	}
+	var input struct {
+		Model string `json:"model"`
+	}
+	if json.Unmarshal(body, &input) != nil || input.Model == "" {
+		writeError(w, config.Messages, http.StatusBadRequest, "invalid_request", "expected a JSON object with a model")
+		return
+	}
+	found := false
+	for _, model := range g.table().routes.Models(minimum) {
+		if model.ID == input.Model && model.Protocol == config.Messages {
+			found = true
+			break
+		}
+	}
+	if !found {
+		writeError(w, config.Messages, http.StatusNotFound, "model_not_found",
+			"The requested model is unavailable for this endpoint under the current policy.")
+		return
+	}
+	request, _, tools, err := messagesRequest(body, input.Model)
+	if err != nil {
+		writeError(w, config.Messages, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	size := 0
+	for _, message := range request.Messages {
+		size += len(message.Content) + len(message.Reasoning)
+	}
+	for _, tool := range tools {
+		size += len(tool.Function.Description) + len(tool.Function.Parameters)
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"input_tokens": estimateChars(size)})
 }
 
 func (g *Gateway) completion(protocol config.Protocol, path string) http.HandlerFunc {

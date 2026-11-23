@@ -241,6 +241,10 @@ free model for both if you want the fallback:
   --name gpt-free --label pro --protocol responses
 ```
 
+`/v1/messages/count_tokens` answers with the same character-based estimate the
+context guard uses and spends no message, so an Anthropic client can budget a
+turn before sending it.
+
 Messages routes translate `system`, `content[]` blocks (text, image, tool_use,
 tool_result) into web turns and answer with real Anthropic events
 (`message_start`, `content_block_delta`, `message_delta`, `message_stop`) or a
