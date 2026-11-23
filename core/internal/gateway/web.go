@@ -210,6 +210,13 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	guard := &toolGuard{probe: r.Header.Get(probeHeader) != ""}
 	guard.add(tools)
 
+	// Stop sequences are cut here, but a call block would be broken by a cut
+	// inside it, so they apply only to plain prose.
+	var stop *stopCut
+	if len(tools) == 0 {
+		stop = newStopCut(request.StopSequences)
+	}
+
 	shape := newShape(protocol, w, id, target.Route.ID, created)
 
 	var startStream func()
@@ -274,6 +281,16 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			}
 			if text == "" {
 				return nil
+			}
+			if stop != nil {
+				var ended bool
+				text, ended = stop.feed(text)
+				if ended {
+					finish = "stop"
+				}
+				if text == "" {
+					return nil
+				}
 			}
 			reason.append(text)
 			if stream {
@@ -453,6 +470,15 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	if len(heldCalls) > 0 {
 		// No repair was possible or left; deliver what came.
 		guard.logMissing(heldCalls)
+		if stop != nil {
+			if tail := stop.flush(); tail != "" {
+				reason.append(tail)
+				if stream {
+					startStream()
+					shape.text(tail)
+				}
+			}
+		}
 		calls = append(calls, heldCalls...)
 		if stream {
 			startStream()
@@ -771,6 +797,37 @@ type webReason struct {
 	reasoningChars int
 }
 
+// stopList reads a stop value, which clients send as one string or an array of
+// them.
+func stopList(raw json.RawMessage) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var one string
+	if json.Unmarshal(raw, &one) == nil {
+		if one == "" {
+			return nil
+		}
+		return []string{one}
+	}
+	var many []string
+	if json.Unmarshal(raw, &many) != nil {
+		return nil
+	}
+	return cleanStops(many)
+}
+
+// cleanStops drops the empty entries of an already decoded stop list.
+func cleanStops(many []string) []string {
+	kept := many[:0]
+	for _, stop := range many {
+		if stop != "" {
+			kept = append(kept, stop)
+		}
+	}
+	return kept
+}
+
 // structuredFormat reads a Chat response_format wrapper or the bare schema the
 // Responses shape puts next to its name, and reports whether JSON was asked for.
 func structuredFormat(kind string, raw json.RawMessage, name string) (string, json.RawMessage, bool) {
@@ -874,8 +931,9 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		StreamOptions    struct {
 			IncludeUsage bool `json:"include_usage"`
 		} `json:"stream_options"`
-		Tools          []toolSpec `json:"tools"`
-		ToolChoice     any        `json:"tool_choice"`
+		Tools          []toolSpec      `json:"tools"`
+		ToolChoice     any             `json:"tool_choice"`
+		Stop           json.RawMessage `json:"stop"`
 		ResponseFormat struct {
 			Type       string          `json:"type"`
 			JSONSchema json.RawMessage `json:"json_schema"`
@@ -889,6 +947,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
 		FrequencyPenalty: input.FrequencyPenalty, PresencePenalty: input.PresencePenalty, MinP: input.MinP,
 	}
+	request.StopSequences = stopList(input.Stop)
 	request.ReasoningEffort = input.ReasoningEffort
 	if request.ReasoningEffort == "" {
 		request.ReasoningEffort = input.Reasoning.Effort

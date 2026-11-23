@@ -24,6 +24,7 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 		MaxTokens   int      `json:"max_tokens"`
 		Temperature *float64 `json:"temperature"`
 		TopP        *float64 `json:"top_p"`
+		Stops       []string `json:"stop_sequences"`
 		Tools       []struct {
 			Name        string          `json:"name"`
 			Description string          `json:"description"`
@@ -40,6 +41,7 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 	request := webprov.Request{
 		RequestID: randomID(), Model: model,
 		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
+		StopSequences: cleanStops(input.Stops),
 	}
 	request.Reasoning = input.Thinking != nil || strings.Contains(strings.ToLower(model), "reasoning")
 	if input.Thinking != nil && input.Thinking.Type != "disabled" && input.Thinking.BudgetTokens > 0 {

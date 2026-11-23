@@ -256,6 +256,51 @@ func TestWebChatSchemaGoesIntoTheSystemTurn(t *testing.T) {
 	}
 }
 
+func TestWebCutsTheReplyAtAStopSequence(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		fmt.Fprint(w, `{"kind":"content","content":"one two"}
+{"kind":"content","content":" STOP three"}
+`)
+	})
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","stop":"STOP","messages":[{"role":"user","content":"count"}]}`
+	result := complete(handler, store.ClientKey(), "", payload)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+	var reply struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	if got := reply.Choices[0].Message.Content; got != "one two " {
+		t.Errorf("content %q", got)
+	}
+	if got := reply.Choices[0].FinishReason; got != "stop" {
+		t.Errorf("finish reason %q", got)
+	}
+}
+
+// TestWebStopLeavesCallsAlone pins that a stop word inside a held tool block
+// does not cut the block in half.
+func TestWebStopLeavesCallsAlone(t *testing.T) {
+	server := venueWithToolBodies(t, "Reading "+toolBlock("b.txt"))
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`","stop":"STOP","tools":[`+
+		`{"type":"function","function":{"name":"read_file","parameters":{"type":"object",`+
+		`"properties":{"path":{"type":"string"}},"required":["path"]}}}],`+
+		`"messages":[{"role":"user","content":"read a.txt"}]}`)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"read_file"`) {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestWebEmptyFirstEventKeepsLaterText(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		fmt.Fprint(w, `{"kind":"content","content":""}

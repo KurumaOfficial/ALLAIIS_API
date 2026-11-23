@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Stop sequences.** Chat `stop`, Messages `stop_sequences` and a `stop` on
+  Responses are cut by the gateway, since the endpoint ignores them; the cut
+  works on a stream and finds a sequence split across chunks. A route with tools
+  leaves them off so a call block is never cut in half.
 - **Structured output.** `response_format` on Chat and `text.format` on
   Responses now append the schema to the system turn and declare `json_mode`;
   the web endpoint has no switch behind it, so this is spelled out rather than

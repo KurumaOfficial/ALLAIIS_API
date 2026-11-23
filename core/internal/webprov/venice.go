@@ -174,6 +174,8 @@ type Request struct {
 	PresencePenalty  *float64
 	// MinP is forwarded when the model supports it.
 	MinP *float64
+	// StopSequences ends the reply where the first of them appears.
+	StopSequences []string
 	// IncludeAnonUserID forces or suppresses the anonymous user id.
 	IncludeAnonUserID *bool
 	// E2EE encrypts the messages to the model's verified enclave.
@@ -511,6 +513,9 @@ func venicePayload(cred Credential, req Request, userID string) map[string]any {
 	}
 	if req.PresencePenalty != nil {
 		payload["presencePenalty"] = *req.PresencePenalty
+	}
+	if len(req.StopSequences) > 0 {
+		payload["stopSequences"] = req.StopSequences
 	}
 	return payload
 }
