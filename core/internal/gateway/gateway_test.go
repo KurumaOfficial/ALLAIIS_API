@@ -359,6 +359,26 @@ func TestRequestIDIsEchoedAndStamped(t *testing.T) {
 	}
 }
 
+// TestModelsCarryLimits pins the keys a client uses to size a prompt: the
+// alias limits travel under the names such clients look for.
+func TestModelsCarryLimits(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	for index := range cfg.Models {
+		cfg.Models[index].MaxContext = 64000
+		cfg.Models[index].MaxResponse = 8000
+	}
+	handler := newGateway(t, cfg, store)
+	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	body := result.Body.String()
+	if result.Code != http.StatusOK || !strings.Contains(body, `"context_length":64000`) ||
+		!strings.Contains(body, `"max_output_tokens":8000`) {
+		t.Fatalf("limits missing: %d %s", result.Code, body)
+	}
+}
+
 func TestInvalidRequestIDIsReplaced(t *testing.T) {
 	store, cfg := setup(t, "http://127.0.0.1:1")
 	handler := newGateway(t, cfg, store)

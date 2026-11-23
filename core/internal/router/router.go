@@ -33,8 +33,10 @@ type Model struct {
 	// E2EE tells a client the messages will be sealed to the enclave.
 	E2EE bool `json:"allaiis_e2ee,omitempty"`
 	// The rest mirror the alias so a generated client config can carry them.
-	Context   int  `json:"allaiis_context,omitempty"`
-	MaxOutput int  `json:"allaiis_max_output,omitempty"`
+	// Standard-ish names, so a client that sizes a prompt by the models list
+	// finds them where it looks.
+	Context   int  `json:"context_length,omitempty"`
+	MaxOutput int  `json:"max_output_tokens,omitempty"`
 	Images    int  `json:"allaiis_max_images,omitempty"`
 	Tools     int  `json:"allaiis_max_tools,omitempty"`
 	Reasoning bool `json:"allaiis_reasoning,omitempty"`
