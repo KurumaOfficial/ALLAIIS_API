@@ -4,6 +4,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
 )
@@ -35,6 +37,42 @@ func TestToolNameVerdict(t *testing.T) {
 	if status, _, ok := toolNameVerdict(0, 3, nil); !ok || status != "warn" {
 		t.Fatalf("all names unknown: %q %v", status, ok)
 	}
+}
+
+func TestDiagnoseNamesE2EEAliases(t *testing.T) {
+	f := setup(t)
+	has := func() bool {
+		for _, check := range Diagnose(context.Background(), f.store, f.path) {
+			if check.Name == "e2ee models" {
+				return true
+			}
+		}
+		return false
+	}
+	if has() {
+		t.Fatal("a plain alias was called e2ee")
+	}
+	cfg, err := config.Load(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Models = append(cfg.Models, config.Route{
+		ID: "e2ee-alias", Provider: "fake", UpstreamModel: "e2ee-glm-5-3-flash",
+	})
+	body, _ := json.Marshal(cfg)
+	if err := os.WriteFile(f.path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	checks := Diagnose(context.Background(), f.store, f.path)
+	for _, check := range checks {
+		if check.Name == "e2ee models" {
+			if check.Status != "warn" || !strings.Contains(check.Detail, "not implemented") {
+				t.Fatalf("e2ee alias not flagged honestly: %+v", check)
+			}
+			return
+		}
+	}
+	t.Fatal("e2ee alias not reported")
 }
 
 func TestCooldownVerdict(t *testing.T) {

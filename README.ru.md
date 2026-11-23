@@ -291,6 +291,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Смешанные диалекты тулов и обёртка `arguments` | ✓ | `TestToolGuardAcceptsMixedDialect`, `TestInvokeArgumentsWrapperIsFlattened` | две задачи на код: баг исправлен, тесты зелёные | — |
 | Диалект тулов DeepSeek DSML и растущие индексы вызовов | ✓ | `TestToolGuardParsesDeepSeekDSML`, `TestStreamedToolCallIndexesKeepRising`, `TestWebToolCallStreamDSML`, `TestToolGuardFlushRepairsTruncatedBlock`, `TestWhitespaceAssistantTextKeepsToolCalls` | цикл агента OpenCode на `deepseek-v4-1-flash-uncensored`: 9 вызовов, 5 шагов, 16 с | — |
 | Usage в стриме по `stream_options.include_usage` | ✓ | `TestChatStreamUsageOnlyWhenRequested` | OpenCode видит ненулевые токены | — |
+| Транспорт E2EE-моделей | — | `TestDiagnoseNamesE2EEAliases` | — | обмен ключами через страницу не сделан; такие алиасы идут на обычный эндпоинт |
 | Эмуляция тулов Тира C (sentinel и XML) | ✓ | `TestToolGuardSplitsMarkers`, `TestToolGuardParsesInvokeXML`, `TestToolGuardDropsDuplicatedDialect`, `TestWebToolCallStream`, `TestWebToolRepairRetry` | вызов `read_file` на всех трёх протоколах | — |
 | Веб-маршруты на `/v1/messages` | ✓ | `TestMessagesProtocolStreams`, `TestMessagesProtocolToolUse` | текст Opus и `tool_use` | — |
 | Веб-маршруты на `/v1/responses` | ✓ | `TestResponsesFollowUpByPreviousId` (переживает новый handler) | SSE-формат, шифрованные продолжения | — |

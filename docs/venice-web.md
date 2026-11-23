@@ -81,6 +81,9 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   parked on that label for 30 minutes, while a free model on the same session
   keeps answering, as Venice still serves it with a spent plan.
   Attestation tokens are per-request, so the client mints in batches of five.
+- **E2EE models are not decrypted.** Ids starting `e2ee-` are sent to the plain
+  endpoint, so the page-side key exchange never happens; doctor warns while an
+  alias points at one.
 - **Usage is estimated.** The web stream carries no token counters, so the reply
   marks `"estimated": true` and sets `X-ALLAIIS-Emulated-Features: usage_estimate`.
 - **Reasoning** is forwarded as `reasoning_content` when the model is a

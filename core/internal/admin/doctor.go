@@ -125,7 +125,12 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 	webAliases := 0
 	missing := 0
 	unpinned := 0
+	e2ee := 0
 	for _, route := range cfg.Models {
+		// The catalog has no flag for it; the vendor marks these with a prefix.
+		if strings.HasPrefix(route.UpstreamModel, "e2ee-") {
+			e2ee++
+		}
 		provider, ok := cfg.Provider(route.Provider)
 		if !ok {
 			continue
@@ -164,6 +169,11 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 		add("alias credentials", "warn", fmt.Sprintf("%d alias(es) use an unpinned multi-key pool", unpinned))
 	default:
 		add("alias credentials", "ok", "every alias resolves to a credential")
+	}
+
+	if e2ee > 0 {
+		add("e2ee models", "warn", fmt.Sprintf(
+			"%d alias(es) point at an e2ee model; the page-key transport for them is not implemented, so they are sent to the plain endpoint", e2ee))
 	}
 
 	if routes, err := router.New(ctx, cfg, store); err != nil {
