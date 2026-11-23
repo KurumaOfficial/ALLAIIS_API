@@ -73,6 +73,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			"The stored web session is unreadable. Capture it again.")
 		return 0, 0
 	}
+	// A failover may still change the label, so the header is set here and
+	// again on every switch, before any byte can go out.
+	w.Header().Set("X-ALLAIIS-Credential", target.Entry.Label)
 	if credential.DistinctID == "" {
 		credential.DistinctID = randomID()
 	}
@@ -288,6 +291,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				fresh.Entry.Label != target.Entry.Label {
 				if parsed, parseErr := webprov.ParseCredential(fresh.Entry.Key); parseErr == nil {
 					target, credential = fresh, parsed
+					w.Header().Set("X-ALLAIIS-Credential", target.Entry.Label)
 					reason.text.Reset()
 					reason.reasoningText.Reset()
 					guard.reset()

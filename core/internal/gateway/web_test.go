@@ -821,16 +821,32 @@ func TestMinPFollowsTheCapability(t *testing.T) {
 
 func TestUnpinnedPoolRetriesAnotherLabel(t *testing.T) {
 	var calls atomic.Int32
-	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
-		if calls.Add(1) == 1 {
-			// The first label is rate limited, a problem of the label.
-			w.Header().Set("Retry-After", "1")
-			w.WriteHeader(http.StatusTooManyRequests)
-			fmt.Fprint(w, `{"error":"rate limited"}`)
-			return
+	var served atomic.Value
+	// The label travels as the clearance cookie, so the fixture knows which one
+	// was asked and the header can be checked against it.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app/user/client_attestation/mint":
+			fmt.Fprint(w, `{"tokens":[{"token":"attestation"}]}`)
+		case "/inference/chat":
+			label := ""
+			if cookie, err := r.Cookie("cf_clearance"); err == nil {
+				label = cookie.Value
+			}
+			if calls.Add(1) == 1 {
+				// The first label is rate limited, a problem of the label.
+				w.Header().Set("Retry-After", "1")
+				w.WriteHeader(http.StatusTooManyRequests)
+				fmt.Fprint(w, `{"error":"rate limited"}`)
+				return
+			}
+			served.Store(label)
+			writeFrames(w, "recovered")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
 		}
-		writeFrames(w, "recovered")
-	})
+	}))
+	t.Cleanup(server.Close)
 	store, _ := setup(t, server.URL)
 	cfg := config.Default()
 	cfg.Providers = map[string]config.Provider{
@@ -861,6 +877,10 @@ func TestUnpinnedPoolRetriesAnotherLabel(t *testing.T) {
 	}
 	if !strings.Contains(result.Body.String(), "recovered") {
 		t.Fatalf("second label answer missing: %s", result.Body)
+	}
+	// The header must name the label that actually served the call.
+	if got, want := result.Header().Get("X-ALLAIIS-Credential"), served.Load(); got == "" || got != want {
+		t.Fatalf("header names %q, the answer came from %q", got, want)
 	}
 }
 
