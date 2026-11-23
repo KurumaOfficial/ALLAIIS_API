@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
@@ -23,6 +25,30 @@ import (
 )
 
 var errToolRepair = errors.New("tool block needs a repair attempt")
+
+// streamPingInterval is how often a live stream is kept warm while the model is
+// quiet. Tests shorten it.
+var streamPingInterval = 15 * time.Second
+
+// lockedWriter serialises the handler goroutine and the keep-alive goroutine.
+type lockedWriter struct {
+	mu sync.Mutex
+	http.ResponseWriter
+}
+
+func (w *lockedWriter) Write(body []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.ResponseWriter.Write(body)
+}
+
+func (w *lockedWriter) Flush() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
 
 var errTooManyImages = errors.New("too many attachments for this model")
 
@@ -153,6 +179,10 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	if len(tools) > 0 {
 		emulated = "tools,usage_estimate"
 	}
+	// Shape and pings write from different goroutines, so the writer serialises
+	// them; a keep-alive must never split a frame.
+	writer := &lockedWriter{ResponseWriter: w}
+	w = writer
 	w.Header().Set(tierHeader, "tier_c3")
 	w.Header().Set("X-ALLAIIS-Provider", target.Route.Provider)
 	w.Header().Set("X-ALLAIIS-Credential", target.Entry.Label)
@@ -162,6 +192,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	id := replyID(protocol)
 	created := time.Now().Unix()
 	sent := false
+	var streaming atomic.Bool
 	finish := "stop"
 	var calls []toolCall
 	// Calls wait for the end of the stream, so a repair turn can replace a
@@ -256,6 +287,35 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("X-Accel-Buffering", "no")
 		w.WriteHeader(http.StatusOK)
+		streaming.Store(true)
+	}
+	// A quiet model must not look like a dead stream, but a ping before the
+	// first event would end the retry window, so it waits for the stream.
+	if stream {
+		done := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ticker := time.NewTicker(streamPingInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					if !streaming.Load() {
+						continue
+					}
+					fmt.Fprint(writer, ": ping\n\n")
+					writer.Flush()
+				}
+			}
+		}()
+		defer func() {
+			close(done)
+			wg.Wait()
+		}()
 	}
 
 	started := time.Now()

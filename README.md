@@ -267,7 +267,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | `insufficientBalance` classification | ✓ | `TestErrorClassification` | 402 from a spent Pro plan mapped to `insufficient_balance` | — |
 | Quota probe in the panel | ✓ | `TestErrorClassification` | `web quota` on three labels, per-label reset times | — |
 | Native Responses and Messages | ✓ | `TestNativeProtocols` | — | — |
-| SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel` | — | — |
+| SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel`, `TestStreamSendsKeepAliveWhileQuiet` | — | — |
 | Venice web transport (guest) | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | Chat JSON + SSE | — |
 | Venice web quota probe and catalog | ✓ | `TestErrorClassification`, `TestCatalogAcceptsDateRetiringField` | `web login`, `models discover` against the live catalog | — |
 | Venice web Pro session | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |

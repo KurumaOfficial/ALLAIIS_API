@@ -940,3 +940,38 @@ func TestBalanceCooldownNamesOneModel(t *testing.T) {
 		t.Fatalf("unexpected upstream calls: before=%d free=%d now=%d", before, afterFree, calls.Load())
 	}
 }
+
+// A model that goes quiet must not look dead, and a keep-alive must never land
+// inside a frame.
+func TestStreamSendsKeepAliveWhileQuiet(t *testing.T) {
+	previous := gateway.SetStreamPingInterval(5 * time.Millisecond)
+	t.Cleanup(func() { gateway.SetStreamPingInterval(previous) })
+
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		// The first chunk is held as a possible "processing" status, so the
+		// stream only starts once a second one arrives.
+		writeFrames(w, "first")
+		writeFrames(w, "more")
+		w.(http.Flusher).Flush()
+		time.Sleep(60 * time.Millisecond)
+		writeFrames(w, "tail")
+	})
+	handler, store := webGateway(t, server.URL)
+	request := `{"model":"` + webModel + `","messages":[{"role":"user","content":"hi"}],"stream":true}`
+	started := time.Now()
+	result := complete(handler, store.ClientKey(), "", request)
+	t.Logf("request took %v", time.Since(started))
+	text := result.Body.String()
+	if result.Code != http.StatusOK || !strings.Contains(text, ": ping") {
+		t.Fatalf("no keep-alive: %d %s", result.Code, text)
+	}
+	if !strings.Contains(text, "tail") {
+		t.Fatalf("the stream did not continue: %s", text)
+	}
+	for _, line := range strings.Split(text, "\n") {
+		if line == "" || strings.HasPrefix(line, "data: ") || strings.HasPrefix(line, ": ping") {
+			continue
+		}
+		t.Fatalf("a frame was split: %q", line)
+	}
+}

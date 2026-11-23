@@ -48,7 +48,7 @@ results, and its checkbox forces a refetch.
 | Quota probe at or under `quota_floor` (default 5, `-1` off) | the row is marked low and a `quota below the floor` warning is logged |
 | Prompt over the model context | rejected before sending when the alias carries `max_context` |
 | Too many attachments | rejected before upload when the alias carries `max_images` |
-| Silent stream | aborted after the alias inactivity window (default 2 min), answered `upstream_timeout` |
+| Silent stream | an SSE `: ping` every 15 s keeps it alive; aborted after the alias inactivity window (default 2 min), answered `upstream_timeout` |
 | Request body | 8 MiB cap (`max_request_mb`, 1–128), 90 s response-header timeout, 10 min whole call |
 
 Calls wait for the end of the stream, so a retry can replace them before the

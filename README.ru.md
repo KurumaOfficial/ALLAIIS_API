@@ -260,7 +260,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Классификация `insufficientBalance` | ✓ | `TestErrorClassification` | 402 от исчерпанного Pro-плана стал `insufficient_balance` | — |
 | Проба квоты в панели | ✓ | `TestErrorClassification` | `web quota` на трёх метках, свои времена сброса | — |
 | Нативные Responses и Messages | ✓ | `TestNativeProtocols` | — | — |
-| SSE и отмена при отключении клиента | ✓ | `TestStreamFlushAndCancel` | — | — |
+| SSE и отмена при отключении клиента | ✓ | `TestStreamFlushAndCancel`, `TestStreamSendsKeepAliveWhileQuiet` | — | — |
 | Закрытая веб-интеграция Venice | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | JSON и SSE | — |
 | Проба квоты и каталог Venice web | ✓ | `TestErrorClassification`, `TestCatalogAcceptsDateRetiringField` | `web login`, `models discover` по живому каталогу | — |
 | Pro-сессия Venice web | ✓ | `TestClerkExpiryAndForget`, `TestExpiredSignedSessionIsUnauthorized` | Opus 5.5, GPT-6.2 Astra Pro | — |
