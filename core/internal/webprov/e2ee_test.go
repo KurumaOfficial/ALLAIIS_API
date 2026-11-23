@@ -27,6 +27,7 @@ type e2eeServer struct {
 	private *secp256k1.PrivateKey
 	nonceOK bool
 	got     string
+	verdict string
 }
 
 func newE2EEServer(t *testing.T, reply string) *e2eeServer {
@@ -47,8 +48,8 @@ func newE2EEServer(t *testing.T, reply string) *e2eeServer {
 			if !fake.nonceOK {
 				echo = strings.Repeat("0", 64)
 			}
-			fmt.Fprintf(w, `{"verified":true,"nonce":%q,"signing_key":%q}`,
-				echo, hex.EncodeToString(fake.private.PubKey().SerializeUncompressed()))
+			fmt.Fprintf(w, `{"verified":true,"nonce":%q,"signing_key":%q%s}`,
+				echo, hex.EncodeToString(fake.private.PubKey().SerializeUncompressed()), fake.verdict)
 		case "/inference/chat":
 			if r.Header.Get("X-Venice-TEE-Signing-Algo") != "ecdsa" {
 				t.Errorf("signing algorithm header missing")
@@ -274,5 +275,35 @@ func TestE2EEImagesSealsAndOpens(t *testing.T) {
 	}
 	if got != "what is this pls" || text.String() != "sealed image answer" {
 		t.Fatalf("image turn: enclave %q, client %q", got, text.String())
+	}
+}
+
+func TestE2EERejectsABadTDXVerdict(t *testing.T) {
+	fake := newE2EEServer(t, "unused")
+	fake.verdict = `,"server_verification":{"tdx":{"valid":false,"signatureValid":true,"certificateChainValid":true}}`
+	client := fake.client(t)
+	err := client.Chat(context.Background(), Credential{}, Request{
+		Model: "e2ee-x", E2EE: true,
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	}, func(Event) error { return nil })
+	if !errors.Is(err, ErrE2EE) || !strings.Contains(err.Error(), "TDX") {
+		t.Fatalf("bad verdict accepted: %v", err)
+	}
+}
+
+func TestE2EEAcceptsAGoodTDXVerdict(t *testing.T) {
+	fake := newE2EEServer(t, "fine")
+	fake.verdict = `,"server_verification":{"tdx":{"valid":true,"signatureValid":true,"certificateChainValid":true}}`
+	client := fake.client(t)
+	var text strings.Builder
+	err := client.Chat(context.Background(), Credential{}, Request{
+		Model: "e2ee-x", E2EE: true,
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	}, func(event Event) error {
+		text.WriteString(event.Content)
+		return nil
+	})
+	if err != nil || text.String() != "fine" {
+		t.Fatalf("good verdict rejected: %v %q", err, text.String())
 	}
 }

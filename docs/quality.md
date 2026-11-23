@@ -49,7 +49,7 @@ results, and its checkbox forces a refetch.
 | Prompt over the model context | rejected before sending when the alias carries `max_context` |
 | Too many attachments | rejected before upload when the alias carries `max_images` |
 | Silent stream | an SSE `: ping` every 15 s keeps it alive; aborted after the alias inactivity window (default 2 min, 5 min for a reasoning route, catalog value wins), answered `upstream_timeout` |
-| `e2ee` route | every message is sealed to the enclave after its attestation passes the nonce, `verified` and debug checks, on the JSON and the attachment path alike; a sealed chunk that will not open is answered `e2ee_failed`; a live encrypted reply is still unverified |
+| `e2ee` route | every message is sealed to the enclave after its attestation passes the nonce, `verified`, debug and TDX-verdict checks, on the JSON and the attachment path alike; a sealed chunk that will not open is answered `e2ee_failed`; a live encrypted reply is still unverified |
 | Request body | 8 MiB cap (`max_request_mb`, 1–128; doctor warns under 16 when an alias takes several images), 90 s response-header timeout, 10 min whole call |
 
 A label switch, an empty reply and a repair each carry their own single budget:

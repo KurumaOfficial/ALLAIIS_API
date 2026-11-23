@@ -179,8 +179,9 @@ chunks. Set `"e2ee": true` on the route (or pass `--e2ee` to `models add`; an
 
 1. generates a secp256k1 key pair and a 32-byte nonce;
 2. asks `/tee/attestation`, and rejects the enclave unless `verified` is true,
-   the nonce comes back unchanged, debug mode is off, and a signing key is
-   present;
+   the nonce comes back unchanged, debug mode is off, a signing key is present,
+   and the server's own TDX verdict (valid, signature, certificate chain) passes
+   when it is sent;
 3. derives an AES-256-GCM key with ECDH and HKDF-SHA256 (`ecdsa_encryption`);
 4. seals every message into `ephemeral key ‖ nonce ‖ ciphertext` hex and sends
    the `X-Venice-TEE-Client-Pub-Key`, `X-Venice-TEE-Model-Pub-Key` and

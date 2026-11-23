@@ -59,6 +59,15 @@ type e2eeAttestation struct {
 	Signing   string `json:"signing_key"`
 	PublicKey string `json:"signing_public_key"`
 	Debug     bool   `json:"debug_mode"`
+	// ServerVerification carries the enclave's own TDX verdict; it is checked
+	// when present because "verified" alone is one field.
+	ServerVerification struct {
+		TDX struct {
+			Valid      bool `json:"valid"`
+			Signature  bool `json:"signatureValid"`
+			ChainValid bool `json:"certificateChainValid"`
+		} `json:"tdx"`
+	} `json:"server_verification"`
 }
 
 // e2eeSession creates a key pair and verifies the enclave attestation against a
@@ -108,6 +117,11 @@ func (c *Client) e2eeSession(ctx context.Context, cred Credential, model string)
 	}
 	if body.Debug {
 		return nil, fmt.Errorf("%w: the enclave runs in debug mode", ErrE2EE)
+	}
+	if tdx := body.ServerVerification.TDX; tdx.Valid || tdx.Signature || tdx.ChainValid {
+		if !tdx.Valid || !tdx.Signature || !tdx.ChainValid {
+			return nil, fmt.Errorf("%w: the TDX verdict failed", ErrE2EE)
+		}
 	}
 	modelHex := body.Signing
 	if modelHex == "" {
