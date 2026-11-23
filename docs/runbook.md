@@ -86,7 +86,7 @@ binary goes back on autostart.
 
 ## When something breaks
 
-- `allaiis doctor` — local checks, no provider quota; parked labels and their wait are listed, so a `429` from a pool is explained; e2ee aliases are attested live, which spends no quota.
+- `allaiis doctor` — local checks, no provider quota; parked labels and their wait are listed, so a `429` from a pool is explained; e2ee aliases are attested live, which spends no quota; `--offline` skips that one network check.
 - `allaiis web quota` — remaining session counters and reset time.
 - `allaiis web e2ee --label <label> --model <e2ee model>` — attests the enclave, prints what passed, and sends one sealed canary turn.
 - the panel at `http://127.0.0.1:8431/` — quotas, probes, logs, aliases.

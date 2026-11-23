@@ -124,6 +124,8 @@ func run(ctx context.Context, args []string) error {
 	var noToolProbe bool
 	// Codes that are expected on this host and should not fail the run.
 	var allow []string
+	// Offline skips the one network check doctor makes.
+	var offline bool
 	switch command {
 	case "import":
 		flags.Func("from", "key source, env or opencode (repeatable)", func(source string) error {
@@ -168,6 +170,7 @@ func run(ctx context.Context, args []string) error {
 		})
 		fallthrough
 	case "init", "key", "status", "doctor", "export opencode":
+		flags.BoolVar(&offline, "offline", false, "skip the network enclave attestation")
 	default:
 		return fmt.Errorf("unknown command %q. Run allaiis help", command)
 	}
@@ -261,6 +264,9 @@ func run(ctx context.Context, args []string) error {
 	switch command {
 	case "doctor":
 		checks := admin.Diagnose(ctx, store, configPath)
+		if offline {
+			checks = admin.DiagnoseOffline(ctx, store, configPath)
+		}
 		if err := writeJSON(os.Stdout, map[string]any{"checks": checks}); err != nil {
 			return err
 		}

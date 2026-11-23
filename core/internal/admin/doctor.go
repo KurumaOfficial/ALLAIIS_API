@@ -97,6 +97,16 @@ var fetchStats = fetchLiveStats
 
 // Diagnose validates the local setup without spending provider quota.
 func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Check {
+	return diagnose(ctx, store, configPath, true)
+}
+
+// DiagnoseOffline is Diagnose without the one network check, the enclave
+// attestation.
+func DiagnoseOffline(ctx context.Context, store *vault.Store, configPath string) []Check {
+	return diagnose(ctx, store, configPath, false)
+}
+
+func diagnose(ctx context.Context, store *vault.Store, configPath string, attest bool) []Check {
 	results := make([]Check, 0, 8)
 	add := func(name, status, detail string) {
 		results = append(results, Check{Name: name, Status: status, Detail: detail})
@@ -201,7 +211,7 @@ func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Chec
 
 	// An attestation costs no provider quota, so the enclave itself can be
 	// checked here; the reply path still needs balance.
-	if len(enclaves) > 0 {
+	if len(enclaves) > 0 && attest {
 		if status, detail, ok := enclaveVerdict(enclavesToChecks(ctx, enclaves)); ok {
 			add("e2ee enclave", status, detail)
 		}

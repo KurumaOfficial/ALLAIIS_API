@@ -23,6 +23,7 @@ func TestCommandsAcceptTheirFlags(t *testing.T) {
 		{"smoke", "--no-tools", "--json", "--help"},
 		{"up", "--log-file", "x.log", "--log-max-mb", "8", "--help"},
 		{"doctor", "--help"},
+		{"doctor", "--offline", "--help"},
 		{"web", "e2ee", "--model", "e2ee-x", "--label", "pro", "--help"},
 		{"smoke", "--allow", "model_not_found", "--help"},
 		{"up", "--help"},
