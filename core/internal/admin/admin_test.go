@@ -205,6 +205,16 @@ func TestPanelAttestsAnEnclave(t *testing.T) {
 	}
 }
 
+func TestPanelE2EEProbeExplainsAnUnreadableKey(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"bad","key":"nope"}`, "")
+	result := f.call(t, http.MethodPost, "/api/e2ee/probe",
+		`{"provider":"fake","label":"bad","model":"e2ee-glm-5-3-flash"}`, "")
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "unreadable") {
+		t.Fatalf("unreadable key: %d %s", result.Code, result.Body)
+	}
+}
+
 func TestPanelProbe(t *testing.T) {
 	f := setup(t)
 	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")

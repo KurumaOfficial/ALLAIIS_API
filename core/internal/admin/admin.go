@@ -592,17 +592,22 @@ func (s *Server) e2eeProbe(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	credential, found := webprov.Credential{}, false
+	var credential webprov.Credential
+	var parseErr error
+	found := false
 	for _, entry := range entries {
 		if entry.Label == input.Label {
-			if credential, err = webprov.ParseCredential(entry.Key); err == nil {
-				found = true
-			}
+			credential, parseErr = webprov.ParseCredential(entry.Key)
+			found = true
 			break
 		}
 	}
 	if !found {
 		fail(w, http.StatusNotFound, "that label is not stored for this provider")
+		return
+	}
+	if parseErr != nil {
+		fail(w, http.StatusBadRequest, "the stored session is unreadable: "+parseErr.Error())
 		return
 	}
 	client := webprov.New(15 * time.Second)
