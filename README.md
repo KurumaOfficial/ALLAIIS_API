@@ -35,7 +35,9 @@ error codes are described in [docs/quality.md](docs/quality.md).
 
 ## Quick start
 
-**Offline setup verified. Live provider checks recorded: 0.** The smoke test uses a loopback provider and fixture credentials.
+The table below is the offline path: a loopback provider with fixture
+credentials. Live checks, including this host's Venice web session, are recorded
+in the [status table](#status).
 
 | Step | Status |
 | --- | --- |
@@ -48,9 +50,11 @@ error codes are described in [docs/quality.md](docs/quality.md).
 go test -count=1 -v -run '^TestQuickStartOffline$' ./core/cmd/allaiis
 ```
 
-### After block B
+### Walkthrough
 
-**Live walkthrough pending.** The commands below target the official DeepSeek API and are listed for a future provider check. [Integration status](docs/BLOCKED.md)
+The commands below use the official DeepSeek API as the example; the Venice web
+path, which needs no API key, is walked through in the [dossier](docs/venice-web.md)
+and summarised in [Integration status](docs/BLOCKED.md).
 
 | Step | Offline evidence | Live status |
 | --- | --- | --- |
