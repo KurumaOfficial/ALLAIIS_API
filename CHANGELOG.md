@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.17
+
+A wrong passphrase is refused where it used to look like success.
+
 
 - **`init` refuses a passphrase that does not open the existing vault.** `Init`
   on an existing file is a no-op whatever the passphrase, so a wrong one reported
