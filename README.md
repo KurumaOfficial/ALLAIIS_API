@@ -248,7 +248,7 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 - **Vault.** Use a passphrase of at least 16 bytes. For unattended operation, set `ALLAIIS_VAULT_PASSPHRASE` in the process environment. Credentials in SQLite are encrypted with AES-256-GCM using an Argon2id-derived key.
 - **Data directory.** Set `ALLAIIS_DATA_DIR` to override the default. The defaults are `%APPDATA%\allaiis` on Windows, `~/Library/Application Support/allaiis` on macOS, and `${XDG_CONFIG_HOME:-~/.config}/allaiis` on Linux.
 - **Key pools.** A pool is bound to a provider ID and base URL. Pin a route with `--label`. To remove a key, run `allaiis account remove --provider <provider> --label <label>`. Restart after configuration or key changes.
-- **Routing.** Use `X-ALLAIIS-Session` or `X-OpenCode-Session` for stable key selection. `X-ALLAIIS-Min-Privacy` can raise the configured privacy floor. A provider `429` pauses its pool until `Retry-After`. The gateway accepts up to 8 MiB per request.
+- **Routing.** Use `X-ALLAIIS-Session` or `X-OpenCode-Session` for stable key selection. `X-ALLAIIS-Min-Privacy` can raise the configured privacy floor. A `429` pauses the label until `Retry-After`, a `402` parks only that model on the label, and an unpinned pool retries on another label while the client has seen nothing. The gateway accepts up to 8 MiB per request.
 - **OpenCode import.** Recognized `api` entries are imported from `auth.json`. By default the CLI checks `$XDG_DATA_HOME/opencode/auth.json` or `~/.local/share/opencode/auth.json`.
 
 ## Status
@@ -259,7 +259,11 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 | --- | :---: | --- | :---: | --- |
 | Model routing, privacy and cooldowns | ✓ | `TestRoutingAndProviderCooldown` | — | — |
 | Cooldown scoped to a credential label | ✓ | `TestCooldownIsScopedToThePinnedLabel`, `TestCooldownOnUnpinnedPoolCoolsEveryLabel` | guest kept working while Pro cooled | — |
-| Lift a cooldown from the panel | ✓ | `TestClearCooldownEndpoint` | — | — |
+| Lift a cooldown from the panel | ✓ | `TestClearCooldownEndpoint`, `TestClearCooldownLiftsModelMarksToo` | — | — |
+| Unpinned pool retries a failing label before the client sees a byte | ✓ | `TestUnpinnedPoolRetriesAnotherLabel`, `TestPoolSkipsACooledLabel` | a 429 label was parked and the next one answered | — |
+| An empty balance parks one model, not the label | ✓ | `TestBalanceCooldownNamesOneModel`, `TestBalanceMarkNamesOneModel`, `TestBalanceMarkMovesTheModelToAnotherLabel`, `TestPanelShowsABalanceMark` | marked model `429`, DeepSeek `200` on the same label | — |
+| Doctor names parked labels and their wait | ✓ | `TestCooldownVerdict` | `credential cooldowns` check on a parked guest label | — |
+| A call short of an argument is repaired after prose | ✓ | `TestWebCallWithoutArgumentsAfterProseIsRepaired` | two agent runs: 0 tool errors (22 steps/30 tools, 6 steps/7 tools) | — |
 | `insufficientBalance` classification | ✓ | `TestErrorClassification` | 402 from a spent Pro plan mapped to `insufficient_balance` | — |
 | Quota probe in the panel | ✓ | `TestErrorClassification` | `web quota` on three labels, per-label reset times | — |
 | Native Responses and Messages | ✓ | `TestNativeProtocols` | — | — |

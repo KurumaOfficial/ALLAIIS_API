@@ -241,7 +241,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 - **Хранилище.** Выбери пароль длиной от 16 байт. Для запуска без ввода задай `ALLAIIS_VAULT_PASSPHRASE` в окружении процесса. Данные в SQLite зашифрованы AES-256-GCM. Ключ шифрования выводится через Argon2id.
 - **Каталог данных.** Переменная `ALLAIIS_DATA_DIR` переопределяет путь. По умолчанию используются `%APPDATA%\allaiis` на Windows, `~/Library/Application Support/allaiis` на macOS и `${XDG_CONFIG_HOME:-~/.config}/allaiis` на Linux.
 - **Пулы ключей.** Пул привязан к ID и базовому URL провайдера. Флаг `--label` закрепляет маршрут за ключом. Удаление выполняется командой `allaiis account remove --provider <provider> --label <label>`. После изменения настроек или ключей перезапусти шлюз.
-- **Маршрутизация.** `X-ALLAIIS-Session` и `X-OpenCode-Session` помогают сохранять выбор ключа. `X-ALLAIIS-Min-Privacy` поднимает минимальный уровень приватности. Ответ `429` приостанавливает пул провайдера на время `Retry-After`. Максимальный размер запроса — 8 МиБ.
+- **Маршрутизация.** `X-ALLAIIS-Session` и `X-OpenCode-Session` помогают сохранять выбор ключа. `X-ALLAIIS-Min-Privacy` поднимает минимальный уровень приватности. `429` приостанавливает метку на время `Retry-After`, `402` паркует только эту модель на метке, а пул без привязки повторяет запрос на другой метке, пока клиент ничего не увидел. Максимальный размер запроса — 8 МиБ.
 - **Импорт OpenCode.** CLI импортирует распознанные записи типа `api` из `auth.json`. По умолчанию проверяются `$XDG_DATA_HOME/opencode/auth.json` и `~/.local/share/opencode/auth.json`.
 
 ## Статус
@@ -252,7 +252,11 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | --- | :---: | --- | :---: | --- |
 | Маршрутизация, приватность и пауза после 429 | ✓ | `TestRoutingAndProviderCooldown` | — | — |
 | Кулдаун привязан к метке ключа | ✓ | `TestCooldownIsScopedToThePinnedLabel`, `TestCooldownOnUnpinnedPoolCoolsEveryLabel` | гость работал, пока Pro остывал | — |
-| Снятие кулдауна из панели | ✓ | `TestClearCooldownEndpoint` | — | — |
+| Снятие кулдауна из панели | ✓ | `TestClearCooldownEndpoint`, `TestClearCooldownLiftsModelMarksToo` | — | — |
+| Пул без привязки повторяет запрос на сбойной метке до первого байта | ✓ | `TestUnpinnedPoolRetriesAnotherLabel`, `TestPoolSkipsACooledLabel` | метка с 429 запаркована, ответила следующая | — |
+| Пустой баланс паркует модель, а не метку | ✓ | `TestBalanceCooldownNamesOneModel`, `TestBalanceMarkNamesOneModel`, `TestBalanceMarkMovesTheModelToAnotherLabel`, `TestPanelShowsABalanceMark` | помеченная модель `429`, DeepSeek `200` на той же метке | — |
+| Doctor называет запаркованные метки и срок | ✓ | `TestCooldownVerdict` | проверка `credential cooldowns` на запаркованном госте | — |
+| Вызов без аргумента ремонтируется и после текста | ✓ | `TestWebCallWithoutArgumentsAfterProseIsRepaired` | два прогона агента: 0 ошибок инструментов (22 шага/30 вызовов, 6 шагов/7 вызовов) | — |
 | Классификация `insufficientBalance` | ✓ | `TestErrorClassification` | 402 от исчерпанного Pro-плана стал `insufficient_balance` | — |
 | Проба квоты в панели | ✓ | `TestErrorClassification` | `web quota` на трёх метках, свои времена сброса | — |
 | Нативные Responses и Messages | ✓ | `TestNativeProtocols` | — | — |
