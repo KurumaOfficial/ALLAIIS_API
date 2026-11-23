@@ -3,12 +3,33 @@
 package main
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+// TestListeningTellsOpenFromClosed pins the status line: a registered launcher
+// said nothing about whether the gateway was actually up.
+func TestListeningTellsOpenFromClosed(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := listener.Addr().String()
+	if !listening(address) {
+		t.Fatalf("open listener %s read as closed", address)
+	}
+	listener.Close()
+	if listening(address) {
+		t.Fatalf("closed listener %s read as open", address)
+	}
+	if listening("127.0.0.1:1") {
+		t.Fatal("port 1 read as open")
+	}
+}
 
 func TestServiceInstallWritesALoginScript(t *testing.T) {
 	if runtime.GOOS != "windows" {

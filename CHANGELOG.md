@@ -3,6 +3,15 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **`service status` says whether the gateway is up.** It printed the autostart
+  entry and nothing else, so "registered" read as "running"; it now also dials the
+  configured address.
+- **A byte-order mark no longer breaks the config.** A Windows editor can save
+  UTF-8 with one, and the loader failed on the first brace with an error that said
+  `invalid character 'ï'`.
+
 ## v0.1.12
 
 Each command shows only the flags it reads.

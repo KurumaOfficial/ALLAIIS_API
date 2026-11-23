@@ -3,6 +3,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -245,9 +246,19 @@ func Load(path string) (Config, error) {
 	if !info.Mode().IsRegular() || info.Size() > maxConfigBytes {
 		return Config{}, errors.New("config must be a regular file of at most 1 MiB")
 	}
+	raw, err := io.ReadAll(io.LimitReader(file, maxConfigBytes+1))
+	if err != nil {
+		return Config{}, err
+	}
+	if len(raw) > maxConfigBytes {
+		return Config{}, errors.New("config must be a regular file of at most 1 MiB")
+	}
+	// A Windows editor may save UTF-8 with a byte-order mark, which is not part
+	// of the JSON and used to fail on the first brace.
+	raw = bytes.TrimPrefix(raw, []byte{0xEF, 0xBB, 0xBF})
 	cfg := new(Config)
 	*cfg = Default()
-	decoder := json.NewDecoder(io.LimitReader(file, maxConfigBytes+1))
+	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&cfg); err != nil {
 		return Config{}, err

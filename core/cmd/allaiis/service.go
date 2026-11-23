@@ -5,10 +5,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
+
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
 
 const serviceName = "ALLAIIS-Gateway"
@@ -73,6 +77,16 @@ func runService(ctx context.Context, dir string, args []string) error {
 	return serviceWindows(ctx, dir, action)
 }
 
+// listening reports whether something accepts TCP connections on address.
+func listening(address string) bool {
+	conn, err := net.DialTimeout("tcp", address, 2*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
 // serviceWindows uses the Startup folder: it needs no elevation, unlike the
 // task scheduler on some machines. The login script calls a launcher that sets
 // the environment and starts the gateway minimised.
@@ -89,6 +103,17 @@ func serviceWindows(ctx context.Context, dir string, action string) error {
 			fmt.Fprintf(os.Stdout, "registered at logon: %s\n", launcher)
 		} else {
 			fmt.Fprintln(os.Stdout, "not registered")
+		}
+		// Registration is not the same as running, and the difference is the
+		// first thing an operator asks.
+		address := "127.0.0.1:8420"
+		if cfg, err := config.Load(filepath.Join(dir, "config.json")); err == nil && cfg.Listen != "" {
+			address = cfg.Listen
+		}
+		if listening(address) {
+			fmt.Fprintf(os.Stdout, "gateway listening on %s\n", address)
+		} else {
+			fmt.Fprintf(os.Stdout, "gateway not listening on %s\n", address)
 		}
 		return nil
 	case "remove":
