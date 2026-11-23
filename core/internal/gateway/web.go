@@ -527,12 +527,17 @@ const (
 	defaultImageLimit = 10
 	defaultToolLimit  = 64
 	defaultInactivity = 2 * time.Minute
-	maxInactivity     = 10 * time.Minute
+	// A reasoning model can think quietly far longer than it writes.
+	reasoningInactivity = 5 * time.Minute
+	maxInactivity       = 10 * time.Minute
 )
 
 // inactivity clamps the model's suggested stream watchdog.
 func inactivity(route config.Route) time.Duration {
 	window := defaultInactivity
+	if route.Reasoning != nil && *route.Reasoning {
+		window = reasoningInactivity
+	}
 	if route.InactivityMS > 0 {
 		window = time.Duration(route.InactivityMS) * time.Millisecond
 	}

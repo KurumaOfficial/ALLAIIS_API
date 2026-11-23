@@ -1045,3 +1045,20 @@ func TestAFailoverLeavesTheEmptyReplyBudget(t *testing.T) {
 		t.Fatalf("expected a switch plus an empty retry, got %d calls", calls.Load())
 	}
 }
+
+func TestReasoningRoutesGetALongerWatchdog(t *testing.T) {
+	if got := gateway.InactivityWindow(config.Route{}); got != 2*time.Minute {
+		t.Fatalf("plain default %v", got)
+	}
+	yes := true
+	if got := gateway.InactivityWindow(config.Route{Reasoning: &yes}); got != 5*time.Minute {
+		t.Fatalf("reasoning default %v", got)
+	}
+	// The catalog's own value still wins, and the clamp holds both ways.
+	if got := gateway.InactivityWindow(config.Route{Reasoning: &yes, InactivityMS: 200}); got != time.Second {
+		t.Fatalf("floor %v", got)
+	}
+	if got := gateway.InactivityWindow(config.Route{Reasoning: &yes, InactivityMS: 3_600_000}); got != 10*time.Minute {
+		t.Fatalf("ceiling %v", got)
+	}
+}
