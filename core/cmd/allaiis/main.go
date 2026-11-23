@@ -291,6 +291,13 @@ func run(ctx context.Context, args []string) error {
 	case "export opencode":
 		return exportOpenCode(os.Stdout, cfg.Listen, routes.Models(cfg.MinPrivacy))
 	case "up":
+		// The flag was registered and ignored: only gui applied it.
+		if listen != "" {
+			cfg.Listen = listen
+		}
+		if _, _, err := net.SplitHostPort(cfg.Listen); err != nil {
+			return fmt.Errorf("invalid listen address: %w", err)
+		}
 		advertise(os.Stdout, cfg, routes.Models(cfg.MinPrivacy))
 		live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithConfig(cfg).WithToolNameTTLFor(retentionTTL(cfg, configPath)).WithStateDir(ctx, dir).WithReload(configPath, store)
 		go live.Watch(ctx)

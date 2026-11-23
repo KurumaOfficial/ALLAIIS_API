@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **`up --listen` was accepted and ignored.** Only `gui` applied the flag, so
+  `up -listen 127.0.0.1:9000` still served on the configured address; it now
+  serves where asked and rejects an address without a port.
+
 ## v0.1.13
 
 The status line tells the truth, and a BOM no longer breaks the config.
