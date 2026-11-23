@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.2
+
+The protocol shapes now match each other, and each one says what it can and
+cannot honour.
 
 - **Honest refusals.** `n` above one and `logprobs` answer `invalid_request`
   instead of returning one plain answer, and Chat reads `max_completion_tokens`
