@@ -15,12 +15,25 @@ bounded by the configurable `max_request_mb`.
 
 ## B1b. Current environment notes
 
-The guest session is out of its daily allowance until 2026-11-23 13:33 and the
-Pro session reports a zero chat counter. Premium models answer
-`402 insufficient_balance` and are parked per model; the free uncensored,
-role-play and DeepSeek uncensored models still answer. `web quota` and the
-panel's Quota button show the remaining count and reset without spending a
-message.
+Checked 2026-11-23 with the stored Pro session's own claims:
+
+- The account is **PRO** and the chat allowance is large (`remaining: 9685`);
+  the guest chat allowance is `0` for the rest of its window.
+- The **credit** bucket paid models draw on is empty
+  (`availableCredits: 0`, `usedThisCycle: 100` of `100`, refill on
+  2026-12-16). Venice answers `{"error":"insufficientBalance"}` for a credit
+  model, which is the credit bucket, not the plan; free models keep answering on
+  the same session.
+- The quota probe used to report the anonymous bucket because it asked without
+  the session token, so a healthy session looked spent. It now asks as the
+  account, and `allaiis doctor` prints a `web plan` line with the chat allowance,
+  the plan and the credits.
+- An unattested programmatic call to the agent endpoint answers `403` with a
+  Terms-of-Service warning; attested calls are answered normally. The warning is
+  worth knowing about for a long-running automation on a personal account.
+- Working free route for the model in the browser: `deepseek-v4` on
+  `venice-web` with `deepseek-v4-1-flash-uncensored` (vision, tools, 524K
+  context), pinned to the `pro` label.
 
 ## B2. Handoff
 
