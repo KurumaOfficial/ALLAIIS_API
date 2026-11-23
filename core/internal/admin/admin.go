@@ -704,6 +704,15 @@ func (s *Server) webQuota(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		row["principal"] = client.Principal(r.Context(), credential)
+		if account, ok := limits["account"].(map[string]any); ok {
+			row["plan"] = account["userType"]
+			row["credits"] = account["availableCredits"]
+			if usage, ok := account["bundledCreditsUsage"].(map[string]any); ok {
+				row["credit_cap"] = usage["monthlyRefillCredits"]
+				row["credit_refill_at"] = usage["nextRefillAt"]
+			}
+			delete(limits, "account")
+		}
 		if chat, ok := limits["chat"].(map[string]any); ok {
 			row["chat_remaining"] = chat["remaining"]
 			row["reset_at"] = chat["resetAt"]

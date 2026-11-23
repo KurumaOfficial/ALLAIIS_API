@@ -723,7 +723,8 @@ func balanceError(w http.ResponseWriter, protocol config.Protocol, until time.Ti
 		w.Header().Set("Retry-After", strconv.FormatInt(int64(seconds), 10))
 	}
 	writeError(w, protocol, http.StatusPaymentRequired, "insufficient_balance",
-		"This model has no messages left on this label for 30 minutes. Check `allaiis web quota` or use another label.")
+		"This model is parked on this label for 30 minutes: the session has no credits for it. "+
+			"Free models on the same label still answer; `allaiis web quota` shows both counters.")
 }
 
 func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, target router.Target, err error) {

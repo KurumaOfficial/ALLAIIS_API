@@ -52,8 +52,11 @@ To capture from another browser, paste a cookie header instead:
 ```
 
 The status of the pool is visible with `./allaiis web quota`; it reports the
-remaining chat/image/scrape counters, the reset time, and whether the session is
-signed in or a guest. `allaiis up` prints every alias it serves.
+remaining chat/image/scrape counters, the reset time, whether the session is
+signed in or a guest, and, for a signed-in session, the plan and the credit
+balance the paid models draw on. The counters are asked for with the session
+token: without it the endpoint answers the anonymous bucket, which made a
+signed-in label look empty. `allaiis up` prints every alias it serves.
 
 ### Per-OS notes
 
@@ -75,9 +78,12 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   `<data dir>/chrome-profile`.
 - **Clearance expires.** `cf_clearance` lives for hours. On `403` the route
   returns `cloudflare_challenge`; run `web login` again.
-- **Guest quota is tiny** (about 10 chats/day, one quota window per day). A spent
-  plan answers `402 insufficientBalance`; `allaiis web quota` and the panel's
-  Quota button show the reset time without spending a message. The model is
+- **Guest quota is tiny** (about 10 chats/day, one quota window per day).
+  `402 insufficientBalance` means the credit bucket for paid models is at zero;
+  it is not the same counter as the chat allowance, and a plan can be active
+  with thousands of chats left and no credits for a paid model. `allaiis web
+  quota` and the panel's Quota button show both counters and the reset without
+  spending a message; `allaiis doctor` prints the plan line too. The model is
   parked on that label for 30 minutes, while a free model on the same session
   keeps answering, as Venice still serves it with a spent plan.
   Attestation tokens are per-request, so the client mints in batches of five.

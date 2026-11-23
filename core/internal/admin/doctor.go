@@ -95,6 +95,91 @@ func fetchLiveStats(ctx context.Context, listen string) (liveStats, bool) {
 // fetchStats is a seam over the live fetch.
 var fetchStats = fetchLiveStats
 
+// probePlan is the network seam the plan check uses.
+var probePlan = func(ctx context.Context, cred webprov.Credential) (map[string]any, error) {
+	return webprov.New(45*time.Second).Probe(ctx, cred)
+}
+
+// planCheck reports what the stored web sessions are allowed to spend. The
+// rate limits alone made a signed-in account look empty: they answer the
+// anonymous bucket without the session token, and never mention credits.
+func planCheck(ctx context.Context, cfg config.Config, store *vault.Store) (Check, bool) {
+	var lines []string
+	low := false
+	seen := map[string]bool{}
+	for _, route := range cfg.Models {
+		provider, ok := cfg.Provider(route.Provider)
+		// Providers are resolved from the routes, so the route list is the
+		// source of truth here.
+		if !ok || !provider.Web() || seen[route.Provider] {
+			continue
+		}
+		seen[route.Provider] = true
+		entries, err := store.Entries(ctx, route.Provider, provider.BaseURL)
+		if err != nil {
+			continue
+		}
+		for index, entry := range entries {
+			if index == 3 {
+				break
+			}
+			cred, err := webprov.ParseCredential(entry.Key)
+			if err != nil {
+				lines = append(lines, entry.Label+": unreadable session")
+				continue
+			}
+			limits, err := probePlan(ctx, cred)
+			if err != nil {
+				lines = append(lines, entry.Label+": "+err.Error())
+				continue
+			}
+			chat := "?"
+			if limitsMap, ok := limits["chat"].(map[string]any); ok {
+				if remaining, ok := limitsMap["remaining"].(float64); ok {
+					chat = fmt.Sprintf("%.0f", remaining)
+					if remaining <= 0 {
+						low = true
+					}
+				}
+			}
+			line := entry.Label + ": " + chat + " chat"
+			if account, ok := limits["account"].(map[string]any); ok {
+				plan, _ := account["userType"].(string)
+				if plan == "" {
+					plan = "no plan"
+				}
+				line += ", " + plan
+				credits, cap := "?", "?"
+				if usage, ok := account["bundledCreditsUsage"].(map[string]any); ok {
+					credits = number(usage["availableCredits"])
+					cap = number(usage["monthlyRefillCredits"])
+				}
+				line += ", " + credits + "/" + cap + " credits"
+				if credits == "0" {
+					line += " (paid models answer 402)"
+				}
+			}
+			lines = append(lines, line)
+		}
+	}
+	if len(lines) == 0 {
+		return Check{}, false
+	}
+	status := "ok"
+	if low {
+		status = "warn"
+	}
+	return Check{Name: "web plan", Status: status, Detail: strings.Join(lines, "; ")}, true
+}
+
+// number renders a JSON number without a trailing .0.
+func number(value any) string {
+	if f, ok := value.(float64); ok {
+		return fmt.Sprintf("%.0f", f)
+	}
+	return "?"
+}
+
 // Diagnose validates the local setup without spending provider quota.
 func Diagnose(ctx context.Context, store *vault.Store, configPath string) []Check {
 	return diagnose(ctx, store, configPath, true)
@@ -191,6 +276,11 @@ func diagnose(ctx context.Context, store *vault.Store, configPath string, attest
 					break
 				}
 			}
+		}
+	}
+	if attest {
+		if check, ok := planCheck(ctx, cfg, store); ok {
+			results = append(results, check)
 		}
 	}
 	switch {

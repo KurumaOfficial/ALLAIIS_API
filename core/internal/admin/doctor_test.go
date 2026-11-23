@@ -19,6 +19,7 @@ import (
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
 
 func TestToolNameVerdict(t *testing.T) {
@@ -146,6 +147,52 @@ func TestDiagnoseWarnsAboutAGuestEnclave(t *testing.T) {
 		}
 	}
 	t.Fatal("no enclave check")
+}
+
+// TestDiagnoseReportsThePlanAndCredits pins the check that explains a 402: the
+// plan is active and chat is plentiful while the credit bucket is empty.
+func TestDiagnoseReportsThePlanAndCredits(t *testing.T) {
+	f := setup(t)
+	cfg, err := config.Load(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Providers = map[string]config.Provider{
+		"web": {BaseURL: "https://web.example/api", Transport: config.TransportVeniceWeb},
+	}
+	cfg.Models = []config.Route{{ID: "web-alias", Provider: "web", UpstreamModel: "glm", Privacy: config.ZDR}}
+	body, _ := json.Marshal(cfg)
+	if err := os.WriteFile(f.path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	cred := webprov.Credential{DistinctID: "device", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: "clear"}}}
+	if _, err := f.store.Import(context.Background(), []vault.Entry{{
+		Provider: "web", Endpoint: "https://web.example/api", Label: "pro", Key: cred.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	saved := probePlan
+	probePlan = func(context.Context, webprov.Credential) (map[string]any, error) {
+		return map[string]any{
+			"chat": map[string]any{"remaining": float64(9685)},
+			"account": map[string]any{
+				"userType": "PRO", "availableCredits": float64(0),
+				"bundledCreditsUsage": map[string]any{"availableCredits": float64(0), "monthlyRefillCredits": float64(100)},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { probePlan = saved })
+
+	for _, check := range Diagnose(context.Background(), f.store, f.path) {
+		if check.Name == "web plan" {
+			if check.Status != "ok" || !strings.Contains(check.Detail, "9685 chat") ||
+				!strings.Contains(check.Detail, "PRO") || !strings.Contains(check.Detail, "0/100 credits") {
+				t.Fatalf("plan check %+v", check)
+			}
+			return
+		}
+	}
+	t.Fatal("no plan check")
 }
 
 func TestDiagnoseWarnsAboutASmallBodyCap(t *testing.T) {

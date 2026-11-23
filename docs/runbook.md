@@ -86,7 +86,10 @@ binary goes back on autostart.
 
 ## When something breaks
 
-- `allaiis doctor` — local checks, no provider quota; parked labels and their wait are listed, so a `429` from a pool is explained; e2ee aliases are attested live, which spends no quota, and a guest session pinned to one is flagged since it cannot run e2ee; `--offline` skips that one network check.
+- `allaiis doctor` — local checks, no provider quota; parked labels and their wait are listed, so a `429` from a pool is explained; The `web plan` line prints each stored session's chat allowance, plan and
+credit balance, so a `402` can be read without guessing: paid models need
+credits, free models do not. e2ee aliases are attested live, which spends no
+quota, and a guest session pinned to one is flagged since it cannot run e2ee; `--offline` skips that one network check.
 - `allaiis web quota` — remaining session counters and reset time.
 - `allaiis web e2ee --model <e2ee model>` — attests the enclave for every stored session (or one with `--label`), prints what passed, and sends one sealed canary turn.
 - the panel at `http://127.0.0.1:8431/` — quotas, probes, logs, aliases.

@@ -129,6 +129,52 @@ func cookieValue(r *http.Request, name string) string {
 	return cookie.Value
 }
 
+// TestProbeCarriesTheSessionAndReportsCredits pins two things the panel and the
+// CLI need: the rate limits must be asked for as the signed-in account (without
+// the token the endpoint answers the anonymous bucket), and the plan and the
+// credit balance must come back with them.
+func TestProbeCarriesTheSessionAndReportsCredits(t *testing.T) {
+	accountToken := "eyJhbGciOiJub25lIn0.eyJhdXRoU3lzdGVtVXNlcklkIjoidXNlcl9maXh0dXJlIiwidXNlclR5cGUiOiJQUk8iLCJidW5kbGVkQ3JlZGl0cyI6MCwiYnVuZGxlZENyZWRpdHNVc2FnZSI6eyJhdmFpbGFibGVDcmVkaXRzIjowLCJtb250aGx5UmVmaWxsQ3JlZGl0cyI6MTAwLCJuZXh0UmVmaWxsQXQiOjE3OTc0MTI0ODgwMDAsInRpZXJDYXAiOjEwMCwidXNlZFRoaXNDeWNsZSI6MTAwfSwidXNlck5hbWUiOiJmaXh0dXJlIn0.sig"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app/user/client_attestation/mint":
+			fmt.Fprintf(w, `{"expiresAt":1,"tokens":[{"token":%q}]}`, sessionJWT)
+		case "/v1/client":
+			fmt.Fprint(w, `{"response":{"sessions":[{"id":"sess_1","status":"active"}]}}`)
+		case "/v1/client/sessions/sess_1/tokens":
+			fmt.Fprintf(w, `{"jwt":%q}`, sessionJWT)
+		case "/inference/rate-limits":
+			if r.Header.Get("Authorization") != "Bearer "+sessionJWT {
+				t.Errorf("rate limits asked without the session: %q", r.Header.Get("Authorization"))
+			}
+			fmt.Fprint(w, `{"chat":{"remaining":9685,"resetAt":1795499466865}}`)
+		case "/user/session":
+			if r.Header.Get("Authorization") != "Bearer "+sessionJWT {
+				t.Errorf("account asked without the session: %q", r.Header.Get("Authorization"))
+			}
+			fmt.Fprintf(w, `{"token":%q}`, accountToken)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := testClient(server)
+	cred := Credential{DistinctID: "device-1", Venice: []Cookie{{Name: "cf_clearance", Value: "clear"}},
+		Clerk: []Cookie{{Name: "__client", Value: "client-cookie"}}}
+	limits, err := client.Probe(context.Background(), cred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chat, _ := limits["chat"].(map[string]any)
+	if chat["remaining"] != float64(9685) {
+		t.Errorf("chat limits %v", limits["chat"])
+	}
+	account, _ := limits["account"].(map[string]any)
+	if account["userType"] != "PRO" || account["availableCredits"] != float64(0) {
+		t.Errorf("account %v", account)
+	}
+}
+
 func TestAnonymousChatSkipsClerk(t *testing.T) {
 	var clerkCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

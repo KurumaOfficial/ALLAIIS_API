@@ -157,6 +157,10 @@ function render () {
           lowQuota[provider.id] = result.labels.some(row => row.low)
           quotas[provider.id] = result.labels.map(row => row.label + ': ' +
             (row.error ? row.error : (row.low ? 'LOW, ' : '') + (row.chat_remaining ?? '?') + ' chat left' +
+              (row.plan ? ', ' + row.plan : '') +
+              (row.credits !== undefined && row.credits !== null
+                ? ', ' + row.credits + (row.credit_cap ? '/' + row.credit_cap : '') + ' credits'
+                : '') +
               (row.reset_at ? ', resets ' + new Date(row.reset_at).toLocaleString() : '') +
               (row.principal === 'anonymous' ? ' (anonymous)' : ''))).join(' · ')
           render()

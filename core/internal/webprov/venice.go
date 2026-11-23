@@ -573,6 +573,10 @@ func decodeEvents(body io.Reader, emit func(Event) error) error {
 func (c *Client) statusError(response *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
 	text := string(body)
+	if os.Getenv("ALLAIIS_WEB_DEBUG") != "" {
+		os.WriteFile(os.TempDir()+"/venice-status.json",
+			[]byte(fmt.Sprintf("%d %s\n%s", response.StatusCode, response.Request.URL, text)), 0o600)
+	}
 	switch {
 	case response.StatusCode == http.StatusTooManyRequests:
 		return rateLimitError{until: RateLimitUntil(response, time.Now())}
@@ -595,7 +599,7 @@ func (c *Client) statusError(response *http.Response) error {
 var (
 	errContextTooLong      = errors.New("prompt exceeds the model context")
 	errUnknownModel        = errors.New("the web app does not offer this model")
-	errInsufficientBalance = errors.New("the session has no messages left")
+	errInsufficientBalance = errors.New("this session has no credits for a paid model")
 )
 
 // ErrContextTooLong reports that the model context window was exceeded.
@@ -928,6 +932,15 @@ func (c *Client) Probe(ctx context.Context, cred Credential) (map[string]any, er
 	}
 	c.headers(request, cred, attestation)
 	request.Header.Set("Accept", "application/json")
+	// Without the session token the endpoint answers the anonymous bucket, so
+	// a signed-in label looked empty while its account had thousands left.
+	token := c.sessionToken(cred, userID)
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	if cred.DistinctID != "" {
+		request.Header.Set("x-venice-distinct-id", cred.DistinctID)
+	}
 	response, err := c.http.Do(request)
 	if err != nil {
 		return nil, err
@@ -940,5 +953,62 @@ func (c *Client) Probe(ctx context.Context, cred Credential) (map[string]any, er
 	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&limits); err != nil {
 		return nil, err
 	}
+	if token != "" {
+		account, err := c.account(ctx, cred, attestation, token)
+		if err == nil {
+			limits["account"] = account
+		} else if os.Getenv("ALLAIIS_WEB_DEBUG") != "" {
+			os.WriteFile(os.TempDir()+"/venice-account-error.txt", []byte(err.Error()), 0o600)
+		}
+	}
 	return limits, nil
+}
+
+// account reads the session claims that decide what a model costs: the plan and
+// the credit balance, which the rate limits do not show.
+func (c *Client) account(ctx context.Context, cred Credential, attestation, token string) (map[string]any, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/user/session", nil)
+	if err != nil {
+		return nil, err
+	}
+	c.headers(request, cred, attestation)
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Authorization", "Bearer "+token)
+	response, err := c.http.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s: %w", request.URL, c.statusError(response))
+	}
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&body); err != nil {
+		return nil, err
+	}
+	segments := strings.Split(body.Token, ".")
+	if len(segments) != 3 {
+		return nil, errors.New("session token is not a JWT")
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(segments[1])
+	if err != nil {
+		return nil, err
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(raw, &claims); err != nil {
+		return nil, err
+	}
+	account := map[string]any{}
+	for _, key := range []string{"userType", "bundledCredits", "bundledCreditsUsage",
+		"subscriptionExpiresAt", "userName", "points"} {
+		if value, ok := claims[key]; ok {
+			account[key] = value
+		}
+	}
+	if usage, ok := claims["bundledCreditsUsage"].(map[string]any); ok {
+		account["availableCredits"] = usage["availableCredits"]
+	}
+	return account, nil
 }

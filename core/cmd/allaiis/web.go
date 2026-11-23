@@ -167,7 +167,12 @@ func webQuota(ctx context.Context, store *vault.Store, provider config.Provider,
 			results[entry.Label] = err.Error()
 			continue
 		}
-		row := map[string]any{"principal": client.Principal(ctx, cred), "limits": limits}
+		row := map[string]any{"principal": client.Principal(ctx, cred)}
+		if account, ok := limits["account"]; ok {
+			row["account"] = account
+			delete(limits, "account")
+		}
+		row["limits"] = limits
 		// The same floor the panel uses, so a scripted check sees it too.
 		if chat, ok := limits["chat"].(map[string]any); ok && floor > 0 {
 			if remaining, ok := chat["remaining"].(float64); ok && remaining <= float64(floor) {

@@ -3,6 +3,16 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **Quota tells the truth.** The probe asked the rate-limits endpoint without
+  the session token, so a signed-in label looked empty while the account had
+  thousands of chats left. It now asks as the account and reports the plan and
+  the credit balance beside the counters. The `402` wording says the credit
+  bucket is empty, which is what Venice means, instead of calling the plan spent.
+- **Doctor plan line.** `web plan` prints each session's chat allowance, plan and
+  credits, so a `402` can be read without guessing.
+
 ## v0.1.2
 
 The protocol shapes now match each other, and each one says what it can and
