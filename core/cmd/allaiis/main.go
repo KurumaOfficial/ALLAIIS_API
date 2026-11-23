@@ -40,6 +40,7 @@ const usage = `Usage: allaiis <command>
   web chrome        Open the capture browser for a web provider
   web login         Capture a logged-in web session into the vault
   web quota         Show remaining quota for stored web sessions
+  web e2ee          Attest a model enclave and send one sealed canary
   status            Show configured models, key labels, and provider cooldowns
   doctor            Check config, vault, listener, aliases and capture browser
   backup            Save or restore the vault and config
