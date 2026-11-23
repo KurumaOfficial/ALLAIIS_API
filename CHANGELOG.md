@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **`store: false`.** A Responses reply sent with it stays out of the vault, so a
+  follow-up by its id carries only what the client sends.
+
 - **Forced tool choice.** `required` and Messages `any`, a named function and
   the no-parallel switch become an instruction, and `"none"` drops the tools
   from the request; the endpoint has no switch to enforce either.

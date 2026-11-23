@@ -316,6 +316,35 @@ func TestResponsesToolChoiceObjectNoneDropsTools(t *testing.T) {
 	}
 }
 
+// TestResponsesStoreFalseKeepsTurnsOut pins the privacy switch: a reply sent
+// with store false is not replayed for a later id.
+func TestResponsesStoreFalseKeepsTurnsOut(t *testing.T) {
+	var bodies []map[string]any
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		bodies = append(bodies, body)
+		writeFrames(w, "answer")
+	})
+	handler, rebuild, store := responsesGatewayRebuild(t, server.URL)
+	first := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"one","store":false}`)
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &created); err != nil || created.ID == "" {
+		t.Fatalf("no response id: %s", first.Body)
+	}
+	second := responsesCall(rebuild(), store.ClientKey(),
+		`{"model":"gpt-venice-web-fixture","previous_response_id":"`+created.ID+`","input":"two"}`)
+	if second.Code != http.StatusOK {
+		t.Fatalf("follow-up failed: %d %s", second.Code, second.Body)
+	}
+	if len(bodies) != 2 {
+		t.Fatalf("upstream calls %d", len(bodies))
+	}
+	if messages := bodies[1]["prompt"].([]any); len(messages) != 1 {
+		t.Fatalf("previous turn replayed although store said no: %v", messages)
+	}
+}
+
 func TestResponsesFollowUpByPreviousId(t *testing.T) {
 	var bodies []map[string]any
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {

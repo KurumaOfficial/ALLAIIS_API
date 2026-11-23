@@ -32,6 +32,7 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 		} `json:"text"`
 		Previous string          `json:"previous_response_id"`
 		Stop     json.RawMessage `json:"stop"`
+		Store    *bool           `json:"store"`
 		Tools    []struct {
 			Type       string          `json:"type"`
 			Name       string          `json:"name"`
@@ -47,6 +48,7 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 		RequestID: randomID(), Model: model,
 		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
 		StopSequences: stopList(input.Stop),
+		Store:         input.Store,
 	}
 	request.Reasoning = input.Reasoning.Effort != "" || strings.Contains(strings.ToLower(model), "reasoning")
 	reason := &webReason{reasoning: request.Reasoning}

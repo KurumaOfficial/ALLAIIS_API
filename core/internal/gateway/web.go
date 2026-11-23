@@ -531,7 +531,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	} else {
 		shape.reply(reason.text.String(), reason.reasoningText.String(), calls, usage, finish)
 	}
-	if protocol == config.Responses {
+	// store: false keeps the turns out of the vault, so a follow-up by that id
+	// has only what the client sends.
+	if protocol == config.Responses && (request.Store == nil || *request.Store) {
 		reply := reason.text.String()
 		if len(calls) > 0 {
 			reply = renderCallList(reply, calls)

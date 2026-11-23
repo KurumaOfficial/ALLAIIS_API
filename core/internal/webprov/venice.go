@@ -151,7 +151,9 @@ type Message struct {
 type Request struct {
 	// Parent names the previous response for stateful clients; the gateway
 	// resolves it before the call.
-	Parent      string
+	Parent string
+	// Store is the client's say on keeping the turns; nil keeps them.
+	Store       *bool
 	RequestID   string
 	Model       string
 	Messages    []Message
