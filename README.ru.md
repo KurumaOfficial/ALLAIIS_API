@@ -253,7 +253,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Маршрутизация, приватность и пауза после 429 | ✓ | `TestRoutingAndProviderCooldown` | — | — |
 | Кулдаун привязан к метке ключа | ✓ | `TestCooldownIsScopedToThePinnedLabel`, `TestCooldownOnUnpinnedPoolCoolsEveryLabel` | гость работал, пока Pro остывал | — |
 | Снятие кулдауна из панели | ✓ | `TestClearCooldownEndpoint`, `TestClearCooldownLiftsModelMarksToo` | — | — |
-| Пул без привязки повторяет запрос на сбойной метке до первого байта | ✓ | `TestUnpinnedPoolRetriesAnotherLabel`, `TestPoolSkipsACooledLabel` | метка с 429 запаркована, ответила следующая | — |
+| Пул без привязки повторяет запрос на сбойной метке до первого байта | ✓ | `TestUnpinnedPoolRetriesAnotherLabel`, `TestPoolSkipsACooledLabel` | метка с 429 запаркована, ответила следующая; переключение не тратит бюджет ремонта | — |
 | Пустой баланс паркует модель, а не метку | ✓ | `TestBalanceCooldownNamesOneModel`, `TestBalanceMarkNamesOneModel`, `TestBalanceMarkMovesTheModelToAnotherLabel`, `TestPanelShowsABalanceMark` | помеченная модель `429`, DeepSeek `200` на той же метке | — |
 | Doctor называет запаркованные метки и срок | ✓ | `TestCooldownVerdict` | проверка `credential cooldowns` на запаркованном госте | — |
 | Вызов без аргумента ремонтируется и после текста | ✓ | `TestWebCallWithoutArgumentsAfterProseIsRepaired` | два прогона агента: 0 ошибок инструментов (22 шага/30 вызовов, 6 шагов/7 вызовов) | — |

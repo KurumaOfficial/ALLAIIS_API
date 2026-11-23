@@ -12,6 +12,13 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
 
 const toolPayload = `{"model":"` + webModel + `","tools":[{"type":"function","function":{` +
@@ -448,5 +455,58 @@ func TestWebCallWithoutArgumentsAfterProseIsRepaired(t *testing.T) {
 	}
 	if scrape := metricsOf(handler); !strings.Contains(scrape, "allaiis_tool_argument_repair_total 1") {
 		t.Fatalf("repair not counted: %s", scrape)
+	}
+}
+
+// A label switch must not spend the repair budget: the second answer can be just
+// as broken as the first, and the client still deserves a filled call.
+func TestAFailoverLeavesTheRepairBudget(t *testing.T) {
+	var calls atomic.Int32
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
+		switch calls.Add(1) {
+		case 1:
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			fmt.Fprint(w, `{"error":"rate limited"}`)
+		case 2:
+			writeFrames(w, "Reading.\n<<<ALLAIIS_TOOL_CALL>>>{\"calls\":[{\"name\":\"read_file\",\"arguments\":{}}]}<<<END_TOOL_CALL>>>")
+		default:
+			writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file","arguments":{"path":"a.txt"}}]}<<<END_TOOL_CALL>>>`)
+		}
+	})
+	store, _ := setup(t, server.URL)
+	cfg := config.Default()
+	cfg.Providers = map[string]config.Provider{
+		"venice-web-fixture": {BaseURL: server.URL, Transport: config.TransportVeniceWeb},
+	}
+	cfg.Models = []config.Route{{
+		ID: webModel, Provider: "venice-web-fixture",
+		UpstreamModel: "venice-uncensored-1-2", Privacy: config.ZDR,
+	}}
+	for _, label := range []string{"one", "two"} {
+		cred := webprov.Credential{DistinctID: "device", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: label}}}
+		if _, err := store.Import(t.Context(), []vault.Entry{{
+			Provider: "venice-web-fixture", Endpoint: server.URL, Label: label, Key: cred.Encode(),
+		}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	body := strings.Replace(toolPayload, `"messages"`, `"stream":true,"messages"`, 1)
+	result := complete(handler, store.ClientKey(), "", body)
+	text := result.Body.String()
+	if result.Code != http.StatusOK || !strings.Contains(text, `"finish_reason":"tool_calls"`) || !strings.Contains(text, `a.txt`) {
+		t.Fatalf("switch ate the repair: %d %s", result.Code, text)
+	}
+	if calls.Load() != 3 {
+		t.Fatalf("expected a switch plus a repair, got %d calls", calls.Load())
+	}
+	if strings.Count(text, "Reading.") != 1 {
+		t.Fatalf("prose repeated: %s", text)
 	}
 }

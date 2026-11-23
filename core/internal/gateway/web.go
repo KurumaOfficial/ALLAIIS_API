@@ -320,6 +320,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 
 	started := time.Now()
 	attempts := 0
+	// One label switch and one repair are separate budgets, so a bad label does
+	// not eat the repair a sloppy first answer needs.
+	failovers, repairs := 0, 0
 	for {
 		attempts++
 		ctx, cancel := context.WithCancel(r.Context())
@@ -330,7 +333,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		}
 		// A pool should try its other labels before failing the client: the
 		// label, not the model, was the problem.
-		if penalty, scope, known := labelPenalty(err); known && !sent && attempts < 2 && target.Route.CredentialLabel == "" {
+		if penalty, scope, known := labelPenalty(err); known && !sent && failovers < 1 && attempts < 3 && target.Route.CredentialLabel == "" {
+			failovers++
 			persist, cancelStore := context.WithTimeout(context.Background(), 5*time.Second)
 			var setErr error
 			if scope == modelParked {
@@ -362,7 +366,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				}
 			}
 		}
-		if errors.Is(err, errToolRepair) && attempts < 2 {
+		if errors.Is(err, errToolRepair) && repairs < 1 && attempts < 3 {
+			repairs++
 			g.metrics.noteBlockFix()
 			request.Messages = repairMessages(reason.messages(envelope), reason.text.String(), "")
 			reason.reasoningText.Reset()
@@ -387,7 +392,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		// block in front of it and only has to fill the gap. The turn names the
 		// field, and the call is replaced before the client runs it.
 		problems := guard.argumentProblems(heldCalls)
-		if err == nil && len(problems) > 0 && attempts < 2 {
+		if err == nil && len(problems) > 0 && repairs < 1 && attempts < 3 {
+			repairs++
 			g.metrics.noteArgFix()
 			request.Messages = repairMessages(reason.messages(envelope), renderCallList("", heldCalls), strings.Join(problems, "; "))
 			reason.reasoningText.Reset()
