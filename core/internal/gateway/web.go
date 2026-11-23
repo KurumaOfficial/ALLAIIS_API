@@ -63,7 +63,6 @@ type webShape interface {
 	reply(content, reasoning string, calls []toolCall, usage map[string]any, finish string)
 }
 
-// webCompletion serves a route whose provider has no documented API.
 // penaltyScope says what a failure parks: a limited label or an empty balance
 // for one model, which leaves the label free to serve another.
 type penaltyScope int
@@ -92,6 +91,7 @@ func labelPenalty(err error) (time.Duration, penaltyScope, bool) {
 	return 0, labelParked, false
 }
 
+// webCompletion serves a route whose provider has no documented API.
 func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, target router.Target, payload []byte, stream bool, minimum config.Privacy, session [32]byte) (chars, callsOut int) {
 	credential, err := webprov.ParseCredential(target.Entry.Key)
 	if err != nil {
