@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -33,18 +34,42 @@ type backupManifest struct {
 // runBackup saves or restores the data directory.
 func runBackup(ctx context.Context, dir string, args []string) error {
 	_ = ctx
-	if len(args) == 0 {
+	if len(args) == 0 || helpWanted(args[0]) {
 		fmt.Fprint(os.Stdout, backupUsage)
 		return nil
 	}
 	if args[0] == "restore" {
-		if len(args) < 2 {
-			return fmt.Errorf("name a directory to restore from")
+		rest := args[1:]
+		if len(rest) == 0 || helpWanted(rest[0]) {
+			fmt.Fprint(os.Stdout, backupUsage)
+			return nil
 		}
-		force := len(args) > 2 && args[2] == "--force"
-		return restoreBackup(dir, args[1], force)
+		force := false
+		for _, arg := range rest[1:] {
+			if arg != "--force" {
+				return fmt.Errorf("unknown option %q", arg)
+			}
+			force = true
+		}
+		return restoreBackup(dir, rest[0], force)
+	}
+	// A path that starts with a dash is a typo, not a directory: `backup
+	// --help` once created a folder named `--help`.
+	if strings.HasPrefix(args[0], "-") {
+		return fmt.Errorf("unknown option %q", args[0])
+	}
+	if len(args) > 1 {
+		return fmt.Errorf("backup takes one directory, got %d arguments", len(args))
 	}
 	return writeBackup(dir, args[0])
+}
+
+func helpWanted(arg string) bool {
+	switch arg {
+	case "-h", "--help", "help":
+		return true
+	}
+	return false
 }
 
 // writeBackup copies the live files and records their hashes.

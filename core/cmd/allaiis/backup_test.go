@@ -9,6 +9,37 @@ import (
 	"testing"
 )
 
+// TestBackupHelpDoesNotWrite pins the typo that made `backup --help` create a
+// directory named `--help` instead of printing usage.
+func TestBackupHelpDoesNotWrite(t *testing.T) {
+	dir := t.TempDir()
+	out := capture(t, func() {
+		if err := runBackup(t.Context(), dir, []string{"--help"}); err != nil {
+			t.Fatalf("help failed: %v", err)
+		}
+	})
+	if !strings.Contains(out, "allaiis backup") {
+		t.Fatalf("no usage: %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "--help")); err == nil {
+		t.Fatal("a directory named --help was created")
+	}
+	for _, args := range [][]string{{"-h"}, {"help"}, {"restore", "--help"}} {
+		if err := runBackup(t.Context(), dir, args); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+}
+
+func TestBackupRejectsUnknownOptions(t *testing.T) {
+	dir := t.TempDir()
+	for _, args := range [][]string{{"--out", "x"}, {"a", "b"}, {"restore", "x", "--no"}} {
+		if err := runBackup(t.Context(), dir, args); err == nil {
+			t.Fatalf("%v accepted", args)
+		}
+	}
+}
+
 func TestBackupAndRestoreRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"listen":"127.0.0.1:8420","models":[]}`), 0o600); err != nil {

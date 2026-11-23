@@ -5,6 +5,12 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **`backup --help` printed nothing and wrote a directory named `--help`.** The
+  first argument was taken as the target whatever it looked like; help words are
+  recognised now and an option-shaped path is refused. Restore rejects unknown
+  options too.
+
+
 - **Two panel paths have tests.** A pasted plain API key for a web provider is
   refused with the message that names `web login`, and the Export button's file
   round-trips a route added through the same panel.
