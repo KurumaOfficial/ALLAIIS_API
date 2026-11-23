@@ -204,7 +204,7 @@ func webE2EE(ctx context.Context, store *vault.Store, provider config.Provider, 
 	if err != nil {
 		return err
 	}
-	client := webprov.New(3 * time.Minute)
+	client := webprov.New(30 * time.Second)
 	probe, err := client.ProbeE2EE(ctx, cred, model)
 	if err != nil {
 		return err

@@ -169,7 +169,9 @@ transport and the quota differ. Venice is the first live web transport:
 `--cookie "cf_clearance=…; __client=…"` to capture from any other browser.
 `./allaiis web quota` shows the remaining web quota. Web replies carry
 `X-ALLAIIS-Transport-Tier: tier_c3`, `X-ALLAIIS-Emulated-Features:
-usage_estimate`, and estimated token counts.
+usage_estimate`, and estimated token counts. An `e2ee-` model can be sealed to
+its verified enclave with `--e2ee`; `./allaiis web e2ee` and Doctor attest it
+without spending quota, and such routes add `X-ALLAIIS-E2EE: envelope`.
 
 
 | Provider ID | API key variable | Reference |

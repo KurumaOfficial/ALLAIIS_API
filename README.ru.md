@@ -162,7 +162,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
   --name uncensored --privacy zdr
 ```
 
-`web login` без `--cookie` читает Chrome на `127.0.0.1:9222`; передай `--cookie "cf_clearance=…; __client=…"`, чтобы захватить из любого другого браузера. `./allaiis web quota` показывает остаток веб-квоты. Веб-ответы помечены `X-ALLAIIS-Transport-Tier: tier_c3` и `X-ALLAIIS-Emulated-Features: usage_estimate`, а токены в них оценочные.
+`web login` без `--cookie` читает Chrome на `127.0.0.1:9222`; передай `--cookie "cf_clearance=…; __client=…"`, чтобы захватить из любого другого браузера. `./allaiis web quota` показывает остаток веб-квоты. Веб-ответы помечены `X-ALLAIIS-Transport-Tier: tier_c3` и `X-ALLAIIS-Emulated-Features: usage_estimate`, а токены в них оценочные. Модель с префиксом `e2ee-` можно запечатать для проверенного анклава флагом `--e2ee`; `./allaiis web e2ee` и doctor проверяют его, не тратя квоту, а такие маршруты добавляют `X-ALLAIIS-E2EE: envelope`.
 
 
 | ID провайдера | Переменная с API-ключом | Документация |
