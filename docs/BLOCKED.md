@@ -31,9 +31,10 @@ Checked 2026-11-23 with the stored Pro session's own claims:
 - An unattested programmatic call to the agent endpoint answers `403` with a
   Terms-of-Service warning; attested calls are answered normally. The warning is
   worth knowing about for a long-running automation on a personal account.
-- Working free route for the model in the browser: `deepseek-v4` on
+- Working free route for the model in the browser: `venice-deepseek` on
   `venice-web` with `deepseek-v4-1-flash-uncensored` (vision, tools, 524K
-  context), pinned to the `pro` label.
+  context), pinned to the `pro` label so the pool does not land on the spent
+  guest session.
 
 ## B2. Handoff
 
