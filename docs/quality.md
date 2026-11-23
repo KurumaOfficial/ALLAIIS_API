@@ -142,3 +142,13 @@ aliases; scrape it from a loopback collector.
 
 `SIGINT`/`SIGTERM` stop accepting connections and give in-flight requests ten
 seconds before the listener closes.
+
+## Fuzzing
+
+Two `go test -fuzz` targets guard the code that parses untrusted shapes:
+`FuzzToolGuard` feeds arbitrary prose at arbitrary split points and fails if a
+sentinel marker reaches the client, and `FuzzDecodeEvents` feeds arbitrary frames
+one piece and one byte at a time and fails on a panic, a runaway loop or a
+non-terminating read. The first found a close marker that went out as prose; its
+input stays in `testdata/fuzz` and runs with every `go test`. CI fuzzes both for
+thirty seconds on each push.

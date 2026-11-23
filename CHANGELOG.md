@@ -3,6 +3,11 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **Fuzzing in CI.** The two parser targets run for thirty seconds on every push,
+  and the quality dossier says what they cover.
+
 ## v0.1.5
 
 A fuzz target found a marker leak in the tool guard.

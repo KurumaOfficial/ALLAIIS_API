@@ -72,3 +72,17 @@ jobs:
           cache: true
       - name: Known vulnerabilities
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  fuzz:
+    name: fuzz (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Tool guard and event decoder
+        run: |
+          go test ./core/internal/gateway -run '^$' -fuzz FuzzToolGuard -fuzztime 30s
+          go test ./core/internal/webprov -run '^$' -fuzz FuzzDecodeEvents -fuzztime 30s
