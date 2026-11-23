@@ -90,11 +90,11 @@ signed-in label look empty. `allaiis up` prints every alias it serves.
   quota` and the panel's Quota button show both counters and the reset without
   spending a message; `allaiis doctor` prints the plan line too. The model is
   parked on that label for 30 minutes, while a free model on the same session
-  keeps answering, as Venice still serves it with a spent plan.
+  keeps answering from the chat allowance.
   Attestation tokens are per-request, so the client mints in batches of five.
-- **E2EE models are not decrypted.** Ids starting `e2ee-` are sent to the plain
-  endpoint, so the page-side key exchange never happens; doctor warns while an
-  alias points at one.
+- **E2EE models.** An id starting `e2ee-` is sealed to the attested enclave when
+  the route sets `e2ee`; without it the prompt goes out in plaintext, and doctor
+  warns while an alias points at one.
 - **Usage is estimated.** The web stream carries no token counters, so the reply
   marks `"estimated": true` and sets `X-ALLAIIS-Emulated-Features: usage_estimate`.
 - **Reasoning** is forwarded as `reasoning_content` when the model is a
@@ -458,7 +458,7 @@ the name record, so probes and synthetic checks do not read as model mistakes.
 | `sign_in_required` | the model needs a signed-in session (guest cookie) |
 | `context_length_exceeded` | upstream `userPromptTooLong` |
 | `rate_limit_exceeded` | the pool hit a `429`; that credential cools until the reset header says |
-| `insufficient_balance` | the plan allowance is spent (`402 insufficientBalance`); the model is parked on the label for 30 minutes with a `Retry-After`, other models are unaffected, check `web quota` for the reset |
+| `insufficient_balance` | the credit bucket for paid models is empty (`402 insufficientBalance`), not the chat allowance; that model is parked on the label for 30 minutes with a `Retry-After`, free models are unaffected, `web quota` shows both counters |
 | `e2ee_failed` | the enclave attestation or a sealed chunk failed; retry, or clear `e2ee` to send plaintext |
 
 ## Implementation
