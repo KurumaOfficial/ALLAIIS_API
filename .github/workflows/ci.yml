@@ -60,3 +60,15 @@ jobs:
           cache: true
       - name: Static analysis
         run: go run honnef.co/go/tools/cmd/staticcheck@latest ./core/...
+
+  vuln:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

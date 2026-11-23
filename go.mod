@@ -1,6 +1,6 @@
 module github.com/KurumaOfficial/ALLAIIS_API
 
-go 1.26.2
+go 1.26.11
 
 require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
@@ -13,10 +13,10 @@ require (
 )
 
 require (
-	github.com/andybalholm/brotli v1.0.6 // indirect
+	github.com/andybalholm/brotli v1.2.7 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/klauspost/compress v1.17.4 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

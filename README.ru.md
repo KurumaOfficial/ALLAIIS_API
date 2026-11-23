@@ -3,7 +3,7 @@
 <p align="center"><strong>Один локальный ключ для выбранных AI API.</strong></p>
 
 <p align="center">
-  <a href="go.mod"><img alt="Go 1.26.2+" src="https://img.shields.io/badge/Go-1.26.2%2B-00ADD8?logo=go"></a>
+  <a href="go.mod"><img alt="Go 1.26.11+" src="https://img.shields.io/badge/Go-1.26.11%2B-00ADD8?logo=go"></a>
   <a href="LICENSE"><img alt="GPL-3.0-only" src="https://img.shields.io/badge/license-GPL--3.0--only-4158A6"></a>
   <a href="../../actions/workflows/ci.yml"><img alt="CI" src="../../actions/workflows/ci.yml/badge.svg"></a>
 </p>
@@ -39,7 +39,7 @@ tools show` и `allaiis tools reset` читают и очищают запись
 
 | Шаг | Статус |
 | --- | --- |
-| Открыть локальную копию с Go 1.26.2 или новее | Предварительное условие |
+| Открыть локальную копию с Go 1.26.11 или новее | Предварительное условие |
 | Создать хранилище, импортировать ключ и зарегистрировать алиас | Проверено офлайн в `TestQuickStartOffline` |
 | Получить локальный ключ и запустить шлюз | Проверено офлайн в `TestQuickStartOffline` |
 | Отправить запросы с JSON и SSE | Проверено офлайн в `TestQuickStartOffline` |

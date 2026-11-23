@@ -3,7 +3,7 @@
 <p align="center"><strong>One local key for the AI APIs you choose.</strong></p>
 
 <p align="center">
-  <a href="go.mod"><img alt="Go 1.26.2+" src="https://img.shields.io/badge/Go-1.26.2%2B-00ADD8?logo=go"></a>
+  <a href="go.mod"><img alt="Go 1.26.11+" src="https://img.shields.io/badge/Go-1.26.11%2B-00ADD8?logo=go"></a>
   <a href="LICENSE"><img alt="GPL-3.0-only" src="https://img.shields.io/badge/license-GPL--3.0--only-4158A6"></a>
   <a href="../../actions/workflows/ci.yml"><img alt="CI" src="../../actions/workflows/ci.yml/badge.svg"></a>
 </p>
@@ -39,7 +39,7 @@ error codes are described in [docs/quality.md](docs/quality.md).
 
 | Step | Status |
 | --- | --- |
-| Open a local checkout with Go 1.26.2 or later | Prerequisite |
+| Open a local checkout with Go 1.26.11 or later | Prerequisite |
 | Initialize the vault, import a key, and register a model alias | Tested offline in `TestQuickStartOffline` |
 | Read the local key and start the gateway | Tested offline in `TestQuickStartOffline` |
 | Send JSON and streaming requests | Tested offline in `TestQuickStartOffline` |
