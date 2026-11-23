@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.13
+
+The status line tells the truth, and a BOM no longer breaks the config.
+
 
 - **`service status` says whether the gateway is up.** It printed the autostart
   entry and nothing else, so "registered" read as "running"; it now also dials the
