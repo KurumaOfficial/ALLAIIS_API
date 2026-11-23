@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.10
+
+`backup --help` no longer writes a directory.
+
 
 - **`backup --help` printed nothing and wrote a directory named `--help`.** The
   first argument was taken as the target whatever it looked like; help words are
