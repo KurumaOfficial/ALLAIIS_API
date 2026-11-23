@@ -3,6 +3,13 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **Responses history.** A tool result replayed through `/v1/responses` reached
+  the model without the blank line the Messages shape puts in front of it, so
+  the model tended to call the same tool again. Both shapes now produce the same
+  prompt, and a test compares them end to end.
+
 ## v0.1.1
 
 Recovery before the client sees a failure, and the last transport gap.

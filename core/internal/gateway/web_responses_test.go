@@ -132,6 +132,43 @@ func TestResponsesProtocolHistory(t *testing.T) {
 	}
 }
 
+// TestResponsesToolResultMatchesMessages pins the turn the model sees after a
+// tool result: the Responses shape sent it without the blank line the Messages
+// shape puts in front, and the model answered by calling the same tool again.
+func TestResponsesToolResultMatchesMessages(t *testing.T) {
+	var fromMessages, fromResponses map[string]any
+	messagesServer := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		fromMessages = body
+		writeFrames(w, "done")
+	})
+	handler, store := messagesGateway(t, messagesServer.URL)
+	anthropicCall(handler, store.ClientKey(), `{"model":"claude-venice-web-fixture","max_tokens":64,"messages":[`+
+		`{"role":"user","content":"read go.mod"},`+
+		`{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"read_file","input":{"path":"go.mod"}}]},`+
+		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"go 1.26"}]}],`+
+		`"tools":[{"name":"read_file","input_schema":{"type":"object"}}]}`)
+
+	responsesServer := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		fromResponses = body
+		writeFrames(w, "done")
+	})
+	handler, store = responsesGateway(t, responsesServer.URL)
+	responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","max_output_tokens":64,"input":[`+
+		`{"type":"message","role":"user","content":[{"type":"input_text","text":"read go.mod"}]},`+
+		`{"type":"function_call","call_id":"call_1","name":"read_file","arguments":"{\"path\":\"go.mod\"}"},`+
+		`{"type":"function_call_output","call_id":"call_1","output":"go 1.26"}],`+
+		`"tools":[{"type":"function","name":"read_file","parameters":{"type":"object"}}]}`)
+
+	if fromMessages == nil || fromResponses == nil {
+		t.Fatal("one of the upstreams was never called")
+	}
+	left, _ := json.Marshal(fromMessages["prompt"])
+	right, _ := json.Marshal(fromResponses["prompt"])
+	if string(left) != string(right) {
+		t.Fatalf("prompt differs\nmessages: %s\nresponses: %s", left, right)
+	}
+}
+
 func TestResponsesFollowUpByPreviousId(t *testing.T) {
 	var bodies []map[string]any
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {

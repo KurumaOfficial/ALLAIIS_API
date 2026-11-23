@@ -115,8 +115,10 @@ func responsesTurns(raw json.RawMessage, reason *webReason) error {
 			}
 			reason.turns = append(reason.turns, webprov.Message{Role: "assistant", Content: renderCallList("", []toolCall{call})})
 		case "function_call_output":
+			// The blank line is what tells the model the call was answered;
+			// without it it tends to call the same tool again.
 			text, _ := messageParts(item.Output)
-			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text})
+			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: "\n" + text})
 		}
 	}
 	return nil
