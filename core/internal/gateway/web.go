@@ -828,29 +828,52 @@ func cleanStops(many []string) []string {
 	return kept
 }
 
-// toolChoiceNote turns a forced tool choice into an instruction: the web
-// endpoint gets a tool list but no way to require a call from it.
-func toolChoiceNote(choice any, parallel *bool) string {
-	note := ""
-	switch value := choice.(type) {
+// toolChoice reads a forced tool choice, in any of the three spellings, and
+// turns it into an instruction: the web endpoint gets a tool list but no way to
+// require a call from it.
+func toolChoice(value any) (note string, drop, single bool) {
+	switch typed := value.(type) {
 	case string:
-		if value == "required" {
-			note = "You must call one of the tools now."
+		switch typed {
+		case "none":
+			return "", true, false
+		case "required", "any":
+			return "You must call one of the tools now.", false, false
 		}
 	case map[string]any:
-		function, _ := value["function"].(map[string]any)
-		name, _ := function["name"].(string)
-		if name == "" {
-			name, _ = value["name"].(string)
+		kind, _ := typed["type"].(string)
+		switch kind {
+		case "none":
+			return "", true, false
+		case "required", "any":
+			return "You must call one of the tools now.", false, false
+		}
+		name, _ := typed["name"].(string)
+		if function, ok := typed["function"].(map[string]any); ok && name == "" {
+			name, _ = function["name"].(string)
 		}
 		if name != "" {
 			note = `Call the tool "` + name + `" now.`
 		}
+		if parallel, ok := typed["disable_parallel_tool_use"].(bool); ok && parallel {
+			single = true
+		}
 	}
-	if parallel != nil && !*parallel && note != "" {
+	return note, drop, single
+}
+
+// choiceNote applies a tool choice: a dropped choice clears the tools, a single
+// one asks for one call, and the rest becomes a system instruction.
+func (r *webReason) choiceNote(value any, parallel *bool) (drop bool) {
+	note, drop, single := toolChoice(value)
+	if parallel != nil && !*parallel {
+		single = true
+	}
+	if single && note != "" {
 		note += " Use exactly one call."
 	}
-	return note
+	r.note(note)
+	return drop
 }
 
 func (r *webReason) note(text string) {
@@ -1021,11 +1044,10 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		reason.jsonMode(name, schema)
 	}
 	tools := input.Tools
-	if choice, ok := input.ToolChoice.(string); ok && choice == "none" {
-		tools = nil
-	}
 	if len(tools) > 0 {
-		reason.note(toolChoiceNote(input.ToolChoice, input.ParallelCalls))
+		if reason.choiceNote(input.ToolChoice, input.ParallelCalls) {
+			tools = nil
+		}
 	}
 	if len(reason.turns) == 0 {
 		reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: ""})

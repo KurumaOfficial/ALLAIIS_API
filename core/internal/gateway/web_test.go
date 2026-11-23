@@ -318,6 +318,22 @@ func TestWebForcedToolChoiceIsSpelledOut(t *testing.T) {
 	}
 }
 
+func TestWebToolChoiceObjectNoneDropsTools(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		if strings.Contains(fmt.Sprint(body), "ALLAIIS_TOOL_CALL") {
+			t.Errorf("tool instructions still sent: %v", body["prompt"])
+		}
+		writeFrames(w, "plain")
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`","tool_choice":{"type":"none"},`+
+		`"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}],`+
+		`"messages":[{"role":"user","content":"hi"}]}`)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestWebEmptyFirstEventKeepsLaterText(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		fmt.Fprint(w, `{"kind":"content","content":""}

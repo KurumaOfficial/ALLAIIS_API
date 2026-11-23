@@ -79,11 +79,10 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 		spec.Function.Parameters = tool.Parameters
 		tools = append(tools, spec)
 	}
-	if choice, ok := input.ToolChoice.(string); ok && choice == "none" {
-		tools = nil
-	}
 	if len(tools) > 0 {
-		reason.note(toolChoiceNote(input.ToolChoice, input.ParallelCalls))
+		if reason.choiceNote(input.ToolChoice, input.ParallelCalls) {
+			tools = nil
+		}
 	}
 	if len(reason.turns) == 0 {
 		reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: ""})

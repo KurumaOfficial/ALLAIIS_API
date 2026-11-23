@@ -154,6 +154,22 @@ func TestMessagesToolChoiceNoneDropsTools(t *testing.T) {
 	}
 }
 
+func TestMessagesToolChoiceObjectNoneDropsTools(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		if strings.Contains(fmt.Sprint(body), "ALLAIIS_TOOL_CALL") {
+			t.Errorf("tool instructions still sent: %v", body["prompt"])
+		}
+		writeFrames(w, "plain")
+	})
+	handler, store := messagesGateway(t, server.URL)
+	result := anthropicCall(handler, store.ClientKey(), `{"model":"claude-venice-web-fixture","max_tokens":64,`+
+		`"messages":[{"role":"user","content":"hi"}],"tools":[{"name":"read_file","input_schema":{"type":"object"}}],`+
+		`"tool_choice":{"type":"none"}}`)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestMessagesProtocolHistory(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		messages := body["prompt"].([]any)
