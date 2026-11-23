@@ -350,7 +350,7 @@ tests. It uses synthetic input, loopback servers, and the fixture limits below.
 | A6. Estimated usage on fixture JSON and SSE results | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A7. Context-specific 413 mapping and trimming | ✓ | `TestContextOverflowTrimsOrReturns400` | — | — |
 | A8. Free fixture catalog and agent tool rejection | ✓ | `TestOfflineCatalogAndAgentToolRejection` | — | — |
-| A9. Private web-session pools and 429 failover | ✓ | `TestWebCompletionErrorsAndCooldown` | guest pool | multi-session Pro pending |
+| A9. Private web-session pools and 429 failover | ✓ | `TestWebCompletionErrorsAndCooldown` | guest cooled while the Pro label answered; the pool switched without a repair budget | — |
 | A10. Gateway stream cancellation and late response isolation | ✓ | `TestStreamFlushAndCancel` | — | — |
 | A11. Fixture metadata and log rotation | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestCompletionLogRotation` | — | — |
 
