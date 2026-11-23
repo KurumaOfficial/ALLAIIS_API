@@ -141,7 +141,6 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 		"base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 	// frame-ancestors covers current browsers; the header covers older ones.
 	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("Referrer-Policy", "no-referrer")
 	io.WriteString(w, strings.Replace(string(body), "{{TOKEN}}", s.token, 1))
 }
 
