@@ -38,6 +38,7 @@ type metrics struct {
 	failover int64
 	argFix   int64
 	blockFix int64
+	e2eeFail int64
 	recent   []metricEvent
 	byModel  map[string]int64
 	series   map[seriesKey]*seriesValue
@@ -102,6 +103,12 @@ func (m *metrics) noteArgFix() {
 	m.mu.Unlock()
 }
 
+func (m *metrics) noteE2EE() {
+	m.mu.Lock()
+	m.e2eeFail++
+	m.mu.Unlock()
+}
+
 func (m *metrics) noteBlockFix() {
 	m.mu.Lock()
 	m.blockFix++
@@ -125,7 +132,7 @@ func (m *metrics) summary() map[string]any {
 	}
 	return map[string]any{
 		"total": m.total, "errors": m.errors, "chars": m.chars,
-		"failover": m.failover, "arg_repairs": m.argFix, "block_repairs": m.blockFix,
+		"failover": m.failover, "arg_repairs": m.argFix, "block_repairs": m.blockFix, "e2ee_failures": m.e2eeFail,
 		"models": models, "recent": recent,
 		"tool_unwrap":      toolCounters.unwrap.Load(),
 		"tool_fold":        toolCounters.fold.Load(),
@@ -257,6 +264,9 @@ func (m *metrics) prometheus(models int) string {
 	out.WriteString("# HELP allaiis_tool_argument_repair_total Calls replaced after missing a required argument.\n")
 	out.WriteString("# TYPE allaiis_tool_argument_repair_total counter\n")
 	fmt.Fprintf(&out, "allaiis_tool_argument_repair_total %d\n", m.argFix)
+	out.WriteString("# HELP allaiis_e2ee_failure_total Calls whose enclave attestation or sealed chunk failed.\n")
+	out.WriteString("# TYPE allaiis_e2ee_failure_total counter\n")
+	fmt.Fprintf(&out, "allaiis_e2ee_failure_total %d\n", m.e2eeFail)
 	out.WriteString("# HELP allaiis_tool_block_repair_total Replies retried after a malformed tool block.\n")
 	out.WriteString("# TYPE allaiis_tool_block_repair_total counter\n")
 	fmt.Fprintf(&out, "allaiis_tool_block_repair_total %d\n", m.blockFix)

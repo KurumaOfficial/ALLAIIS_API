@@ -746,6 +746,7 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 		}
 		writeError(w, protocol, http.StatusNotFound, "model_not_found", message)
 	case errors.Is(err, webprov.ErrE2EE):
+		g.metrics.noteE2EE()
 		writeError(w, protocol, http.StatusBadGateway, "e2ee_failed",
 			"The end-to-end encryption layer failed: "+err.Error()+". Retry, or clear `e2ee` on the alias to send plaintext.")
 	default:

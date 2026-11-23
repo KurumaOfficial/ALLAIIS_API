@@ -1120,3 +1120,47 @@ func TestE2EERRouteSendsTheEnclaveHeaders(t *testing.T) {
 		t.Fatalf("e2ee route failed: %d %s", result.Code, result.Body)
 	}
 }
+
+func TestE2EEFailureIsCounted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app/user/client_attestation/mint":
+			fmt.Fprint(w, `{"tokens":[{"token":"attestation"}]}`)
+		case "/v1/tee/attestation":
+			fmt.Fprint(w, `{"verified":false,"nonce":"x","signing_key":"04"}`)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	store, _ := setup(t, server.URL)
+	cfg := config.Default()
+	cfg.Providers = map[string]config.Provider{
+		"venice-web-fixture": {BaseURL: server.URL, Transport: config.TransportVeniceWeb},
+	}
+	cfg.Models = []config.Route{{
+		ID: webModel, Provider: "venice-web-fixture", UpstreamModel: "e2ee-x",
+		Privacy: config.ZDR, E2EE: true,
+	}}
+	if _, err := store.Import(t.Context(), []vault.Entry{{
+		Provider: "venice-web-fixture", Endpoint: server.URL, Label: "one",
+		Key: webprov.Credential{DistinctID: "device"}.Encode(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+
+	result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`","messages":[{"role":"user","content":"hi"}]}`)
+	if result.Code != http.StatusBadGateway || !strings.Contains(result.Body.String(), "e2ee_failed") {
+		t.Fatalf("unverified enclave accepted: %d %s", result.Code, result.Body)
+	}
+	if scrape := metricsOf(handler); !strings.Contains(scrape, "allaiis_e2ee_failure_total 1") {
+		t.Fatalf("failure not counted: %s", scrape)
+	}
+}
