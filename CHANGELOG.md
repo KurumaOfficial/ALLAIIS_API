@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.18
+
+Anthropic clients can ask how big a turn is before sending it.
+
 
 - **`/v1/messages/count_tokens` answers.** Anthropic clients ask for a count
   before a turn; it returns the same character-based estimate the context guard
