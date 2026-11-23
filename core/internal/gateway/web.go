@@ -828,6 +828,42 @@ func cleanStops(many []string) []string {
 	return kept
 }
 
+// toolChoiceNote turns a forced tool choice into an instruction: the web
+// endpoint gets a tool list but no way to require a call from it.
+func toolChoiceNote(choice any, parallel *bool) string {
+	note := ""
+	switch value := choice.(type) {
+	case string:
+		if value == "required" {
+			note = "You must call one of the tools now."
+		}
+	case map[string]any:
+		function, _ := value["function"].(map[string]any)
+		name, _ := function["name"].(string)
+		if name == "" {
+			name, _ = value["name"].(string)
+		}
+		if name != "" {
+			note = `Call the tool "` + name + `" now.`
+		}
+	}
+	if parallel != nil && !*parallel && note != "" {
+		note += " Use exactly one call."
+	}
+	return note
+}
+
+func (r *webReason) note(text string) {
+	if text == "" {
+		return
+	}
+	if r.system == "" {
+		r.system = text
+		return
+	}
+	r.system += "\n\n" + text
+}
+
 // structuredFormat reads a Chat response_format wrapper or the bare schema the
 // Responses shape puts next to its name, and reports whether JSON was asked for.
 func structuredFormat(kind string, raw json.RawMessage, name string) (string, json.RawMessage, bool) {
@@ -934,6 +970,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		Tools          []toolSpec      `json:"tools"`
 		ToolChoice     any             `json:"tool_choice"`
 		Stop           json.RawMessage `json:"stop"`
+		ParallelCalls  *bool           `json:"parallel_tool_calls"`
 		ResponseFormat struct {
 			Type       string          `json:"type"`
 			JSONSchema json.RawMessage `json:"json_schema"`
@@ -986,6 +1023,9 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	tools := input.Tools
 	if choice, ok := input.ToolChoice.(string); ok && choice == "none" {
 		tools = nil
+	}
+	if len(tools) > 0 {
+		reason.note(toolChoiceNote(input.ToolChoice, input.ParallelCalls))
 	}
 	if len(reason.turns) == 0 {
 		reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: ""})

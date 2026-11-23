@@ -301,6 +301,23 @@ func TestWebStopLeavesCallsAlone(t *testing.T) {
 	}
 }
 
+func TestWebForcedToolChoiceIsSpelledOut(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		system := body["prompt"].([]any)[0].(map[string]any)["content"].(string)
+		if !strings.Contains(system, "must call one of the tools") || !strings.Contains(system, "one call") {
+			t.Errorf("choice not spelled out: %q", system)
+		}
+		writeFrames(w, toolBlock("a.txt"))
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`","tool_choice":"required",`+
+		`"parallel_tool_calls":false,"tools":[{"type":"function","function":{"name":"read_file",`+
+		`"parameters":{"type":"object"}}}],"messages":[{"role":"user","content":"read"}]}`)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "read_file") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestWebEmptyFirstEventKeepsLaterText(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		fmt.Fprint(w, `{"kind":"content","content":""}

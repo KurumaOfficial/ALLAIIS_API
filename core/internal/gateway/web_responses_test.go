@@ -5,6 +5,7 @@ package gateway_test
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -260,6 +261,40 @@ func TestResponsesJSONObjectNeedsNoSchema(t *testing.T) {
 	handler, store := responsesGateway(t, server.URL)
 	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"hi",`+
 		`"text":{"format":{"type":"json_object"}}}`)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
+// TestResponsesForcedToolNamesIt pins the stand-in for tool_choice, which the
+// endpoint cannot enforce.
+func TestResponsesForcedToolNamesIt(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		system := body["prompt"].([]any)[0].(map[string]any)["content"].(string)
+		if !strings.Contains(system, `"read_file"`) || !strings.Contains(system, "one call") {
+			t.Errorf("choice not spelled out: %q", system)
+		}
+		writeFrames(w, toolBlock("a.txt"))
+	})
+	handler, store := responsesGateway(t, server.URL)
+	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"read a.txt",`+
+		`"tools":[{"type":"function","name":"read_file","parameters":{"type":"object"}}],`+
+		`"tool_choice":{"type":"function","name":"read_file"},"parallel_tool_calls":false}`)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "read_file") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
+func TestResponsesToolChoiceNoneDropsTools(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		if strings.Contains(fmt.Sprint(body), "ALLAIIS_TOOL_CALL") {
+			t.Errorf("tool instructions still sent: %v", body["prompt"])
+		}
+		writeFrames(w, "plain")
+	})
+	handler, store := responsesGateway(t, server.URL)
+	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"hi",`+
+		`"tools":[{"type":"function","name":"read_file","parameters":{"type":"object"}}],"tool_choice":"none"}`)
 	if result.Code != http.StatusOK {
 		t.Fatalf("got %d %s", result.Code, result.Body)
 	}

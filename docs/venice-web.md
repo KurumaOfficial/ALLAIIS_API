@@ -413,6 +413,17 @@ append the schema to the system turn and add `json_mode` to
 `X-ALLAIIS-Emulated-Features`. The web endpoint has no switch behind it, so a
 reply can still drift — validate it if a wrong shape matters.
 
+A forced `tool_choice` is spelled out the same way: `required` becomes "call one
+of the tools now", a named function becomes a sentence naming it, and
+`parallel_tool_calls: false` asks for a single call. `"none"` drops the tools
+from the request altogether. None of it is enforced by the endpoint.
+
+Stop sequences are cut by the gateway, because the endpoint ignores them: Chat
+`stop` (one string or an array), Messages `stop_sequences` and a `stop` on
+Responses. A sequence split across two chunks is still found, and the cut runs on
+the stream too. A route with tools leaves them off — a word inside a call block
+would otherwise cut the block in half — so an agent loop should end on its own.
+
 The reply names the credential label in `X-ALLAIIS-Credential` and the panel
 shows it next to the request, so a pool can be followed in a log.
 
