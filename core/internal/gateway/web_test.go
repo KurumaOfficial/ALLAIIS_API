@@ -818,3 +818,48 @@ func TestMinPFollowsTheCapability(t *testing.T) {
 		t.Fatalf("minP forwarded without support: %v", body["minP"])
 	}
 }
+
+func TestUnpinnedPoolRetriesAnotherLabel(t *testing.T) {
+	var calls atomic.Int32
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		if calls.Add(1) == 1 {
+			// The first label is rate limited, a problem of the label.
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			fmt.Fprint(w, `{"error":"rate limited"}`)
+			return
+		}
+		writeFrames(w, "recovered")
+	})
+	store, _ := setup(t, server.URL)
+	cfg := config.Default()
+	cfg.Providers = map[string]config.Provider{
+		"venice-web-fixture": {BaseURL: server.URL, Transport: config.TransportVeniceWeb},
+	}
+	cfg.Models = []config.Route{{
+		ID: webModel, Provider: "venice-web-fixture",
+		UpstreamModel: "venice-uncensored-1-2", Privacy: config.ZDR,
+	}}
+	for _, label := range []string{"one", "two"} {
+		cred := webprov.Credential{DistinctID: "device", Venice: []webprov.Cookie{{Name: "cf_clearance", Value: label}}}
+		if _, err := store.Import(t.Context(), []vault.Entry{{
+			Provider: "venice-web-fixture", Endpoint: server.URL, Label: label, Key: cred.Encode(),
+		}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	routes, err := router.New(t.Context(), cfg, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := webprov.New(5 * time.Second).WithHTTP(http.DefaultClient).WithBase(server.URL)
+	handler := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+
+	result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`","messages":[{"role":"user","content":"hi"}]}`)
+	if result.Code != http.StatusOK || calls.Load() < 2 {
+		t.Fatalf("no retry on the other label: %d calls=%d %s", result.Code, calls.Load(), result.Body)
+	}
+	if !strings.Contains(result.Body.String(), "recovered") {
+		t.Fatalf("second label answer missing: %s", result.Body)
+	}
+}

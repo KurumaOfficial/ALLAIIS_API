@@ -38,7 +38,26 @@ type webShape interface {
 }
 
 // webCompletion serves a route whose provider has no documented API.
-func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, target router.Target, payload []byte, stream bool) (chars, callsOut int) {
+// labelPenalty is how long a label is skipped after a failure that is about the
+// label rather than the model.
+func labelPenalty(err error) (time.Duration, bool) {
+	switch {
+	case errors.Is(err, webprov.ErrInsufficientBalance()):
+		return balanceCooldown, true
+	case errors.Is(err, webprov.ErrRateLimited):
+		if reset, ok := webprov.RateLimitReset(err); ok {
+			if until := time.Until(reset); until > 0 && until < maxRateCooldown {
+				return until, true
+			}
+		}
+		return maxRateCooldown, true
+	case errors.Is(err, webprov.ErrUnauthorized), errors.Is(err, webprov.ErrCloudflare):
+		return 5 * time.Minute, true
+	}
+	return 0, false
+}
+
+func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol config.Protocol, target router.Target, payload []byte, stream bool, minimum config.Privacy, session [32]byte) (chars, callsOut int) {
 	credential, err := webprov.ParseCredential(target.Entry.Key)
 	if err != nil {
 		writeError(w, protocol, http.StatusServiceUnavailable, "credential_invalid",
@@ -239,6 +258,30 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		cancel()
 		if errors.Is(err, webprov.ErrUnauthorized) {
 			g.web.Forget(credential)
+		}
+		// A pool should try its other labels before failing the client: the
+		// label, not the model, was the problem.
+		if penalty, known := labelPenalty(err); known && !sent && attempts < 2 && target.Route.CredentialLabel == "" {
+			persist, cancelStore := context.WithTimeout(context.Background(), 5*time.Second)
+			if setErr := g.table().routes.SetLabelCooldown(persist, target.Route.Provider, target.Provider,
+				target.Entry.Label, time.Now().Add(penalty)); setErr != nil {
+				slog.Warn("could not persist provider cooldown", "provider", target.Route.Provider)
+			}
+			cancelStore()
+			fresh, _, resolveErr := g.table().routes.Resolve(r.Context(), target.Route.ID, protocol, minimum, session)
+			slog.Info("label failover", "from", target.Entry.Label, "err", resolveErr, "to", fresh.Entry.Label, "penalty", penalty)
+			if resolveErr == nil &&
+				fresh.Entry.Label != target.Entry.Label {
+				if parsed, parseErr := webprov.ParseCredential(fresh.Entry.Key); parseErr == nil {
+					target, credential = fresh, parsed
+					reason.text.Reset()
+					reason.reasoningText.Reset()
+					guard.reset()
+					calls, heldCalls, firstSeen, held, sent = nil, nil, false, "", false
+					err = nil
+					continue
+				}
+			}
 		}
 		if errors.Is(err, errToolRepair) && attempts < 2 && !sent {
 			request.Messages = repairMessages(reason.messages(envelope), reason.text.String(), "")

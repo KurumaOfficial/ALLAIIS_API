@@ -183,6 +183,18 @@ func (r *Router) SetCooldown(ctx context.Context, target Target, until time.Time
 }
 
 // ClearCooldown lifts a cooldown for one alias target or a whole provider.
+// SetLabelCooldown parks one label of an unpinned route, which the route's own
+// empty label cannot express.
+func (r *Router) SetLabelCooldown(ctx context.Context, providerID string, provider config.Provider, label string, until time.Time) error {
+	key := cooldownKey(provider, label)
+	r.mu.Lock()
+	if until.After(r.blocked[key]) {
+		r.blocked[key] = until
+	}
+	r.mu.Unlock()
+	return r.store.SetCooldown(ctx, providerID, key, until)
+}
+
 func (r *Router) ClearCooldown(ctx context.Context, provider config.Provider, providerID, label string) error {
 	key := cooldownKey(provider, label)
 	r.mu.Lock()

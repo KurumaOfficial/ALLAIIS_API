@@ -451,7 +451,7 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 	}
 
 	if target.Provider.Web() {
-		chars, calls = g.webCompletion(w, r, protocol, target, body, stream)
+		chars, calls = g.webCompletion(w, r, protocol, target, body, stream, minimum, session)
 		return
 	}
 	fields["model"], _ = json.Marshal(target.Route.UpstreamModel)
