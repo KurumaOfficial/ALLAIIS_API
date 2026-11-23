@@ -139,14 +139,13 @@ an alias created from the panel stores them:
 | `max_context` | prompt estimate is checked before a request; oversized prompts get `context_length_exceeded` without spending quota |
 | `max_response` | `max_tokens` / `max_output_tokens` is clamped down to it |
 | `max_images` | attachment count is checked before upload (`too_many_attachments`) |
-
 | `reasoning` | forces thinking on or off instead of guessing from the model name |
 | `temperature`, `top_p` | used only when the client did not send its own |
 | `max_tools` | tool count is checked before the envelope is built (`too_many_tools`) |
 | `web_search` | sets the provider's web tool for every turn |
 | `large_context` | asks for the extended-context mode when the model is eligible (`enableLargeContextChat`) |
 | `strict_order` | merges consecutive same-role turns for models that require strict order |
-| `inactivity_ms` | aborts a stream that stays silent that long; clamped to 1 s – 10 min, default 2 min |
+| `inactivity_ms` | aborts a stream that stays silent that long; clamped to 1 s – 10 min, default 2 min (5 min on a reasoning route) |
 | `no_sampling` | models that ignore sampling get neither `temperature` nor `top_p` |
 | `frequency_penalty`, `presence_penalty` | forwarded only when the model supports them |
 | `replacement` | an upstream ID returned with `model_not_found` as a hint |
