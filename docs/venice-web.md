@@ -157,7 +157,7 @@ an alias created from the panel stores them:
 
 The CLI sets the same fields with `--reasoning true|false`, `--max-context`,
 `--max-response`, `--max-images`, `--max-videos`, `--max-tools`, `--web-search`, `--large-context`,
-`--strict-order` and `--inactivity-ms`; the rest are set from discovery. The catalog also tags `pro_only` and
+`--strict-order`, `--inactivity-ms` and `--e2ee`; the rest are set from discovery. The catalog also tags `pro_only` and
 `uses_credits`, which the panel shows so a paid model is not picked by accident.
 
 The request body itself is capped globally by `max_request_mb` (default 8, up to
