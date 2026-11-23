@@ -275,6 +275,7 @@ type enclaveCheck struct {
 	model    string
 	provider string
 	hardware string
+	guest    bool
 	err      error
 }
 
@@ -297,6 +298,9 @@ func enclavesToChecks(ctx context.Context, targets []enclaveTarget) []enclaveChe
 		}
 		probe, err := client.ProbeE2EE(ctx, cred, target.model)
 		check.provider, check.hardware, check.err = probe.Provider, probe.Hardware, err
+		// An enclave takes an encrypted prompt from any session, but the call
+		// needs a signed-in one.
+		check.guest = len(cred.Clerk) == 0
 		checks = append(checks, check)
 	}
 	return checks
@@ -307,16 +311,23 @@ func enclaveVerdict(checks []enclaveCheck) (string, string, bool) {
 	if len(checks) == 0 {
 		return "", "", false
 	}
-	var bad, good []string
+	var bad, good, guest []string
 	for _, check := range checks {
 		if check.err != nil {
 			bad = append(bad, check.model+": "+check.err.Error())
 			continue
 		}
 		good = append(good, check.model+" ("+check.provider+"/"+check.hardware+")")
+		if check.guest {
+			guest = append(guest, check.model)
+		}
 	}
 	if len(bad) > 0 {
 		return "warn", fmt.Sprintf("%d of %d enclave(s) failed: %s", len(bad), len(checks), strings.Join(bad, "; ")), true
+	}
+	if len(guest) > 0 {
+		return "warn", fmt.Sprintf("%d enclave(s) attested, but on a guest session that cannot run e2ee: %s",
+			len(guest), strings.Join(guest, ", ")), true
 	}
 	return "ok", fmt.Sprintf("%d enclave(s) attested, a reply is unverified: %s", len(good), strings.Join(good, ", ")), true
 }

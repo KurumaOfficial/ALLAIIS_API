@@ -193,7 +193,8 @@ open; the turn is then retried once with a fresh attestation while the client ha
 seen nothing. A failure is answered `e2ee_failed`.
 
 A sealed reply carries `X-ALLAIIS-E2EE: envelope`, so a log shows which calls
-were encrypted, and `/v1/models` marks an e2ee alias with `allaiis_e2ee: true`. `allaiis doctor` attests every e2ee alias (no quota spent), and
+were encrypted, and `/v1/models` marks an e2ee alias with `allaiis_e2ee: true`. `allaiis doctor` attests every e2ee alias (no quota spent) and warns when the
+pinned label is a guest session, which the enclave takes but the call refuses, and
 `allaiis web e2ee --model <e2ee model>` (add `--label` for one session) runs the
 checks by hand:
 it prints the enclave provider, hardware, signing key and whether the TDX verdict
