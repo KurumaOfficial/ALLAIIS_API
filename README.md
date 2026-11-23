@@ -354,8 +354,8 @@ go vet ./...
 gofmt -l core    # must print nothing
 ```
 
-CI runs those on Linux, macOS and Windows, plus `-race` on Linux
-(`.github/workflows/ci.yml`). A docs check also compares the shape of each
+CI runs those on Linux, macOS and Windows, plus `-race`, `staticcheck` and
+`govulncheck` on Linux (`.github/workflows/ci.yml`). A docs check also compares the shape of each
 bilingual pair (headings, tables, lists, code blocks), confirms every test, relative link and
 anchor the docs cite exists, so neither a language nor a reference can quietly
 drift.
