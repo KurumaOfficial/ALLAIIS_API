@@ -342,7 +342,7 @@ Go-тестах. Он использует синтетические данны
 | A6. Оценка usage в тестовых ответах JSON и SSE | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk` | — | — |
 | A7. Преобразование 413 переполнения и обрезка | ✓ | `TestContextOverflowTrimsOrReturns400` | — | — |
 | A8. Бесплатные модели в фикстуре и отказ по tools на агентских | ✓ | `TestOfflineCatalogAndAgentToolRejection` | — | — |
-| A9. Пул веб-сессий и переключение при 429 | ✓ | `TestWebCompletionErrorsAndCooldown` | гостевой пул | мультисессии Pro ожидают |
+| A9. Пул веб-сессий и переключение при 429 | ✓ | `TestWebCompletionErrorsAndCooldown` | гостевая метка остывала, а Pro отвечала; пул переключился, не потратив бюджет repair | — |
 | A10. Отмена стрима шлюза и изоляция поздних ответов | ✓ | `TestStreamFlushAndCancel` | — | — |
 | A11. Метаданные и ротация логов в тестовом обработчике | ✓ | `TestUsageFromSentPayloadAndFinalSSEChunk`, `TestCompletionLogRotation` | — | — |
 
