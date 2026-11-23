@@ -51,11 +51,12 @@ results, and its checkbox forces a refetch.
 | Silent stream | an SSE `: ping` every 15 s keeps it alive; aborted after the alias inactivity window (default 2 min), answered `upstream_timeout` |
 | Request body | 8 MiB cap (`max_request_mb`, 1–128), 90 s response-header timeout, 10 min whole call |
 
-A label switch, an empty reply and a repair each carry their own single
-budget: a failing first label cannot consume the retry the next answer still
-needs, and the attempt count stays capped at three. Calls wait for the
-end of the stream, so a retry can replace them before the client runs them; prose that already streamed is not repeated, and a retry that
-fails before anything streamed starts over. A tool call that misses a field its
+A label switch, an empty reply and a repair each carry their own single budget:
+a failing first label cannot consume the retry the next answer still needs, and
+the attempt count stays capped at three. Calls wait for the end of the stream,
+so a retry can replace them before the client runs them; prose that already
+streamed is not repeated, and a retry that fails before anything streamed
+starts over. A tool call that misses a field its
 schema marks required (an empty one included, also when the name only differs by
 case or separators, and also when the arguments are not a JSON object) is
 answered with one repair turn instead, and that turn names the tool and the
