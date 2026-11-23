@@ -136,7 +136,12 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; "+
+		"style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "+
+		"base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+	// frame-ancestors covers current browsers; the header covers older ones.
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	io.WriteString(w, strings.Replace(string(body), "{{TOKEN}}", s.token, 1))
 }
 

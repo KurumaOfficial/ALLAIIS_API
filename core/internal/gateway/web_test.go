@@ -334,6 +334,45 @@ func TestWebToolChoiceObjectNoneDropsTools(t *testing.T) {
 	}
 }
 
+// TestWebRejectsWhatItCannotAnswer pins the loud failure: asking for several
+// choices or for logprobs used to return one plain answer, which a client reads
+// as the feature working.
+func TestWebRejectsWhatItCannotAnswer(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		writeFrames(w, "hi")
+	})
+	handler, store := webGateway(t, server.URL)
+	for name, field := range map[string]string{
+		"n":        `"n":2`,
+		"logprobs": `"logprobs":true`,
+		"top":      `"top_logprobs":3`,
+	} {
+		payload := `{"model":"` + webModel + `","messages":[{"role":"user","content":"hi"}],` + field + `}`
+		result := complete(handler, store.ClientKey(), "", payload)
+		if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "invalid_request") {
+			t.Errorf("%s accepted: %d %s", name, result.Code, result.Body)
+		}
+	}
+	payload := `{"model":"` + webModel + `","n":1,"messages":[{"role":"user","content":"hi"}]}`
+	if result := complete(handler, store.ClientKey(), "", payload); result.Code != http.StatusOK {
+		t.Errorf("n=1 rejected: %d %s", result.Code, result.Body)
+	}
+}
+
+func TestWebReadsTheNewerTokenCapName(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		if body["maxTokens"] != float64(33) {
+			t.Errorf("max_completion_tokens ignored: %v", body["maxTokens"])
+		}
+		writeFrames(w, "ok")
+	})
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","max_completion_tokens":33,"messages":[{"role":"user","content":"hi"}]}`
+	if result := complete(handler, store.ClientKey(), "", payload); result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestWebEmptyFirstEventKeepsLaterText(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		fmt.Fprint(w, `{"kind":"content","content":""}

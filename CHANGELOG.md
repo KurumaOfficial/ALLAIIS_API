@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Honest refusals.** `n` above one and `logprobs` answer `invalid_request`
+  instead of returning one plain answer, and Chat reads `max_completion_tokens`
+  as the cap when `max_tokens` is absent.
+
 - **`store: false`.** A Responses reply sent with it stays out of the vault, so a
   follow-up by its id carries only what the client sends.
 

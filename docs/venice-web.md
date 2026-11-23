@@ -414,6 +414,10 @@ append the schema to the system turn and add `json_mode` to
 `X-ALLAIIS-Emulated-Features`. The web endpoint has no switch behind it, so a
 reply can still drift — validate it if a wrong shape matters.
 
+Fields a web turn cannot fill are refused rather than faked: `n` above one and
+`logprobs` answer `invalid_request`. `max_completion_tokens` is read like
+`max_tokens`, since the newer clients send the cap under that name.
+
 A forced `tool_choice` is spelled out the same way: Chat `required` and Messages
 `any` become "call one of the tools now", a named function becomes a sentence
 naming it, and `parallel_tool_calls: false` (or Messages

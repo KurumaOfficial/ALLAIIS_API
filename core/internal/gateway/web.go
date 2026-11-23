@@ -979,10 +979,11 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 			Content   json.RawMessage `json:"content"`
 			ToolCalls json.RawMessage `json:"tool_calls"`
 		} `json:"messages"`
-		Temperature *float64 `json:"temperature"`
-		TopP        *float64 `json:"top_p"`
-		MaxTokens   int      `json:"max_tokens"`
-		Reasoning   struct {
+		Temperature   *float64 `json:"temperature"`
+		TopP          *float64 `json:"top_p"`
+		MaxTokens     int      `json:"max_tokens"`
+		MaxCompletion int      `json:"max_completion_tokens"`
+		Reasoning     struct {
 			Effort string `json:"effort"`
 		} `json:"reasoning"`
 		ReasoningEffort  string   `json:"reasoning_effort"`
@@ -996,6 +997,9 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		ToolChoice     any             `json:"tool_choice"`
 		Stop           json.RawMessage `json:"stop"`
 		ParallelCalls  *bool           `json:"parallel_tool_calls"`
+		N              int             `json:"n"`
+		Logprobs       *bool           `json:"logprobs"`
+		TopLogprobs    *int            `json:"top_logprobs"`
 		ResponseFormat struct {
 			Type       string          `json:"type"`
 			JSONSchema json.RawMessage `json:"json_schema"`
@@ -1004,9 +1008,22 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	if err := json.Unmarshal(payload, &input); err != nil {
 		return webprov.Request{}, nil, nil, errors.New("expected a JSON object")
 	}
+	// A single answer is all a web turn can return, and there is no token-level
+	// data to hand out; saying so beats a client waiting for what never comes.
+	if input.N > 1 {
+		return webprov.Request{}, nil, nil, errors.New("n must be 1: one web turn answers one choice")
+	}
+	if input.Logprobs != nil && *input.Logprobs || input.TopLogprobs != nil {
+		return webprov.Request{}, nil, nil, errors.New("logprobs are not available over a web session")
+	}
+	// Newer clients send the cap under the other name.
+	maxTokens := input.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = input.MaxCompletion
+	}
 	request := webprov.Request{
 		RequestID: randomID(), Model: model,
-		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,
+		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: maxTokens,
 		FrequencyPenalty: input.FrequencyPenalty, PresencePenalty: input.PresencePenalty, MinP: input.MinP,
 	}
 	request.StopSequences = stopList(input.Stop)
