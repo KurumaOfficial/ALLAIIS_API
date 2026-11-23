@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.16
+
+The notes are written where people read them.
+
 
 - **Release notes come from the changelog.** The workflow extracts the matching
   `## vX.Y.Z` section and uses it as the release body, instead of a generated
