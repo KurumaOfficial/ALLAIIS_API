@@ -78,6 +78,11 @@ signed-in label look empty. `allaiis up` prints every alias it serves.
   `<data dir>/chrome-profile`.
 - **Clearance expires.** `cf_clearance` lives for hours. On `403` the route
   returns `cloudflare_challenge`; run `web login` again.
+- **Terms of service.** Venice answers an unattested programmatic call with
+  `403` and a warning that continued use can suspend the account. This transport
+  mints the app's own client attestation, so a request looks like the web app's,
+  which is what that warning is aimed at. Running it on a real account is the
+  operator's risk: prefer free models and a session you can afford to lose.
 - **Guest quota is tiny** (about 10 chats/day, one quota window per day).
   `402 insufficientBalance` means the credit bucket for paid models is at zero;
   it is not the same counter as the chat allowance, and a plan can be active

@@ -7,6 +7,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 - **Quota button** shows the plan, the credits and the refill date beside the chat
   counter, so an empty credit bucket is visible without a CLI.
+- **Status matrix** carries the new work, and the web dossier states the
+  Terms-of-Service position plainly: Venice objects to programmatic use of its
+  web app, so a web route runs at the operator's risk.
 - **Smoke tool probe** asks the route in its own shape. A Messages alias was sent
   through Chat Completions, answered `model_not_found`, and the probe said
   nothing about that route's tools.

@@ -155,7 +155,9 @@ Send `{"model":"messages-anthropic","max_tokens":32,"messages":[{"role":"user","
 Routes can run on an official key API or on a **web session** (Tier C). Web
 routes share the same local key, alias names, and OpenAI contract; only the
 transport and the quota differ. Venice is the first live web transport:
-[Venice web dossier](docs/venice-web.md).
+[Venice web dossier](docs/venice-web.md). Venice objects to programmatic use of
+its web app, so a web route runs at the operator's risk; the dossier says what
+that means.
 
 ```sh
 ./allaiis web chrome                                  # one-time login browser
@@ -271,6 +273,12 @@ Release history: [CHANGELOG.md](CHANGELOG.md).
 | `insufficientBalance` classification | ✓ | `TestErrorClassification` | 402 from a spent Pro plan mapped to `insufficient_balance` | — |
 | Quota probe in the panel | ✓ | `TestErrorClassification` | `web quota` on three labels, per-label reset times | — |
 | Native Responses and Messages | ✓ | `TestNativeProtocols` | — | — |
+| All three shapes build the same turns | ✓ | `TestResponsesToolResultMatchesMessages` | a replayed tool result answered instead of calling the same tool again | — |
+| Responses images and developer items | ✓ | `TestResponsesVisionSendsTheImage`, `TestResponsesDeveloperItemIsASystemTurn` | a red PNG described; a French instruction obeyed | — |
+| Structured output and stop sequences | ✓ | `TestWebChatSchemaGoesIntoTheSystemTurn`, `TestResponsesSchemaGoesIntoTheSystemTurn`, `TestStopCutCutsAtTheFirstWord`, `TestStopCutFindsASplitWord` | `{"title": "The Chronos Codex", "year": 1997}`; the reply cut at the stop word on the JSON and the stream | — |
+| Forced tool choice in every shape | ✓ | `TestWebForcedToolChoiceIsSpelledOut`, `TestMessagesForcedToolChoiceIsSpelledOut`, `TestResponsesForcedToolNamesIt`, `TestMessagesToolChoiceObjectNoneDropsTools` | `any` and a named tool produced a call; `none` produced prose | — |
+| Quota probe asks as the account | ✓ | `TestProbeCarriesTheSessionAndReportsCredits`, `TestDiagnoseReportsThePlanAndCredits` | `pro: 9672 chat, PRO, 0/100 credits`; `doctor` prints the same line | — |
+| Smoke tool probe speaks the route shape | ✓ | `TestSmokeToolProbeSpeaksTheRouteShape` | a Messages alias answered `list_files {"path":"."}` | — |
 | SSE and disconnect cancellation | ✓ | `TestStreamFlushAndCancel`, `TestStreamSendsKeepAliveWhileQuiet` | — | — |
 | Venice web transport (guest) | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | Chat JSON + SSE | — |
 | Venice web quota probe and catalog | ✓ | `TestErrorClassification`, `TestCatalogAcceptsDateRetiringField` | `web login`, `models discover` against the live catalog | — |

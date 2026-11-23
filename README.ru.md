@@ -162,7 +162,9 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
   --name uncensored --privacy zdr
 ```
 
-`web login` без `--cookie` читает Chrome на `127.0.0.1:9222`; передай `--cookie "cf_clearance=…; __client=…"`, чтобы захватить из любого другого браузера. `./allaiis web quota` показывает остаток веб-квоты. Веб-ответы помечены `X-ALLAIIS-Transport-Tier: tier_c3` и `X-ALLAIIS-Emulated-Features: usage_estimate`, а токены в них оценочные. Модель с префиксом `e2ee-` можно запечатать для проверенного анклава флагом `--e2ee`; `./allaiis web e2ee` и doctor проверяют его, не тратя квоту, а такие маршруты добавляют `X-ALLAIIS-E2EE: envelope`.
+`web login` без `--cookie` читает Chrome на `127.0.0.1:9222`; передай `--cookie "cf_clearance=…; __client=…"`, чтобы захватить из любого другого браузера. `./allaiis web quota` показывает остаток веб-квоты. Venice возражает против программного использования веб-приложения, поэтому
+веб-маршрут работает на риск оператора; подробности — в досье. Веб-ответы
+помечены `X-ALLAIIS-Transport-Tier: tier_c3` и `X-ALLAIIS-Emulated-Features: usage_estimate`, а токены в них оценочные. Модель с префиксом `e2ee-` можно запечатать для проверенного анклава флагом `--e2ee`; `./allaiis web e2ee` и doctor проверяют его, не тратя квоту, а такие маршруты добавляют `X-ALLAIIS-E2EE: envelope`.
 
 
 | ID провайдера | Переменная с API-ключом | Документация |
@@ -262,6 +264,12 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | Классификация `insufficientBalance` | ✓ | `TestErrorClassification` | 402 от исчерпанного Pro-плана стал `insufficient_balance` | — |
 | Проба квоты в панели | ✓ | `TestErrorClassification` | `web quota` на трёх метках, свои времена сброса | — |
 | Нативные Responses и Messages | ✓ | `TestNativeProtocols` | — | — |
+| Все три формы строят одинаковые ходы | ✓ | `TestResponsesToolResultMatchesMessages` | повторённый результат инструмента дал ответ, а не новый вызов того же инструмента | — |
+| Картинки и `developer` в Responses | ✓ | `TestResponsesVisionSendsTheImage`, `TestResponsesDeveloperItemIsASystemTurn` | красный PNG описан; французская инструкция выполнена | — |
+| Structured output и стоп-последовательности | ✓ | `TestWebChatSchemaGoesIntoTheSystemTurn`, `TestResponsesSchemaGoesIntoTheSystemTurn`, `TestStopCutCutsAtTheFirstWord`, `TestStopCutFindsASplitWord` | `{"title": "The Chronos Codex", "year": 1997}`; ответ обрезан на стоп-слове в JSON и в стриме | — |
+| Принудительный `tool_choice` во всех формах | ✓ | `TestWebForcedToolChoiceIsSpelledOut`, `TestMessagesForcedToolChoiceIsSpelledOut`, `TestResponsesForcedToolNamesIt`, `TestMessagesToolChoiceObjectNoneDropsTools` | `any` и именованный инструмент дали вызов; `none` дал прозу | — |
+| Проба квоты спрашивает как аккаунт | ✓ | `TestProbeCarriesTheSessionAndReportsCredits`, `TestDiagnoseReportsThePlanAndCredits` | `pro: 9672 chat, PRO, 0/100 credits`; doctor печатает ту же строку | — |
+| Проба инструментов в форме маршрута | ✓ | `TestSmokeToolProbeSpeaksTheRouteShape` | Messages-алиас ответил `list_files {"path":"."}` | — |
 | SSE и отмена при отключении клиента | ✓ | `TestStreamFlushAndCancel`, `TestStreamSendsKeepAliveWhileQuiet` | — | — |
 | Закрытая веб-интеграция Venice | ✓ | `TestChatStreamsAndAuthenticates`, `TestWebCompletionStreams` | JSON и SSE | — |
 | Проба квоты и каталог Venice web | ✓ | `TestErrorClassification`, `TestCatalogAcceptsDateRetiringField` | `web login`, `models discover` по живому каталогу | — |
