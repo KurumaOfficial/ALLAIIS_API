@@ -125,9 +125,9 @@ signed in or a guest. `allaiis up` prints every alias it serves.
   answers with SSE (`response.output_text.delta`) instead of NDJSON, so both
   decoders coexist.
 - **Privacy**: routes default to the operator's classification; use
-  `--privacy zdr` for Venice Private models. `e2ee-*` ids work when signed in and
-  are served over the same plain transport; per-field client-side encryption is
-  not implemented.
+  `--privacy zdr` for Venice Private models. An `e2ee-*` id works when signed in;
+  it is sealed to the enclave once the route carries `e2ee`, and goes out in
+  plaintext without it.
 
 ## Model capabilities
 
