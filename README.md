@@ -27,7 +27,8 @@ with a random port and a per-run token; it never leaves the machine. Changes
 apply to the running gateway within seconds through a hot reload — no restart.
 `allaiis doctor` runs the same diagnostics without a browser, and
 `allaiis smoke` probes every alias through a throwaway in-process gateway, so a
-CI job can catch a broken route without touching the live one. `allaiis tools
+CI job can catch a broken route without touching the live one; a sweep spends one
+provider message per answering alias. `allaiis tools
 show` and `allaiis tools reset` read and clear the tool name record the doctor
 warns from. See
 [docs/gui.md](docs/gui.md). Cache layers, invalidation points, retries and
