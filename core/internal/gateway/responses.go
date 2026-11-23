@@ -90,14 +90,25 @@ func responsesTurns(raw json.RawMessage, reason *webReason) error {
 		switch item.Type {
 		case "", "message":
 			text, images := messageParts(item.Content)
-			if item.Role == "assistant" {
+			switch item.Role {
+			case "assistant":
 				if text == "" {
 					text = "(empty)"
 				}
 				reason.turns = append(reason.turns, webprov.Message{Role: "assistant", Content: text})
-				continue
+			// A developer item is the Responses spelling of a system turn, so
+			// it joins the system prompt instead of becoming a user message.
+			case "developer", "system":
+				if text == "" {
+					continue
+				}
+				if reason.system != "" {
+					reason.system += "\n\n"
+				}
+				reason.system += text
+			default:
+				reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
 			}
-			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
 		case "function_call":
 			call := toolCall{ID: item.CallID, Type: "function"}
 			if call.ID == "" {

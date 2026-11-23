@@ -201,6 +201,30 @@ func TestResponsesVisionSendsTheImage(t *testing.T) {
 	}
 }
 
+// TestResponsesDeveloperItemIsASystemTurn pins the role split: a developer item
+// used to arrive as a user message, so its rules read like something the user
+// had just said.
+func TestResponsesDeveloperItemIsASystemTurn(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		messages := body["prompt"].([]any)
+		if first := messages[0].(map[string]any); first["role"] != "system" ||
+			!strings.Contains(first["content"].(string), "answer in French") {
+			t.Errorf("developer item not in the system turn: %v", messages[0])
+		}
+		if len(messages) != 2 || messages[1].(map[string]any)["role"] != "user" {
+			t.Errorf("history shape %v", messages)
+		}
+		writeFrames(w, "done")
+	})
+	handler, store := responsesGateway(t, server.URL)
+	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":[`+
+		`{"type":"message","role":"developer","content":[{"type":"input_text","text":"answer in French"}]},`+
+		`{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}]}`)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestResponsesFollowUpByPreviousId(t *testing.T) {
 	var bodies []map[string]any
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
