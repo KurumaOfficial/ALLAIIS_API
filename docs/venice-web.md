@@ -407,6 +407,12 @@ Usage is estimated from characters, thinking included, not tokenized, and flagge
 declares both on every tool request. Messages aliases are exported under a
 separate `allaiis-anthropic` provider.
 
+Structured output is emulated the same way: `response_format` on Chat and
+`text.format` on Responses (`json_object`, or `json_schema` with its schema)
+append the schema to the system turn and add `json_mode` to
+`X-ALLAIIS-Emulated-Features`. The web endpoint has no switch behind it, so a
+reply can still drift — validate it if a wrong shape matters.
+
 The reply names the credential label in `X-ALLAIIS-Credential` and the panel
 shows it next to the request, so a pool can be followed in a log.
 

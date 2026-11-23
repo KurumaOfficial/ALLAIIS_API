@@ -23,6 +23,13 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 		Reasoning    struct {
 			Effort string `json:"effort"`
 		} `json:"reasoning"`
+		Text struct {
+			Format struct {
+				Type       string          `json:"type"`
+				Name       string          `json:"name"`
+				JSONSchema json.RawMessage `json:"schema"`
+			} `json:"format"`
+		} `json:"text"`
 		Previous string `json:"previous_response_id"`
 		Tools    []struct {
 			Type       string          `json:"type"`
@@ -48,6 +55,12 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 		}
 	} else if text != "" {
 		reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text})
+	}
+	// Instructions and developer items are in; the stand-in for a
+	// structured-output switch goes after them.
+	format := input.Text.Format
+	if name, schema, wanted := structuredFormat(format.Type, format.JSONSchema, format.Name); wanted {
+		reason.jsonMode(name, schema)
 	}
 	tools := make([]toolSpec, 0, len(input.Tools))
 	for _, tool := range input.Tools {

@@ -178,6 +178,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	if len(tools) > 0 {
 		emulated = "tools,usage_estimate"
 	}
+	if reason.json {
+		emulated = strings.Replace(emulated, "usage_estimate", "usage_estimate,json_mode", 1)
+	}
 	// Shape and pings write from different goroutines, so the writer serialises
 	// them; a keep-alive must never split a frame.
 	writer := &lockedWriter{ResponseWriter: w}
@@ -763,8 +766,51 @@ type webReason struct {
 	turns          []webprov.Message
 	reasoning      bool
 	includeUsage   bool
+	json           bool
 	charsN         int
 	reasoningChars int
+}
+
+// structuredFormat reads a Chat response_format wrapper or the bare schema the
+// Responses shape puts next to its name, and reports whether JSON was asked for.
+func structuredFormat(kind string, raw json.RawMessage, name string) (string, json.RawMessage, bool) {
+	switch kind {
+	case "json_object":
+		return "", nil, true
+	case "json_schema":
+		var wrapper struct {
+			Name   string          `json:"name"`
+			Schema json.RawMessage `json:"schema"`
+		}
+		if len(raw) > 0 && json.Unmarshal(raw, &wrapper) == nil && wrapper.Schema != nil {
+			if name == "" {
+				name = wrapper.Name
+			}
+			return name, wrapper.Schema, true
+		}
+		return name, raw, true
+	}
+	return "", nil, false
+}
+
+// jsonMode appends the instruction that stands in for a structured-output
+// request: the web endpoint has no such switch, so the schema is spelled out.
+func (r *webReason) jsonMode(name string, schema json.RawMessage) {
+	r.json = true
+	instruction := "Answer with JSON only"
+	if len(schema) > 0 && string(schema) != "{}" && string(schema) != "null" {
+		instruction += " that matches this JSON Schema"
+		if name != "" {
+			instruction += " (" + name + ")"
+		}
+		instruction += ": " + string(schema)
+	}
+	instruction += ". No prose outside the JSON."
+	if r.system == "" {
+		r.system = instruction
+		return
+	}
+	r.system += "\n\n" + instruction
 }
 
 func (r *webReason) append(text string) {
@@ -828,8 +874,12 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		StreamOptions    struct {
 			IncludeUsage bool `json:"include_usage"`
 		} `json:"stream_options"`
-		Tools      []toolSpec `json:"tools"`
-		ToolChoice any        `json:"tool_choice"`
+		Tools          []toolSpec `json:"tools"`
+		ToolChoice     any        `json:"tool_choice"`
+		ResponseFormat struct {
+			Type       string          `json:"type"`
+			JSONSchema json.RawMessage `json:"json_schema"`
+		} `json:"response_format"`
 	}
 	if err := json.Unmarshal(payload, &input); err != nil {
 		return webprov.Request{}, nil, nil, errors.New("expected a JSON object")
@@ -868,6 +918,11 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		default:
 			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
 		}
+	}
+	// The operator's own system turns came first; the stand-in for a
+	// structured-output switch goes after them.
+	if name, schema, wanted := structuredFormat(input.ResponseFormat.Type, input.ResponseFormat.JSONSchema, ""); wanted {
+		reason.jsonMode(name, schema)
 	}
 	tools := input.Tools
 	if choice, ok := input.ToolChoice.(string); ok && choice == "none" {

@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Structured output.** `response_format` on Chat and `text.format` on
+  Responses now append the schema to the system turn and declare `json_mode`;
+  the web endpoint has no switch behind it, so this is spelled out rather than
+  enforced, and a reply can still drift.
 - **Responses roles.** A `developer` item arrived as a user message, so its
   rules read like something the user had just said; it joins the system prompt
   now, as the Chat shape already did.

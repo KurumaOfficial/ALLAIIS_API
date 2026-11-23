@@ -232,6 +232,30 @@ func TestWebVisionUsesAgentMultipart(t *testing.T) {
 	}
 }
 
+func TestWebChatSchemaGoesIntoTheSystemTurn(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		text := body["prompt"].([]any)[0].(map[string]any)["content"].(string)
+		if !strings.Contains(text, "JSON only") || !strings.Contains(text, `"total"`) {
+			t.Errorf("schema not spelled out: %q", text)
+		}
+		if strings.Index(text, "be brief") > strings.Index(text, "JSON only") {
+			t.Errorf("operator system text pushed after the instruction: %q", text)
+		}
+		writeFrames(w, `{"total": 4}`)
+	})
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","messages":[{"role":"system","content":"be brief"},` +
+		`{"role":"user","content":"hi"}],"response_format":{"type":"json_schema",` +
+		`"json_schema":{"name":"invoice","schema":{"type":"object","properties":{"total":{"type":"number"}}}}}}`
+	result := complete(handler, store.ClientKey(), "", payload)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `total\": 4`) {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+	if !strings.Contains(result.Header().Get("X-ALLAIIS-Emulated-Features"), "json_mode") {
+		t.Errorf("json mode not declared: %q", result.Header().Get("X-ALLAIIS-Emulated-Features"))
+	}
+}
+
 func TestWebEmptyFirstEventKeepsLaterText(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		fmt.Fprint(w, `{"kind":"content","content":""}

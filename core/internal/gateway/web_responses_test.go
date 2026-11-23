@@ -225,6 +225,46 @@ func TestResponsesDeveloperItemIsASystemTurn(t *testing.T) {
 	}
 }
 
+func TestResponsesSchemaGoesIntoTheSystemTurn(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		system := body["prompt"].([]any)[0].(map[string]any)
+		if system["role"] != "system" {
+			t.Fatalf("first turn is %v", system["role"])
+		}
+		text := system["content"].(string)
+		if !strings.Contains(text, "invoice") || !strings.Contains(text, `"total"`) ||
+			!strings.Contains(text, "JSON only") {
+			t.Errorf("schema not spelled out: %q", text)
+		}
+		writeFrames(w, `{"total": 12}`)
+	})
+	handler, store := responsesGateway(t, server.URL)
+	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"invoice please",`+
+		`"text":{"format":{"type":"json_schema","name":"invoice","schema":{"type":"object","properties":{"total":{"type":"number"}}}}}}`)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `total\": 12`) {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+	if !strings.Contains(result.Header().Get("X-ALLAIIS-Emulated-Features"), "json_mode") {
+		t.Errorf("json mode not declared: %q", result.Header().Get("X-ALLAIIS-Emulated-Features"))
+	}
+}
+
+func TestResponsesJSONObjectNeedsNoSchema(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		text := body["prompt"].([]any)[0].(map[string]any)["content"].(string)
+		if !strings.Contains(text, "JSON only") || strings.Contains(text, "JSON Schema") {
+			t.Errorf("instruction %q", text)
+		}
+		writeFrames(w, "{}")
+	})
+	handler, store := responsesGateway(t, server.URL)
+	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"hi",`+
+		`"text":{"format":{"type":"json_object"}}}`)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestResponsesFollowUpByPreviousId(t *testing.T) {
 	var bodies []map[string]any
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
