@@ -283,7 +283,8 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		return writeJSON(os.Stdout, map[string]any{
-			"listen": cfg.Listen, "min_privacy": cfg.MinPrivacy, "providers": providers, "models": routes.Models(cfg.MinPrivacy),
+			"version": version, "listen": cfg.Listen, "min_privacy": cfg.MinPrivacy,
+			"providers": providers, "models": routes.Models(cfg.MinPrivacy),
 		})
 	case "export opencode":
 		return exportOpenCode(os.Stdout, cfg.Listen, routes.Models(cfg.MinPrivacy))
