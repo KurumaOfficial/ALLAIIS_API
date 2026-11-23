@@ -138,6 +138,23 @@ its own zeroes. The names are arbitrary strings, so they stay out of the Prometh
 labels and the exposition keeps a fixed shape. Cardinality follows the configured
 aliases; scrape it from a loopback collector.
 
+## Security model
+
+- Both listeners bind `127.0.0.1`; nothing is reachable from another host unless
+  the operator asks for it.
+- The vault is one SQLite file. Argon2id (three passes, 64 MiB, four lanes) with
+  a random 16-byte salt derives an AES-256-GCM key, and every credential is
+  sealed with associated data of its own, so a ciphertext cannot be moved to
+  another row and still open. The passphrase never reaches the file.
+- The client key is a random `sk-allaiis-...` string sealed in the vault. The
+  gateway keeps only its SHA-256 and compares in constant time.
+- The panel token is random per process, embedded in the page and compared in
+  constant time. Its API demands a custom header, which a cross-site form cannot
+  set, and no CORS headers are emitted for it.
+- Web sessions are bearer cookies. They stay in the vault and go only to the
+  provider over TLS with the browser fingerprint the app expects; the provider's
+  position on programmatic use is recorded in the web dossier.
+
 ## Graceful shutdown
 
 `SIGINT`/`SIGTERM` stop accepting connections and give in-flight requests ten

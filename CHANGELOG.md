@@ -5,6 +5,11 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **The trust model is written down.** A security section in the quality dossier
+  (both languages) states what binds where, how the vault is keyed, how the two
+  tokens are compared, and where the web cookies go.
+
+
 - **Runbook commands were corrupted.** Ten lines in the two runbooks carried a
   bell byte where `\a` belonged, so `update` and `service` read as
   `.llaiis.exe`. Fixed, and a docs check now fails on any control character in a
