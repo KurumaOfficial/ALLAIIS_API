@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **`export opencode` carries capabilities.** Each generated model entry now has
+  its limits (context, output) and capabilities (tools, vision, reasoning) plus
+  the compatibility fields, matching what a hand-written block sets.
+
 ## v0.1.8
 
 The plan line warns before the allowance is gone.
