@@ -8,9 +8,9 @@ probes and logs against a live gateway with hot reload. Inline attachments are
 bounded by the configurable `max_request_mb`.
 
 - **E2EE models, reply check.** Attestation, sealing and opening are implemented
-  and covered offline; live, a request clears the enclave attestation and reaches
-  the chat endpoint with the TEE headers, but the label answered `402` before a
-  sealed reply could be decrypted.
+  and covered offline; live, doctor and the panel's Test enclave attest the
+  production enclave, and a request reaches the chat endpoint with the TEE
+  headers, but the label answered `402` before a sealed reply could be decrypted.
 - A second web provider on the same capture flow.
 
 ## B1b. Current environment notes
