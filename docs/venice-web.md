@@ -190,7 +190,13 @@ chunks. Set `"e2ee": true` on the route (or pass `--e2ee` to `models add`; an
 
 Sessions are cached per model for five minutes and dropped when a chunk fails to
 open; the turn is then retried once with a fresh attestation while the client has
-seen nothing. A failure is answered `e2ee_failed`. Tools and attachments work through the same path: the call block travels inside
+seen nothing. A failure is answered `e2ee_failed`.
+
+`allaiis web e2ee --label <label> --model <e2ee model>` runs the checks by hand:
+it prints the enclave provider, hardware, signing key and whether the TDX verdict
+was checked, then sends one sealed canary and reports the reply text and any
+error, which is the shortest way to tell an accepted request from a decrypted
+answer once a label has balance. Tools and attachments work through the same path: the call block travels inside
 the encrypted content, and the multipart agent path seals the text the same way.
 
 Attestation lives at `{base}/v1/tee/attestation` and answers without a key. Live,

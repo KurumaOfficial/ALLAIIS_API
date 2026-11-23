@@ -28,9 +28,19 @@ var e2eeHKDFInfo = []byte("ecdsa_encryption")
 // ErrE2EE names a failure of the end-to-end encryption layer.
 var ErrE2EE = errors.New("e2ee")
 
+// E2EEProbe is what an attestation verified, for the operator to read.
+type E2EEProbe struct {
+	Provider string `json:"tee_provider,omitempty"`
+	Hardware string `json:"tee_hardware,omitempty"`
+	Upstream string `json:"upstream_model,omitempty"`
+	Signing  string `json:"signing_key"`
+	TDX      bool   `json:"tdx_checked"`
+}
+
 // e2eeSession is one verified attestation bound to a client key pair.
 type e2eeSession struct {
 	model    string
+	probe    E2EEProbe
 	private  *secp256k1.PrivateKey
 	modelPub *secp256k1.PublicKey
 	modelKey []byte
@@ -61,6 +71,9 @@ type e2eeAttestation struct {
 	Debug     bool   `json:"debug_mode"`
 	// ServerVerification carries the enclave's own TDX verdict; it is checked
 	// when present because "verified" alone is one field.
+	Provider           string `json:"tee_provider"`
+	Hardware           string `json:"tee_hardware"`
+	Upstream           string `json:"upstream_model"`
 	ServerVerification struct {
 		TDX struct {
 			Valid      bool `json:"valid"`
@@ -135,12 +148,27 @@ func (c *Client) e2eeSession(ctx context.Context, cred Credential, model string)
 	if err != nil {
 		return nil, err
 	}
-	session := &e2eeSession{model: model, private: private, modelPub: modelKey, modelKey: modelKey.SerializeUncompressed(),
-		key: key, expires: time.Now().Add(e2eeTTL)}
+	session := &e2eeSession{
+		model: model, private: private, modelPub: modelKey, modelKey: modelKey.SerializeUncompressed(),
+		key: key, expires: time.Now().Add(e2eeTTL),
+		probe: E2EEProbe{Provider: body.Provider, Hardware: body.Hardware, Upstream: body.Upstream,
+			Signing: modelHex, TDX: body.ServerVerification.TDX.Valid},
+	}
 	c.e2ee.mu.Lock()
 	c.e2ee.sessions[model] = session
 	c.e2ee.mu.Unlock()
 	return session, nil
+}
+
+// ProbeE2EE verifies the enclave for a model and reports what was checked,
+// without sending a message.
+func (c *Client) ProbeE2EE(ctx context.Context, cred Credential, model string) (E2EEProbe, error) {
+	c.forgetE2EE(model)
+	session, err := c.e2eeSession(ctx, cred, model)
+	if err != nil {
+		return E2EEProbe{}, err
+	}
+	return session.probe, nil
 }
 
 // forgetE2EE drops a cached session, used when a chunk will not decrypt.

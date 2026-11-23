@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
@@ -20,8 +21,10 @@ const webUsage = `Usage: allaiis web <command>
   chrome            Open the capture Chrome profile on a DevTools port
   login             Capture a logged-in web session into the vault
   quota             Show the remaining web quota for a stored session
+  e2ee              Verify a model enclave and send one sealed canary turn
 
 web login flags: --provider venice-web --label <label> [--cookie <header>]
+web e2ee flags: --provider venice-web --label <label> --model <e2ee model>
 `
 
 func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []string) error {
@@ -31,7 +34,7 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 	}
 	command := args[0]
 	flags := flag.NewFlagSet("web "+command, flag.ContinueOnError)
-	var providerID, label, cookie, url, chrome string
+	var providerID, label, cookie, url, chrome, e2eeModel string
 	switch command {
 	case "chrome":
 		flags.StringVar(&providerID, "provider", "venice-web", "web provider ID")
@@ -44,6 +47,10 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 	case "quota":
 		flags.StringVar(&providerID, "provider", "venice-web", "web provider ID")
 		flags.StringVar(&label, "label", "", "credential label within the pool")
+	case "e2ee":
+		flags.StringVar(&providerID, "provider", "venice-web", "web provider ID")
+		flags.StringVar(&label, "label", "", "credential label within the pool")
+		flags.StringVar(&e2eeModel, "model", "", "upstream e2ee model ID")
 	default:
 		return fmt.Errorf("unknown web command %q", command)
 	}
@@ -82,6 +89,12 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 		return fmt.Errorf("open vault (run allaiis init for a new vault): %w", err)
 	}
 	defer store.Close()
+	if command == "e2ee" {
+		if e2eeModel == "" || label == "" {
+			return errors.New("--model and --label are required")
+		}
+		return webE2EE(ctx, store, provider, providerID, e2eeModel, label)
+	}
 	if command == "quota" {
 		floor := config.DefaultQuotaFloor
 		if cfg, err := config.Load(configPath); err == nil {
@@ -167,4 +180,48 @@ func webQuota(ctx context.Context, store *vault.Store, provider config.Provider,
 		return errors.New("label was not found for this provider")
 	}
 	return writeJSON(os.Stdout, results)
+}
+
+// webE2EE verifies the enclave and sends one sealed canary, which is the whole
+// thing that can be checked without knowing whether a reply opens.
+func webE2EE(ctx context.Context, store *vault.Store, provider config.Provider, providerID, model, label string) error {
+	entries, err := store.Entries(ctx, providerID, provider.BaseURL)
+	if err != nil {
+		return err
+	}
+	var entry vault.Entry
+	found := false
+	for _, candidate := range entries {
+		if candidate.Label == label {
+			entry, found = candidate, true
+			break
+		}
+	}
+	if !found {
+		return errors.New("label was not found for this provider")
+	}
+	cred, err := webprov.ParseCredential(entry.Key)
+	if err != nil {
+		return err
+	}
+	client := webprov.New(3 * time.Minute)
+	probe, err := client.ProbeE2EE(ctx, cred, model)
+	if err != nil {
+		return err
+	}
+	var reply strings.Builder
+	callErr := client.Chat(ctx, cred, webprov.Request{
+		Model: model, E2EE: true, MaxTokens: 24,
+		Messages: []webprov.Message{{Role: "user", Content: "Say hi in three words."}},
+	}, func(event webprov.Event) error {
+		if event.Kind == "content" {
+			reply.WriteString(event.Content)
+		}
+		return nil
+	})
+	result := map[string]any{"attestation": probe, "reply": reply.String(), "decrypted": reply.Len() > 0}
+	if callErr != nil {
+		result["error"] = callErr.Error()
+	}
+	return writeJSON(os.Stdout, result)
 }
