@@ -90,8 +90,8 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 	}
 	defer store.Close()
 	if command == "e2ee" {
-		if e2eeModel == "" || label == "" {
-			return errors.New("--model and --label are required")
+		if e2eeModel == "" {
+			return errors.New("--model is required")
 		}
 		return webE2EE(ctx, store, provider, providerID, e2eeModel, label)
 	}
@@ -189,39 +189,44 @@ func webE2EE(ctx context.Context, store *vault.Store, provider config.Provider, 
 	if err != nil {
 		return err
 	}
-	var entry vault.Entry
-	found := false
-	for _, candidate := range entries {
-		if candidate.Label == label {
-			entry, found = candidate, true
-			break
+	results := map[string]any{}
+	client := webprov.New(30 * time.Second)
+	for _, entry := range entries {
+		if label != "" && entry.Label != label {
+			continue
 		}
+		row := map[string]any{}
+		cred, err := webprov.ParseCredential(entry.Key)
+		if err != nil {
+			row["error"] = err.Error()
+			results[entry.Label] = row
+			continue
+		}
+		probe, err := client.ProbeE2EE(ctx, cred, model)
+		if err != nil {
+			row["error"] = err.Error()
+			results[entry.Label] = row
+			continue
+		}
+		row["attestation"] = probe
+		var reply strings.Builder
+		callErr := client.Chat(ctx, cred, webprov.Request{
+			Model: model, E2EE: true, MaxTokens: 24,
+			Messages: []webprov.Message{{Role: "user", Content: "Say hi in three words."}},
+		}, func(event webprov.Event) error {
+			if event.Kind == "content" {
+				reply.WriteString(event.Content)
+			}
+			return nil
+		})
+		row["reply"], row["decrypted"] = reply.String(), reply.Len() > 0
+		if callErr != nil {
+			row["error"] = callErr.Error()
+		}
+		results[entry.Label] = row
 	}
-	if !found {
+	if len(results) == 0 {
 		return errors.New("label was not found for this provider")
 	}
-	cred, err := webprov.ParseCredential(entry.Key)
-	if err != nil {
-		return err
-	}
-	client := webprov.New(30 * time.Second)
-	probe, err := client.ProbeE2EE(ctx, cred, model)
-	if err != nil {
-		return err
-	}
-	var reply strings.Builder
-	callErr := client.Chat(ctx, cred, webprov.Request{
-		Model: model, E2EE: true, MaxTokens: 24,
-		Messages: []webprov.Message{{Role: "user", Content: "Say hi in three words."}},
-	}, func(event webprov.Event) error {
-		if event.Kind == "content" {
-			reply.WriteString(event.Content)
-		}
-		return nil
-	})
-	result := map[string]any{"attestation": probe, "reply": reply.String(), "decrypted": reply.Len() > 0}
-	if callErr != nil {
-		result["error"] = callErr.Error()
-	}
-	return writeJSON(os.Stdout, result)
+	return writeJSON(os.Stdout, results)
 }
