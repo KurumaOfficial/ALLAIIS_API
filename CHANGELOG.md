@@ -5,6 +5,11 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **The key importer has tests.** It was the one package at zero coverage while
+  it reads a file from another program, so a bad shape or a name mismatch would
+  have surfaced as an empty import rather than an error.
+
+
 - **Fuzz runs stop when they say.** The minimization tail is capped in CI: a
   five-minute local run spent twenty more minutes minimizing a corpus of
   hundreds of inputs, and two gigabytes, without failing anything.
