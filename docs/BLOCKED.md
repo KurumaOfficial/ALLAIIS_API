@@ -9,8 +9,8 @@ bounded by the configurable `max_request_mb`.
 
 - **E2EE models: verified.** Attestation, sealing and opening are implemented and
   covered offline; live, a sealed turn on `e2ee-gpt-oss-120b-p` came back
-  decrypted and a tool call inside the sealed content parsed, with the TEE
-  headers on the wire. The credit-priced `e2ee-*` models still wait on credits;
+  decrypted, a tool call inside the sealed content parsed, and a two-turn tool
+  loop answered from its result, with the TEE headers on the wire. The credit-priced `e2ee-*` models still wait on credits;
   the free ones need a Pro session only.
 - A second web provider on the same capture flow.
 
