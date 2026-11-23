@@ -152,9 +152,12 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	sent := false
 	finish := "stop"
 	var calls []toolCall
-	// An argument-less call is held back while nothing has reached the client,
-	// so a repair turn can replace it instead of a client rejection.
+	// Calls wait for the end of the stream, so a repair turn can replace a
+	// broken call before the client ever sees it.
 	var heldCalls []toolCall
+	// suppress keeps a retry's prose quiet when the first attempt already
+	// streamed its own.
+	suppress := false
 
 	guard := &toolGuard{probe: r.Header.Get(probeHeader) != ""}
 	guard.add(tools)
@@ -195,22 +198,16 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				text = safe
 				if len(parsed) > 0 {
 					reason.callsChars(parsed)
-					if !sent && len(calls) == 0 && strings.TrimSpace(text) == "" && guard.incompleteCalls(parsed) {
-						heldCalls = append(heldCalls, parsed...)
-						return nil
-					}
-					calls = append(calls, parsed...)
-					guard.logMissing(parsed)
+					heldCalls = append(heldCalls, parsed...)
 					if strings.TrimSpace(text) == "" {
 						text = ""
-					}
-					if stream {
-						startStream()
-						shape.calls(parsed)
 					}
 				}
 			}
 			if text == "" {
+				return nil
+			}
+			if suppress {
 				return nil
 			}
 			// Venice opens the stream with a literal "processing" status chunk.
@@ -283,46 +280,48 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				}
 			}
 		}
-		if errors.Is(err, errToolRepair) && attempts < 2 && !sent {
+		if errors.Is(err, errToolRepair) && attempts < 2 {
 			request.Messages = repairMessages(reason.messages(envelope), reason.text.String(), "")
-			reason.text.Reset()
+			reason.reasoningText.Reset()
+			guard.reset()
+			heldCalls, firstSeen, held = nil, false, ""
+			// Prose that already streamed stays; a new one would repeat it.
+			suppress = sent
+			if !sent {
+				reason.text.Reset()
+			}
+			continue
+		}
+		// A 200 with no content at all is worth one more try, like a bad block.
+		empty := reason.text.Len() == 0 && len(calls) == 0 && len(heldCalls) == 0 && (held == "" || held == "processing")
+		if err == nil && empty && attempts < 2 && !sent {
 			reason.reasoningText.Reset()
 			guard.reset()
 			firstSeen, held = false, ""
 			continue
 		}
-		// A 200 with no content at all is worth one more try, like a bad block;
-		// so is a call that forgot its arguments while the client still saw
-		// nothing.
-		empty := reason.text.Len() == 0 && len(calls) == 0 && len(heldCalls) == 0 && (held == "" || held == "processing")
-		incomplete := len(heldCalls) > 0 && !sent && reason.text.Len() == 0
-		if err == nil && (empty || incomplete) && attempts < 2 && !sent {
-			if incomplete {
-				// Say which field is missing: the model has the block in front of
-				// it and only has to fill the gap.
-				problems := make([]string, 0, len(heldCalls))
-				for _, call := range heldCalls {
-					problems = append(problems, call.Function.Name+" "+guard.argumentProblem(call))
-				}
-				request.Messages = repairMessages(reason.messages(envelope), renderCallList("", heldCalls), strings.Join(problems, "; "))
+		// A call short of an argument is worth a repair turn: the model has the
+		// block in front of it and only has to fill the gap. The turn names the
+		// field, and the call is replaced before the client runs it.
+		var problems []string
+		for _, call := range heldCalls {
+			if problem := guard.argumentProblem(call); problem != "" {
+				problems = append(problems, call.Function.Name+" "+problem)
 			}
+		}
+		if err == nil && len(problems) > 0 && attempts < 2 {
+			request.Messages = repairMessages(reason.messages(envelope), renderCallList("", heldCalls), strings.Join(problems, "; "))
 			reason.reasoningText.Reset()
 			guard.reset()
-			heldCalls = nil
-			firstSeen, held = false, ""
+			heldCalls, firstSeen, held = nil, false, ""
+			// Prose that already streamed stays; a new one would repeat it.
+			suppress = sent
+			if !sent {
+				reason.text.Reset()
+			}
 			continue
 		}
 		break
-	}
-	if len(heldCalls) > 0 {
-		// No repair was possible or left; deliver what came.
-		guard.logMissing(heldCalls)
-		calls = append(calls, heldCalls...)
-		if stream {
-			startStream()
-			shape.calls(heldCalls)
-		}
-		heldCalls = nil
 	}
 	if held != "" {
 		// A lone "processing" status is not an answer.
@@ -336,6 +335,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		held = ""
 	}
 	if len(tools) > 0 {
+		// A block still in the buffer is parsed here, so its call travels with
+		// the held ones and arrives after the text.
 		raw := guard.buf.String()
 		if tail, parsed, parseErr := guard.Flush(); parseErr == nil {
 			if len(parsed) > 0 && strings.TrimSpace(tail) == "" {
@@ -348,14 +349,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 					shape.text(tail)
 				}
 			}
-			calls = append(calls, parsed...)
-			if len(parsed) > 0 {
-				reason.callsChars(parsed)
-			}
-			if len(parsed) > 0 && stream {
-				startStream()
-				shape.calls(parsed)
-			}
+			reason.callsChars(parsed)
+			heldCalls = append(heldCalls, parsed...)
 		} else if tail := strings.TrimSpace(trimPartialClose(strings.TrimPrefix(raw, toolOpen), toolClose)); tail != "" {
 			reason.append(tail)
 			if stream {
@@ -363,6 +358,16 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				shape.text(tail)
 			}
 		}
+	}
+	if len(heldCalls) > 0 {
+		// No repair was possible or left; deliver what came.
+		guard.logMissing(heldCalls)
+		calls = append(calls, heldCalls...)
+		if stream {
+			startStream()
+			shape.calls(heldCalls)
+		}
+		heldCalls = nil
 	}
 	// Thinking is output too, even when the route does not surface it.
 	completion := reason.chars() + len([]rune(reason.reasoningText.String()))

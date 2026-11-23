@@ -413,3 +413,37 @@ func TestWebRepairsArgumentsThatAreNotAnObject(t *testing.T) {
 		t.Fatalf("array arguments not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
 	}
 }
+
+// A call that comes with prose used to reach the client before anyone could
+// check its arguments, so a client rejected it. The prose still streams, the
+// call waits, and a repair turn fills the gap.
+func TestWebCallWithoutArgumentsAfterProseIsRepaired(t *testing.T) {
+	var calls atomic.Int32
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
+		if calls.Add(1) == 1 {
+			writeFrames(w, "Reading.\n<<<ALLAIIS_TOOL_CALL>>>{\"calls\":[{\"name\":\"read_file\",\"arguments\":{}}]}<<<END_TOOL_CALL>>>")
+			return
+		}
+		last := fmt.Sprint(body)
+		if !strings.Contains(last, "read_file misses path") {
+			t.Errorf("repair turn does not name the missing field: %q", last)
+		}
+		writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"read_file","arguments":{"path":"a.txt"}}]}<<<END_TOOL_CALL>>>`)
+	})
+	handler, store := webGateway(t, server.URL)
+	body := strings.Replace(toolPayload, `"messages"`, `"stream":true,"messages"`, 1)
+	result := complete(handler, store.ClientKey(), "", body)
+	text := result.Body.String()
+	if result.Code != http.StatusOK || !strings.Contains(text, `"finish_reason":"tool_calls"`) {
+		t.Fatalf("no repaired call: %d %s", result.Code, text)
+	}
+	if !strings.Contains(text, `a.txt`) {
+		t.Fatalf("missing repaired argument: %s", text)
+	}
+	if strings.Count(text, "Reading.") != 1 {
+		t.Fatalf("prose repeated or lost: %s", text)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("expected one repair turn, got %d calls", calls.Load())
+	}
+}

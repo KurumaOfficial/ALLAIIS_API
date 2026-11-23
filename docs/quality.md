@@ -40,7 +40,7 @@ results, and its checkbox forces a refetch.
 | `5xx` before streaming starts | one retry |
 | Stream dies before the first event | one retry |
 | `403` attestation | one retry with a fresh token, then `cloudflare_challenge` |
-| Malformed tool block | one repair turn, only when nothing was streamed |
+| Malformed tool block | one repair turn, also after prose has streamed |
 | Empty reply (200, or only `processing`) | one retry, only when nothing was streamed |
 | `429` | no retry; the label cools for the stated reset |
 | Unpinned pool, one label cooling | the resolver picks a label that is not cooling; a failing label (429, 402, expired or challenged session) is parked and the request retried on another with nothing streamed yet; when every label cools the call is answered `429` |
@@ -51,14 +51,16 @@ results, and its checkbox forces a refetch.
 | Silent stream | aborted after the alias inactivity window (default 2 min), answered `upstream_timeout` |
 | Request body | 8 MiB cap (`max_request_mb`, 1–128), 90 s response-header timeout, 10 min whole call |
 
-A retry happens only while the client has seen nothing, so streaming clients
-never get duplicated text. A tool call that misses a field its schema marks required (an empty one
-included, also when the name only differs by case or separators, and also when the
-arguments are not a JSON object) is held back while the client has seen nothing and answered with one
-repair turn instead, and that turn names the tool and the missing fields rather
-than only saying a block was bad; if the repair also misses it, the call is
-delivered as it came and logged as `tool call missing arguments` with the tool
-name and the fields, so the log explains the failed step.
+Calls wait for the end of the stream, so a retry can replace them before the
+client runs them; prose that already streamed is not repeated, and a retry that
+fails before anything streamed starts over. A tool call that misses a field its
+schema marks required (an empty one included, also when the name only differs by
+case or separators, and also when the arguments are not a JSON object) is
+answered with one repair turn instead, and that turn names the tool and the
+missing fields rather than only saying a block was bad; if the repair also
+misses it, the call is delivered as it came and logged as `tool call missing
+arguments` with the tool name and the fields, so the log explains the failed
+step.
 
 ## Errors
 
