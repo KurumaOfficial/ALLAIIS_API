@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.4
+
+Small fixes that keep the checks honest.
+
 
 - **Quota button** shows the plan, the credits and the refill date beside the chat
   counter, so an empty credit bucket is visible without a CLI.
