@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.3
+
+The quota a client sees is the quota the account really has.
+
 
 - **Quota tells the truth.** The probe asked the rate-limits endpoint without
   the session token, so a signed-in label looked empty while the account had
