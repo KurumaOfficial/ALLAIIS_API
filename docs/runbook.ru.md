@@ -61,8 +61,8 @@ Linux и macOS пишется unit-файл и печатаются две ос�
 ## Обновление
 
 ```powershell
-.llaiis.exe update --check    # какой последний тег
-.llaiis.exe update            # скачать, сверить хэш, подменить
+.\allaiis.exe update --check    # какой последний тег
+.\allaiis.exe update            # скачать, сверить хэш, подменить
 ```
 
 `update` берёт сборку под эту ОС и архитектуру из свежего релиза на GitHub,
@@ -73,14 +73,26 @@ Linux и macOS пишется unit-файл и печатаются две ос�
 Без релиза или для локальных правок пересоберите вручную:
 
 ```powershell
-.llaiis.exe service remove
+.\allaiis.exe service remove
 go build -o allaiis.exe ./core/cmd/allaiis
-.llaiis.exe doctor
-.llaiis.exe service install
+.\allaiis.exe doctor
+.\allaiis.exe service install
 ```
 
 Ни один путь не трогает хранилище и конфиг. `doctor` запускается до того, как
 новый файл снова попадёт в автозагрузку.
+
+## Выпуск релиза
+
+1. Поставьте версию в `core/cmd/allaiis/gui.go` (`var version`).
+2. Превратите верхний раздел `Unreleased` в `CHANGELOG.md` в `## vX.Y.Z` с одной
+   фразой о том, чему посвящён релиз.
+3. Закоммитьте, затем поставьте тег и отправьте оба: `git tag vX.Y.Z` и
+   `git push origin main vX.Y.Z`.
+4. Workflow релиза соберёт пять целей и `SHA256SUMS`; дождитесь, пока они
+   появятся на странице релиза.
+5. Запустите `update --check`, затем `update`; служба подменит бинарь и
+   перезапустится в течение пяти секунд.
 
 ## Когда что-то сломалось
 

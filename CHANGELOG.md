@@ -5,6 +5,14 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Runbook commands were corrupted.** Ten lines in the two runbooks carried a
+  bell byte where `\a` belonged, so `update` and `service` read as
+  `.llaiis.exe`. Fixed, and a docs check now fails on any control character in a
+  tracked text file.
+- **Release steps are written down** in both runbooks: version, changelog, tag,
+  the workflow, and the self-update that follows.
+
+
 - **The key importer has tests.** It was the one package at zero coverage while
   it reads a file from another program, so a bad shape or a name mismatch would
   have surfaced as an empty import rather than an error.

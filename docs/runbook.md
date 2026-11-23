@@ -62,8 +62,8 @@ restore.
 ## Upgrade
 
 ```powershell
-.llaiis.exe update --check    # what is the latest tag
-.llaiis.exe update            # download, verify the checksum, swap
+.\allaiis.exe update --check    # what is the latest tag
+.\allaiis.exe update            # download, verify the checksum, swap
 ```
 
 `update` takes the build for this OS and architecture from the newest GitHub
@@ -75,14 +75,25 @@ script does that by itself within five seconds.
 Without a release, or to try local changes, rebuild by hand:
 
 ```powershell
-.llaiis.exe service remove
+.\allaiis.exe service remove
 go build -o allaiis.exe ./core/cmd/allaiis
-.llaiis.exe doctor
-.llaiis.exe service install
+.\allaiis.exe doctor
+.\allaiis.exe service install
 ```
 
 The vault and config are untouched by either way. `doctor` runs before the new
 binary goes back on autostart.
+
+## Cutting a release
+
+1. Set the version in `core/cmd/allaiis/gui.go` (`var version`).
+2. Turn the top `Unreleased` section of `CHANGELOG.md` into `## vX.Y.Z` with one
+   sentence saying what the release is about.
+3. Commit, then tag and push both: `git tag vX.Y.Z` and `git push origin main vX.Y.Z`.
+4. The release workflow builds five targets plus `SHA256SUMS`; wait until the
+   release page lists them.
+5. Run `update --check` and then `update`; the service swaps the binary and
+   restarts within five seconds.
 
 ## When something breaks
 
