@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Browser clients can read `Retry-After` and send `X-ALLAIIS-Probe`.** Both
+  were missing from the CORS lists, so a page could not see when to retry or
+  mark a synthetic call.
 - **`smoke --allow` takes an HTTP status or an error code.** `--allow 402` was
   silently ignored, because only the error code was matched; a person reading
   the failure sees the status.

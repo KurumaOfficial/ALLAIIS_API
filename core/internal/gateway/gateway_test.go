@@ -561,7 +561,8 @@ func TestPreflightAndCORSHeaders(t *testing.T) {
 	if result.Code != http.StatusNoContent || result.Header().Get("Access-Control-Allow-Origin") != "*" {
 		t.Fatalf("preflight: %d %v", result.Code, result.Header())
 	}
-	if !strings.Contains(result.Header().Get("Access-Control-Allow-Headers"), "Authorization") {
+	if !strings.Contains(result.Header().Get("Access-Control-Allow-Headers"), "Authorization") ||
+		!strings.Contains(result.Header().Get("Access-Control-Allow-Headers"), "X-ALLAIIS-Probe") {
 		t.Fatalf("authorization not allowed: %q", result.Header().Get("Access-Control-Allow-Headers"))
 	}
 
@@ -570,7 +571,8 @@ func TestPreflightAndCORSHeaders(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Header().Get("Access-Control-Allow-Origin") != "*" ||
-		!strings.Contains(response.Header().Get("Access-Control-Expose-Headers"), "X-Request-Id") {
+		!strings.Contains(response.Header().Get("Access-Control-Expose-Headers"), "X-Request-Id") ||
+		!strings.Contains(response.Header().Get("Access-Control-Expose-Headers"), "Retry-After") {
 		t.Fatalf("cors headers missing: %v", response.Header())
 	}
 }

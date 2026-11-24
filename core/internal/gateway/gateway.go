@@ -126,10 +126,10 @@ func (g *Gateway) instrument(next http.Handler) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Expose-Headers", "X-Request-Id, X-ALLAIIS-Transport-Tier, X-ALLAIIS-Provider, X-ALLAIIS-Credential, X-ALLAIIS-Model, X-ALLAIIS-Upstream-Model, X-ALLAIIS-Emulated-Features, X-ALLAIIS-E2EE")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Request-Id, X-ALLAIIS-Transport-Tier, X-ALLAIIS-Provider, X-ALLAIIS-Credential, X-ALLAIIS-Model, X-ALLAIIS-Upstream-Model, X-ALLAIIS-Emulated-Features, X-ALLAIIS-E2EE, Retry-After")
 		if r.Method == http.MethodOptions {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Key, Anthropic-Version, Anthropic-Beta, X-ALLAIIS-Session, X-ALLAIIS-Min-Privacy, X-Request-Id")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Key, Anthropic-Version, Anthropic-Beta, X-ALLAIIS-Session, X-ALLAIIS-Min-Privacy, X-ALLAIIS-Probe, X-Request-Id")
 			w.Header().Set("Access-Control-Max-Age", "600")
 			w.WriteHeader(http.StatusNoContent)
 			return
