@@ -276,7 +276,9 @@ when a request sends only `previous_response_id`. Stored turns sit in the vault
 SQLite file, AES-GCM sealed like credentials, expire after an hour and are capped
 at 128 entries, so a follow-up survives a gateway restart without exposing
 prompts on disk. `store: false` keeps a reply out of that file: a later request
-naming its id gets only what it sends, and the vault stays out of the loop.
+naming its id is refused with `previous_response_not_found` (404), since a fresh
+conversation that looked continuous would be worse than a clear error. The same
+code answers an expired or mistyped id.
 
 ## Client setup (Claude Code)
 

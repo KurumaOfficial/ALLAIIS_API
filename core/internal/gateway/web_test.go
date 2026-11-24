@@ -87,6 +87,9 @@ func TestWebCompletionStreams(t *testing.T) {
 	result := complete(handler, store.ClientKey(), "",
 		`{"model":"`+webModel+`","messages":[{"role":"system","content":"be brief"},{"role":"user","content":"hi"}],"stream":true}`)
 	body := result.Body.String()
+	if first := strings.SplitN(strings.TrimPrefix(body, "data: "), "\n", 2)[0]; !strings.Contains(first, `"role":"assistant"`) {
+		t.Errorf("first chunk carries no role: %s", first)
+	}
 	if result.Code != http.StatusOK || result.Header().Get("X-ALLAIIS-Transport-Tier") != "tier_c3" ||
 		result.Header().Get("X-ALLAIIS-Emulated-Features") != "usage_estimate" ||
 		!strings.Contains(body, `"content":"Hello`) || !strings.Contains(body, `"finish_reason":"stop"`) ||

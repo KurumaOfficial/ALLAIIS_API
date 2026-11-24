@@ -5,6 +5,12 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **An unknown `previous_response_id` is a 404.** A follow-up on an id that was
+  never stored (`store: false`, expired, a typo) answered with no history, so a
+  fresh conversation looked continuous. It is `previous_response_not_found` now
+  and upstream is not called.
+- **A Chat stream opens with the assistant role.** The first chunk carried only
+  content; a client that reads `delta.role` from it found nothing.
 - **Anthropic image blocks reach the model.** A Messages `image` part with a
   base64 `source` used to fall through the parser, so vision answered as if no
   image had been sent.

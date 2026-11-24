@@ -130,12 +130,17 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		return 0, 0
 	}
 	if request.Parent != "" {
-		if raw, ok := g.table().routes.LoadResponse(r.Context(), request.Parent); ok {
-			var previous []webprov.Message
-			if json.Unmarshal(raw, &previous) == nil && len(previous) > 0 {
-				reason.turns = append(previous, reason.turns...)
-			}
+		// A follow-up on an id that was never stored (store=false, expired, a
+		// typo) used to answer with no history, so the client thought the
+		// conversation continued. Say the id is unknown instead.
+		raw, ok := g.table().routes.LoadResponse(r.Context(), request.Parent)
+		var previous []webprov.Message
+		if !ok || json.Unmarshal(raw, &previous) != nil || len(previous) == 0 {
+			writeError(w, protocol, http.StatusNotFound, "previous_response_not_found",
+				"Previous response not found: it expired, was created with store=false, or belongs to another gateway.")
+			return 0, 0
 		}
+		reason.turns = append(previous, reason.turns...)
 		request.Messages = reason.messages(reason.system)
 	}
 	if target.Route.ReasoningRoundTrip {

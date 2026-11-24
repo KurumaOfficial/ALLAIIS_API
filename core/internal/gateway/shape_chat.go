@@ -16,21 +16,37 @@ type chatShape struct {
 	model     string
 	created   int64
 	callIndex int
+	greeted   bool
 }
 
 func (s *chatShape) reasoning(text string) {
+	s.greet()
 	writeChunk(s.w, s.id, s.model, s.created, map[string]any{"reasoning_content": text})
 }
 
 func (s *chatShape) text(text string) {
+	s.greet()
 	writeChunk(s.w, s.id, s.model, s.created, map[string]any{"content": text})
 }
 
 func (s *chatShape) calls(calls []toolCall) {
+	s.greet()
 	s.callIndex = writeToolChunks(s.w, s.id, s.model, s.created, calls, s.callIndex, false)
 }
 
+// greet opens the stream the way the OpenAI shape does: one chunk carrying the
+// assistant role. A client that reads the role from the first delta used to get
+// no role at all.
+func (s *chatShape) greet() {
+	if s.greeted {
+		return
+	}
+	s.greeted = true
+	writeChunk(s.w, s.id, s.model, s.created, map[string]any{"role": "assistant", "content": ""})
+}
+
 func (s *chatShape) end(reason string, usage map[string]any) {
+	s.greet()
 	if reason == "tool_calls" {
 		writeToolChunks(s.w, s.id, s.model, s.created, nil, s.callIndex, true)
 	}

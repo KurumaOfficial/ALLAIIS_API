@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -87,6 +88,34 @@ func TestResponsesStreamFailureIsAnEvent(t *testing.T) {
 	}
 	if strings.Contains(text, "response.completed") {
 		t.Errorf("a failed stream reported completion: %s", text)
+	}
+}
+
+// TestResponsesRefusesAnUnknownPreviousResponse pins the continuation contract:
+// an id that was not stored cannot silently become a fresh conversation.
+func TestResponsesRefusesAnUnknownPreviousResponse(t *testing.T) {
+	var calls atomic.Int32
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		calls.Add(1)
+		writeFrames(w, "hi")
+	})
+	handler, store := responsesGateway(t, server.URL)
+	first := responsesCall(handler, store.ClientKey(),
+		`{"model":"gpt-venice-web-fixture","input":"hi","store":false}`)
+	var reply struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &reply); err != nil || reply.ID == "" {
+		t.Fatalf("first: %d %s", first.Code, first.Body)
+	}
+	second := responsesCall(handler, store.ClientKey(),
+		`{"model":"gpt-venice-web-fixture","input":"again","previous_response_id":"`+reply.ID+`"}`)
+	if second.Code != http.StatusNotFound ||
+		!strings.Contains(second.Body.String(), "previous_response_not_found") {
+		t.Fatalf("second: %d %s", second.Code, second.Body)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("the unknown parent reached upstream: %d calls", calls.Load())
 	}
 }
 
@@ -389,7 +418,9 @@ func TestResponsesToolChoiceObjectNoneDropsTools(t *testing.T) {
 }
 
 // TestResponsesStoreFalseKeepsTurnsOut pins the privacy switch: a reply sent
-// with store false is not replayed for a later id.
+// with store false is not replayed for a later id, and a client that asks to
+// continue it learns the id was not kept instead of getting a fresh
+// conversation that looks continuous.
 func TestResponsesStoreFalseKeepsTurnsOut(t *testing.T) {
 	var bodies []map[string]any
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
@@ -406,44 +437,12 @@ func TestResponsesStoreFalseKeepsTurnsOut(t *testing.T) {
 	}
 	second := responsesCall(rebuild(), store.ClientKey(),
 		`{"model":"gpt-venice-web-fixture","previous_response_id":"`+created.ID+`","input":"two"}`)
-	if second.Code != http.StatusOK {
-		t.Fatalf("follow-up failed: %d %s", second.Code, second.Body)
+	if second.Code != http.StatusNotFound ||
+		!strings.Contains(second.Body.String(), "previous_response_not_found") {
+		t.Fatalf("follow-up: %d %s", second.Code, second.Body)
 	}
-	if len(bodies) != 2 {
-		t.Fatalf("upstream calls %d", len(bodies))
-	}
-	if messages := bodies[1]["prompt"].([]any); len(messages) != 1 {
-		t.Fatalf("previous turn replayed although store said no: %v", messages)
-	}
-}
-
-// TestResponsesStoreFalseKeepsTurnsOutOfTheVault pins the switch: a client that
-// asks for no storage must not have its prompts replayed from disk later.
-func TestResponsesStoreFalseKeepsTurnsOutOfTheVault(t *testing.T) {
-	var bodies []map[string]any
-	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
-		bodies = append(bodies, body)
-		if len(bodies) == 1 {
-			writeFrames(w, "first answer")
-			return
-		}
-		if strings.Contains(fmt.Sprint(body["prompt"]), "first answer") {
-			t.Errorf("stored turns replayed: %v", body["prompt"])
-		}
-		writeFrames(w, "second answer")
-	})
-	handler, rebuild, store := responsesGatewayRebuild(t, server.URL)
-	first := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"one","store":false}`)
-	var created struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal(first.Body.Bytes(), &created); err != nil || created.ID == "" {
-		t.Fatalf("no response id: %s", first.Body)
-	}
-	second := responsesCall(rebuild(), store.ClientKey(),
-		`{"model":"gpt-venice-web-fixture","previous_response_id":"`+created.ID+`","input":"two"}`)
-	if second.Code != http.StatusOK {
-		t.Fatalf("follow-up failed: %d %s", second.Code, second.Body)
+	if len(bodies) != 1 {
+		t.Fatalf("the unstored follow-up reached upstream: %d calls", len(bodies))
 	}
 }
 
