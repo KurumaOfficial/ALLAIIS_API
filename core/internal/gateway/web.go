@@ -543,10 +543,11 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		heldCalls = nil
 	}
 	// Thinking is output too, even when the route does not surface it.
-	completion := reason.chars() + len([]rune(reason.reasoningText.String()))
+	completionChars := reason.chars() + len([]rune(reason.reasoningText.String()))
+	completionTokens := estimateChars(completionChars)
 	if len(calls) > 0 {
 		finish = "tool_calls"
-	} else if request.MaxTokens > 0 && completion >= request.MaxTokens*3 {
+	} else if request.MaxTokens > 0 && completionChars >= request.MaxTokens*3 {
 		// Venice sends no finish reason; a reply near the cap was cut.
 		finish = "length"
 	}
@@ -575,8 +576,8 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	promptTokens := estimateChars(len(payload))
 	usage := map[string]any{
-		"prompt_tokens": promptTokens, "completion_tokens": completion,
-		"total_tokens": promptTokens + completion, "estimated": true,
+		"prompt_tokens": promptTokens, "completion_tokens": completionTokens,
+		"total_tokens": promptTokens + completionTokens, "estimated": true,
 	}
 	if namer, ok := shape.(stopNamer); ok {
 		namer.stoppedAt(matchedStop)

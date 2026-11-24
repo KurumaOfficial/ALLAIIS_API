@@ -5,6 +5,15 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.48
+
+Web token usage is reported as estimated tokens, not characters.
+
+- **Web usage reports estimated tokens, not characters.** `completion_tokens`
+  used to count output characters (and thinking characters), which made token
+  totals about four times too large. It is now `chars/4` with the same
+  `estimated: true` marker; the finish-length check still uses characters.
+
 ## v0.1.47
 
 Tool calls batch into fewer chat turns.

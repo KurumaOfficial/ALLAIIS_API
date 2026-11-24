@@ -352,7 +352,7 @@ func TestReasoningCountsTowardTheCap(t *testing.T) {
 	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"finish_reason":"length"`) {
 		t.Fatalf("finish %d %s", result.Code, result.Body)
 	}
-	if !strings.Contains(result.Body.String(), `"completion_tokens":365`) {
+	if !strings.Contains(result.Body.String(), `"completion_tokens":92`) {
 		t.Fatalf("reasoning not counted: %s", result.Body)
 	}
 }
