@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A wrong field type names the field.** A string where a number belongs used
+  to answer "the request body must be a JSON object", which sent the caller
+  looking in the wrong place.
 - **A tool the gateway cannot offer is a 400.** A built-in type such as
   `web_search_preview` was offered with an empty name on Chat and skipped
   silently on Responses; only function tools with a name are accepted now.

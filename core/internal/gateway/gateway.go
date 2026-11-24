@@ -736,7 +736,10 @@ func decodeJSONObject(body []byte, target any) error {
 	if err := json.Unmarshal(body, target); err != nil {
 		var typeError *json.UnmarshalTypeError
 		if errors.As(err, &typeError) {
-			return errors.New("the request body must be a JSON object")
+			if typeError.Field == "" {
+				return errors.New("the request body must be a JSON object")
+			}
+			return fmt.Errorf("field %q has the wrong type for this endpoint", typeError.Field)
 		}
 		return fmt.Errorf("the request body is not valid JSON: %v", err)
 	}

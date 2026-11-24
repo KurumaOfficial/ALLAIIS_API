@@ -349,6 +349,21 @@ func TestWebRejectsAToolItCannotOffer(t *testing.T) {
 	}
 }
 
+// TestWebNamesAWrongFieldType pins the message a caller reads: a string where
+// a number belongs is not "the body must be a JSON object".
+func TestWebNamesAWrongFieldType(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`","temperature":"hot",`+
+		`"messages":[{"role":"user","content":"hi"}]}`)
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "temperature") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestWebChatSchemaGoesIntoTheSystemTurn(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		text := body["prompt"].([]any)[0].(map[string]any)["content"].(string)
