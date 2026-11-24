@@ -933,12 +933,49 @@ func markerKeep(current string) int {
 		}
 	}
 	keep = max(keep, dsmlTailKeep(current))
+	keep = max(keep, openTailKeep(current))
 	return keep
+}
+
+// openTailKeep holds a partial misspelled opening marker, so a chunk split
+// inside ALLTOOL_CALL is buffered instead of streamed as prose.
+func openTailKeep(current string) int {
+	bodyEnd := len(current)
+	bodyStart := bodyEnd
+	for bodyStart > 0 {
+		ch := current[bodyStart-1]
+		if ch == '_' || (ch >= 'A' && ch <= 'Z') {
+			bodyStart--
+			continue
+		}
+		break
+	}
+	body := current[bodyStart:bodyEnd]
+	if len(body) > 32 {
+		return 0
+	}
+	if !strings.HasPrefix(body, "ALL") && !strings.HasPrefix("ALL", body) {
+		return 0
+	}
+	bracketStart := bodyStart
+	for bracketStart > 0 && current[bracketStart-1] == '<' && bodyStart-bracketStart < 3 {
+		bracketStart--
+	}
+	if bracketStart == bodyStart {
+		return 0
+	}
+	return len(current) - bracketStart
 }
 
 // closeSentinel matches the close tag with one to three brackets, since a model
 // sometimes drops one.
 var closeSentinel = regexp.MustCompile(`<{1,3}END_TOOL_CALL>+`)
+
+// openSentinel tolerates a misspelled body that still starts with ALL and ends
+// with TOOL_CALL: models have written ALLTOOL_CALL, ALLALIS_TOOL_CALL and
+// ALL_AIIS_TOOL_CALL on the wire. The brackets and the two stable words are
+// enough to tell a block from prose.
+var openSentinel = regexp.MustCompile(`<{1,3}ALL[A-Z_]*TOOL_CALL>+`)
 
 // stripCloseMarker drops a close tag that arrived without its block, so a
 // client scanning for markers never sees half of one.
@@ -979,29 +1016,35 @@ func closeIndex(rest string) (int, int) {
 }
 
 // openIndexFrom finds an opening sentinel, tolerating a model that dropped a
-// bracket: one "<" or two ">" have been seen on the wire. It reports the start
-// and the length of the marker actually present. A name without a bracket on
-// each side is prose, not a block.
+// bracket, dropped a letter from the name, or wrote both: one "<" or two ">"
+// and ALLTOOL_CALL have been seen on the wire. It reports the start and the
+// length of the marker actually present. A name without a bracket on each side
+// is prose, not a block.
 func openIndexFrom(current string, from int) (int, int) {
-	if start := indexFrom(current, toolOpen, from); start >= 0 {
-		return start, len(toolOpen)
+	bestStart, bestLen := -1, 0
+	consider := func(start, length int) {
+		if start >= 0 && length > 0 && (bestStart < 0 || start < bestStart) {
+			bestStart, bestLen = start, length
+		}
 	}
-	body := indexFrom(current, toolOpenBody, from)
-	if body < 0 {
-		return -1, 0
+	consider(indexFrom(current, toolOpen, from), len(toolOpen))
+	if body := indexFrom(current, toolOpenBody, from); body >= 0 {
+		start := body
+		for start > from && current[start-1] == '<' {
+			start--
+		}
+		end := body + len(toolOpenBody)
+		for end < len(current) && current[end] == '>' {
+			end++
+		}
+		if start != body && end != body+len(toolOpenBody) {
+			consider(start, end-start)
+		}
 	}
-	start := body
-	for start > from && current[start-1] == '<' {
-		start--
+	if loc := openSentinel.FindStringIndex(current[max(0, from):]); loc != nil {
+		consider(from+loc[0], loc[1]-loc[0])
 	}
-	end := body + len(toolOpenBody)
-	for end < len(current) && current[end] == '>' {
-		end++
-	}
-	if start == body || end == body+len(toolOpenBody) {
-		return -1, 0
-	}
-	return start, end - start
+	return bestStart, bestLen
 }
 
 func invokeIndex(current string) int { return invokeIndexFrom(current, 0) }

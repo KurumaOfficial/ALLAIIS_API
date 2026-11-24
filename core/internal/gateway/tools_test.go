@@ -83,6 +83,55 @@ func TestToolGuardAcceptsAGarbledOpenMarker(t *testing.T) {
 	}
 }
 
+// TestToolGuardAcceptsAMisspelledOpenMarker pins the real wire typo from a
+// Messages turn: the model wrote ALLTOOL_CALL or ALL_AIIS_TOOL_CALL, which used
+// to arrive at the client as raw prose with the JSON attached.
+func TestToolGuardAcceptsAMisspelledOpenMarker(t *testing.T) {
+	block := `{"calls":[{"name":"read_file","arguments":{"path":"a.txt"}}]}`
+	for _, marker := range []string{"<<<ALLTOOL_CALL>>>", "<<<ALLALIS_TOOL_CALL>>>", "<<<ALL_AIIS_TOOL_CALL>>>"} {
+		t.Run(marker, func(t *testing.T) {
+			guard := guardFor("read_file")
+			text, calls, err := guard.Write(marker + block)
+			tail, more, flushErr := guard.Flush()
+			calls = append(calls, more...)
+			if err != nil || flushErr != nil || text+tail != "" || len(calls) != 1 {
+				t.Fatalf("text=%q calls=%d err=%v/%v", text+tail, len(calls), err, flushErr)
+			}
+			if calls[0].Function.Name != "read_file" || !strings.Contains(calls[0].Function.Arguments, `"a.txt"`) {
+				t.Fatalf("arguments were mangled: %+v", calls[0])
+			}
+		})
+	}
+
+	// The marker split inside the misspelled word must not leak either.
+	guard := guardFor("read_file")
+	var shown strings.Builder
+	var all []toolCall
+	for _, chunk := range []string{"before <<<ALLTO", "OL_CALL>>>", block} {
+		safe, parsed, err := guard.Write(chunk)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		shown.WriteString(safe)
+		all = append(all, parsed...)
+	}
+	tail, more, err := guard.Flush()
+	shown.WriteString(tail)
+	all = append(all, more...)
+	if err != nil || shown.String() != "before " || len(all) != 1 {
+		t.Fatalf("text=%q calls=%d err=%v", shown.String(), len(all), err)
+	}
+}
+
+// TestToolGuardLeavesAnUnknownAngleBlockAlone keeps the tolerance narrow.
+func TestToolGuardLeavesAnUnknownAngleBlockAlone(t *testing.T) {
+	guard := guardFor("read_file")
+	text, calls, err := guard.Write("<<<NOTE>>> hello")
+	if err != nil || text != "<<<NOTE>>> hello" || len(calls) != 0 {
+		t.Fatalf("text=%q calls=%v err=%v", text, calls, err)
+	}
+}
+
 // TestToolGuardKeepsProseBeforeAGarbledMarker pins the split: only the marker
 // is consumed, the sentence before it still reaches the client.
 func TestToolGuardKeepsProseBeforeAGarbledMarker(t *testing.T) {

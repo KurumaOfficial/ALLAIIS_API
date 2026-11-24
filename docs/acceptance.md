@@ -16,6 +16,7 @@ recorded before that keep the names that were in use then.
 | Anthropic Messages, JSON and SSE | `cc-free-venice-web` and `cc-venice-web` | 200, `message_start` … `message_stop` |
 | OpenAI Responses, JSON and SSE | `gpt-free-venice-web`, `gpt-venice-web` | 200, `response.created` … `response.completed` |
 | Tool call, three shapes | `read_file` / `get_weather` through Chat, Messages, Responses | a `tool_calls` / `tool_use` / `function_call` each |
+| Misspelled tool marker | a Messages turn where the model writes `<<<ALLTOOL_CALL>>>` or `<<<ALL_AIIS_TOOL_CALL>>>` | a `tool_use` block; no marker text reaches the client |
 | Tool result round trip | second turn carrying the result | the answer used it on every shape |
 | Parallel tool results | two calls in one reply, both results, then a question | the answer used both, no repeat call; Chat merges the results and the question into one labelled turn |
 | Streaming tool call | a tool offered with `stream: true` on each shape | Chat deltas + `tool_calls`, Messages `input_json_delta` + `tool_use`, Responses done events + `completed.output` |

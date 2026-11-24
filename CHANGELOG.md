@@ -5,6 +5,11 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Tool calls survive a misspelled sentinel.** Models have written
+  `ALLTOOL_CALL`, `ALLALIS_TOOL_CALL` and `ALL_AIIS_TOOL_CALL` instead of
+  `ALLAIIS_TOOL_CALL`; the web guard now recognizes the block and the client
+  receives a normal tool call instead of raw marker text. A marker split across
+  stream chunks is buffered too.
 - **Changing the proxy pool drops idle connections**, so the next request uses
   the list and credentials that were just saved instead of an old tunnel.
 - **The Limits tab covers every stored web session.** It asks each web
