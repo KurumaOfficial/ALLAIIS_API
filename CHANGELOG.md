@@ -3,6 +3,11 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **A live acceptance record**, `docs/acceptance.md`, lists what was exercised
+  against Venice with dates and results, beside the offline matrix.
+
 ## v0.1.22
 
 The model list speaks both client shapes.
