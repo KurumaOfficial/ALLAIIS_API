@@ -50,6 +50,7 @@ recorded before that keep the names that were in use then.
 | Console shell | seven tabs, settings sidebar, no console errors | all views shown; Limits rows; proxy list saved and cleared from Controls |
 | Proxy tunnel | a local CONNECT proxy in Controls, one Venice chat | clerk and outerface tunnels opened; 200 "Ready." |
 | Proxy auth | an authenticated CONNECT proxy, one Venice chat | tunnels opened; wrong credentials answered 502 |
+| Panel proxy paths | a local CONNECT proxy in Controls, then Discovery, Limits and the E2EE probe | clerk and outerface tunnels opened for each path |
 | SOCKS5 proxy | a SOCKS5 server with user/pass, one Venice chat | outerface tunnel opened; 200 "Ready." |
 | Limits tab | open Limits | guest and PRO rows with chat left, credits and reset dates |
 | Config export | `/api/export`, served from a fresh dir on a spare port | `providers: {}`, health 200, 11 models |

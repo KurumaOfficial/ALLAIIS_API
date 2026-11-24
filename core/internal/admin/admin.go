@@ -559,6 +559,37 @@ func (s *Server) openChrome(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"output": strings.TrimSpace(out)})
 }
 
+// webClient builds a web transport with the saved proxy pool applied, so the
+// panel's catalog, quota and enclave checks take the same network path as a
+// chat.
+func (s *Server) webClient(ctx context.Context, timeout time.Duration) *webprov.Client {
+	return webClientFor(ctx, s.options.Store, timeout)
+}
+
+func webClientFor(ctx context.Context, store *vault.Store, timeout time.Duration) *webprov.Client {
+	client := webprov.New(timeout)
+	if store == nil {
+		return client
+	}
+	entries, err := store.Entries(ctx, "proxy", "pool")
+	if err != nil {
+		return client
+	}
+	for _, entry := range entries {
+		if entry.Label != "default" {
+			continue
+		}
+		urls, err := gateway.ParseProxyList(string(entry.Key))
+		if err != nil {
+			slog.Warn("stored proxy list is invalid", "error", err)
+			return client
+		}
+		client.SetProxies(urls)
+		return client
+	}
+	return client
+}
+
 // proxiesGet returns the saved pool, so the field can be edited.
 func (s *Server) proxiesGet(w http.ResponseWriter, r *http.Request) {
 	text := ""
@@ -694,7 +725,7 @@ func (s *Server) e2eeProbe(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "the stored session is unreadable: "+parseErr.Error())
 		return
 	}
-	client := webprov.New(15 * time.Second)
+	client := s.webClient(r.Context(), 15*time.Second)
 	if strings.HasPrefix(provider.BaseURL, "http://") {
 		client = client.WithHTTP(http.DefaultClient)
 	}
@@ -765,7 +796,7 @@ func (s *Server) webQuota(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	client := webprov.New(45 * time.Second)
+	client := s.webClient(r.Context(), 45*time.Second)
 	rows := make([]map[string]any, 0, len(entries))
 	for _, entry := range entries {
 		row := map[string]any{"label": entry.Label}

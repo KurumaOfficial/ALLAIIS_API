@@ -172,7 +172,7 @@ func TestDiagnoseReportsThePlanAndCredits(t *testing.T) {
 		t.Fatal(err)
 	}
 	saved := probePlan
-	probePlan = func(context.Context, webprov.Credential) (map[string]any, error) {
+	probePlan = func(context.Context, *vault.Store, webprov.Credential) (map[string]any, error) {
 		return map[string]any{
 			"chat": map[string]any{"remaining": float64(9685)},
 			"account": map[string]any{
@@ -218,7 +218,7 @@ func TestDiagnoseWarnsWhenTheChatAllowanceIsNearlySpent(t *testing.T) {
 		t.Fatal(err)
 	}
 	saved := probePlan
-	probePlan = func(context.Context, webprov.Credential) (map[string]any, error) {
+	probePlan = func(context.Context, *vault.Store, webprov.Credential) (map[string]any, error) {
 		return map[string]any{"chat": map[string]any{"remaining": float64(3), "resetAt": float64(1795499466865)}}, nil
 	}
 	t.Cleanup(func() { probePlan = saved })

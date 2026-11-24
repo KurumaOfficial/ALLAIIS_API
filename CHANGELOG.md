@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **The panel's catalog, Limits and enclave checks use the proxy pool too.**
+  Discovery, the remaining-chat probe and an E2EE attestation now take the same
+  network path as a chat instead of dialling directly.
 ## v0.1.42
 
 Proxy credentials, idle connections and misspelled tool sentinels were audited.

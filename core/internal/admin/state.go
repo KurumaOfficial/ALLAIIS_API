@@ -240,7 +240,7 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusBadRequest, "the stored web session is unreadable")
 			return
 		}
-		models, err := webprov.New(60*time.Second).Catalog(r.Context(), credential)
+		models, err := s.webClient(r.Context(), 60*time.Second).Catalog(r.Context(), credential)
 		if err != nil {
 			fail(w, http.StatusBadGateway, err.Error())
 			return

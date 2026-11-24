@@ -96,8 +96,8 @@ func fetchLiveStats(ctx context.Context, listen string) (liveStats, bool) {
 var fetchStats = fetchLiveStats
 
 // probePlan is the network seam the plan check uses.
-var probePlan = func(ctx context.Context, cred webprov.Credential) (map[string]any, error) {
-	return webprov.New(45*time.Second).Probe(ctx, cred)
+var probePlan = func(ctx context.Context, store *vault.Store, cred webprov.Credential) (map[string]any, error) {
+	return webClientFor(ctx, store, 45*time.Second).Probe(ctx, cred)
 }
 
 // planCheck reports what the stored web sessions are allowed to spend. The
@@ -128,7 +128,7 @@ func planCheck(ctx context.Context, cfg config.Config, store *vault.Store) (Chec
 				lines = append(lines, entry.Label+": unreadable session")
 				continue
 			}
-			limits, err := probePlan(ctx, cred)
+			limits, err := probePlan(ctx, store, cred)
 			if err != nil {
 				lines = append(lines, entry.Label+": "+err.Error())
 				continue
@@ -310,7 +310,7 @@ func diagnose(ctx context.Context, store *vault.Store, configPath string, attest
 	// An attestation costs no provider quota, so the enclave itself can be
 	// checked here; the reply path still needs balance.
 	if len(enclaves) > 0 && attest {
-		if status, detail, ok := enclaveVerdict(enclavesToChecks(ctx, enclaves)); ok {
+		if status, detail, ok := enclaveVerdict(enclavesToChecks(ctx, store, enclaves)); ok {
 			add("e2ee enclave", status, detail)
 		}
 	}
@@ -378,10 +378,10 @@ type enclaveCheck struct {
 }
 
 // enclavesToChecks attests every target; an attestation spends no quota.
-func enclavesToChecks(ctx context.Context, targets []enclaveTarget) []enclaveCheck {
+func enclavesToChecks(ctx context.Context, store *vault.Store, targets []enclaveTarget) []enclaveCheck {
 	checks := make([]enclaveCheck, 0, len(targets))
 	for _, target := range targets {
-		client := webprov.New(10 * time.Second)
+		client := webClientFor(ctx, store, 10*time.Second)
 		// A loopback or dev endpoint speaks plain HTTP, which the Chrome
 		// transport would dial as TLS.
 		if strings.HasPrefix(target.base, "http://") {
