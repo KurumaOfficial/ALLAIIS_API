@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **The runbook states what protects the launcher on Windows.** The `0600` bits
+  Go writes do not restrict other Windows accounts; the per-user Startup folder
+  does, and the page says so in both languages now.
 ## v0.1.31
 
 Attachments are read or refused, and every stream says what happened.

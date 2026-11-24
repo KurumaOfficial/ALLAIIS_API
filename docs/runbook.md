@@ -21,9 +21,10 @@ $env:ALLAIIS_VAULT_PASSPHRASE = "your long passphrase"
 ```
 
 The same passphrase is used again by `service install`; it is written into the
-launcher, so the vault has to be protected by file permissions, which it is.
-The launcher and script are `0600` and hold the passphrase in plain text; keep
-the data directory off shared paths.
+launcher in plain text, so the vault is only as protected as that file. The
+launcher sits in the per-user Startup folder, which Windows restricts to that
+user and administrators; the `0600` bits Go sets on the file do not restrict
+other Windows accounts. Keep the data directory off shared paths.
 
 ## Start at logon
 
