@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **`smoke --allow` takes an HTTP status or an error code.** `--allow 402` was
+  silently ignored, because only the error code was matched; a person reading
+  the failure sees the status.
 - **A wrong field type names the field.** A string where a number belongs used
   to answer "the request body must be a JSON object", which sent the caller
   looking in the wrong place.

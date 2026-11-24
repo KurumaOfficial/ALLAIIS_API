@@ -172,7 +172,7 @@ func run(ctx context.Context, args []string) error {
 		flags.DurationVar(&timeout, "timeout", 4*time.Minute, "per-request timeout")
 		flags.BoolVar(&asJSON, "json", false, "print JSON instead of a table")
 		flags.BoolVar(&noToolProbe, "no-tools", false, "skip the tool parser probe")
-		flags.Func("allow", "error code that does not fail the run (repeatable)", func(code string) error {
+		flags.Func("allow", "error code or HTTP status that does not fail the run (repeatable)", func(code string) error {
 			allow = append(allow, code)
 			return nil
 		})

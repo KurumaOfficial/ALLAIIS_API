@@ -12,6 +12,25 @@ import (
 // The gui command falls through into the smoke flags, so a flag registered in
 // both places panics only when the command line is parsed. Parsing --help
 // reaches exactly that code and stops before the vault.
+// TestAllowedResultTakesCodeOrStatus pins the flag a person types: 402 is the
+// status, insufficient_balance the code, and both should excuse the probe.
+func TestAllowedResultTakesCodeOrStatus(t *testing.T) {
+	allowed := map[string]bool{"insufficient_balance": true, "404": true}
+	for _, tc := range []struct {
+		result smokeResult
+		want   bool
+	}{
+		{smokeResult{Code: "insufficient_balance", Status: 402}, true},
+		{smokeResult{Code: "model_not_found", Status: 404}, true},
+		{smokeResult{Code: "upstream_error", Status: 502}, false},
+		{smokeResult{Status: 404}, true},
+	} {
+		if got := allowedResult(allowed, tc.result); got != tc.want {
+			t.Errorf("%+v: got %v want %v", tc.result, got, tc.want)
+		}
+	}
+}
+
 func TestCommandsAcceptTheirFlags(t *testing.T) {
 	t.Setenv("ALLAIIS_DATA_DIR", t.TempDir())
 	previous := flagOutput

@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -118,7 +119,7 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 				if toolTarget.ID == "" {
 					toolTarget = target
 				}
-			} else if allowed[result.Code] {
+			} else if allowedResult(allowed, result) {
 				// An expected answer, such as the deliberate bogus alias.
 				expected++
 			} else {
@@ -149,7 +150,7 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 		}
 		if tool.OK {
 			passed++
-		} else if allowed[tool.Code] {
+		} else if allowedResult(allowed, tool) {
 			expected++
 		} else {
 			failed++
@@ -168,6 +169,12 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 		return fmt.Errorf("%d of %d probe(s) failed", failed, passed+failed+expected)
 	}
 	return nil
+}
+
+// allowedResult reports whether a failed probe was declared expected, by error
+// code or by the HTTP status a person is more likely to type.
+func allowedResult(allowed map[string]bool, result smokeResult) bool {
+	return allowed[result.Code] || allowed[strconv.Itoa(result.Status)]
 }
 
 // smokeTargets lists configured routes that have a credential and match alias.
