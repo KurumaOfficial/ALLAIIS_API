@@ -100,6 +100,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/logs", s.guard(s.logsPage))
 	mux.HandleFunc("POST /api/web/chrome", s.guard(s.openChrome))
 	mux.HandleFunc("POST /api/import/opencode", s.guard(s.importOpenCode))
+	mux.HandleFunc("GET /api/proxies", s.guard(s.proxiesGet))
+	mux.HandleFunc("POST /api/proxies", s.guard(s.proxiesSet))
 	mux.HandleFunc("POST /api/web/login", s.guard(s.webLogin))
 	mux.HandleFunc("POST /api/web/recapture", s.guard(s.recapture))
 	mux.HandleFunc("POST /api/web/quota", s.guard(s.webQuota))
@@ -555,6 +557,59 @@ func (s *Server) openChrome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"output": strings.TrimSpace(out)})
+}
+
+// proxiesGet returns the saved pool, so the field can be edited.
+func (s *Server) proxiesGet(w http.ResponseWriter, r *http.Request) {
+	text := ""
+	entries, err := s.options.Store.Entries(r.Context(), "proxy", "pool")
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, entry := range entries {
+		if entry.Label == "default" {
+			text = string(entry.Key)
+		}
+	}
+	count := 0
+	if text != "" {
+		if parsed, err := gateway.ParseProxyList(text); err == nil {
+			count = len(parsed)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"text": text, "count": count})
+}
+
+// proxiesSet validates a list, applies it to API-key providers, then stores it.
+func (s *Server) proxiesSet(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Text string `json:"text"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	parsed, err := gateway.ParseProxyList(input.Text)
+	if err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if strings.TrimSpace(input.Text) == "" {
+		if _, err := s.options.Store.Remove(r.Context(), "proxy", "pool", "default"); err != nil {
+			fail(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	} else {
+		if err := s.options.Store.PutSecret(r.Context(), "proxy", "pool", "default", input.Text); err != nil {
+			fail(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if _, err := s.options.Gateway.SetProxyList(input.Text); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"count": len(parsed)})
 }
 
 // importOpenCode brings the API keys OpenCode already stores into the vault.

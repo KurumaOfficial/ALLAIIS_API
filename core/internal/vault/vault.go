@@ -244,6 +244,27 @@ func (s *Store) Import(ctx context.Context, entries []Entry) (int, error) {
 	return count, tx.Commit()
 }
 
+// PutSecret stores arbitrary text under a provider/endpoint/label, encrypted
+// like a credential. It exists for settings that are not API keys, such as the
+// proxy list, where the key format checks of Import do not apply.
+func (s *Store) PutSecret(ctx context.Context, provider, endpoint, label, value string) error {
+	if !config.ValidCredentialLabel(label) {
+		return fmt.Errorf("invalid label %q", label)
+	}
+	mac := hmac.New(sha256.New, s.fingerprintKey)
+	mac.Write([]byte(provider + "\x00" + endpoint + "\x00" + value))
+	fingerprint := mac.Sum(nil)
+	entry := Entry{Provider: provider, Endpoint: endpoint, Label: label, Key: value}
+	sealed := s.aead.Seal(nil, nil, []byte(value), entryAAD(entry))
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO credentials (provider, endpoint, label, fingerprint, ciphertext)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (provider, endpoint, label) DO UPDATE
+		SET fingerprint = excluded.fingerprint, ciphertext = excluded.ciphertext`,
+		provider, endpoint, label, fingerprint, sealed)
+	return err
+}
+
 func (s *Store) Entries(ctx context.Context, provider, endpoint string) ([]Entry, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT label, ciphertext FROM credentials

@@ -52,6 +52,7 @@ type Gateway struct {
 	minimum   atomic.Value
 	metrics   *metrics
 	reasoning *reasoningStore
+	proxies   *proxyPool
 	reload    *reloadState
 	version   atomic.Value
 	mux       http.Handler
@@ -72,13 +73,15 @@ func New(routes *router.Router, clientKey string, minimum config.Privacy) *Gatew
 
 // NewWithWeb builds a gateway with an explicit web-provider client.
 func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy, web *webprov.Client) *Gateway {
+	proxies := &proxyPool{}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = nil
+	transport.Proxy = proxies.Proxy
 	transport.ResponseHeaderTimeout = 90 * time.Second
 	g := &Gateway{
 		web:       web,
 		metrics:   newMetrics(),
 		reasoning: newReasoningStore(),
+		proxies:   proxies,
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   10 * time.Minute,

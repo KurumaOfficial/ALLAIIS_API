@@ -5,6 +5,13 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **The panel is an ALLAIIS console in the OpenCode cabinet's language.** A top
+  bar, horizontal tabs, cards, tables and a settings sidebar replace the old
+  rail; Models/Providers mirror Aliases/Keys, and the tool controls moved to
+  Controls.
+- **A proxy pool can be pasted into the panel and is used for API-key
+  providers.** Each line is `host:port`, `host:port:user:pass` or a URL; the
+  list is validated, sealed in the vault and rotated per outbound connection.
 - **A downloaded binary starts itself.** With no command it creates the
   per-user data directory, config and vault (generating a passphrase file when
   none is configured), starts the gateway and opens the panel. The First steps

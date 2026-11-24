@@ -62,6 +62,7 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 	}
 	web := webprov.New(10 * time.Minute)
 	live := gateway.NewWithWeb(routes, store.ClientKey(), cfg.MinPrivacy, web)
+	applyStoredProxies(ctx, store, live)
 	server := httptest.NewServer(live)
 	defer server.Close()
 	client := &http.Client{Timeout: timeout}

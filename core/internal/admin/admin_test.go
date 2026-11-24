@@ -474,6 +474,29 @@ func TestDiagnosticsFlagsMissingCredential(t *testing.T) {
 	}
 }
 
+// TestProxiesEndpointRoundTrips pins the panel field: a valid list is parsed,
+// applied and readable; a malformed line is refused without saving.
+func TestProxiesEndpointRoundTrips(t *testing.T) {
+	f := setup(t)
+	result := f.call(t, http.MethodPost, "/api/proxies",
+		`{"text":"127.0.0.1:8080:user:pass\n127.0.0.1:8081"}`, "")
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"count":2`) {
+		t.Fatalf("save: %d %s", result.Code, result.Body)
+	}
+	get := f.call(t, http.MethodGet, "/api/proxies", "", "")
+	if get.Code != http.StatusOK || !strings.Contains(get.Body.String(), "127.0.0.1:8080") {
+		t.Fatalf("get: %d %s", get.Code, get.Body)
+	}
+	bad := f.call(t, http.MethodPost, "/api/proxies", `{"text":"not a proxy"}`, "")
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("malformed list accepted: %d %s", bad.Code, bad.Body)
+	}
+	clear := f.call(t, http.MethodPost, "/api/proxies", `{"text":""}`, "")
+	if clear.Code != http.StatusOK || !strings.Contains(clear.Body.String(), `"count":0`) {
+		t.Fatalf("clear: %d %s", clear.Code, clear.Body)
+	}
+}
+
 func TestSmokeProbesEveryAvailableAlias(t *testing.T) {
 	f := setup(t)
 	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")

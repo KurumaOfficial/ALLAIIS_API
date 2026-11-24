@@ -7,28 +7,35 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<aside class="rail">
-  <div class="brand"><span class="dot"></span> ALLAIIS</div>
-  <nav>
-    <button class="nav" data-view="overview" aria-current="page">Overview</button>
-    <button class="nav" data-view="aliases">Aliases</button>
-    <button class="nav" data-view="keys">Keys</button>
-    <button class="nav" data-view="discovery">Discovery</button>
-    <button class="nav" data-view="playground">Playground</button>
-    <button class="nav" data-view="logs">Logs</button>
-    <button class="nav" data-view="settings">Settings</button>
-  </nav>
-  <div class="rail-foot">
-    <div id="gateway-pill" class="pill">checking…</div>
-    <div class="muted tiny" id="version"></div>
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="mark">A</span>
+    <span class="brand">ALLAIIS <span class="brand-sub">Console</span></span>
+    <span class="workspace">Default</span>
   </div>
-</aside>
-
+  <div class="topbar-right">
+    <span id="gateway-pill" class="pill">checking…</span>
+    <span id="version" class="muted tiny"></span>
+    <span class="avatar">A</span>
+  </div>
+</header>
+<nav class="tabs" aria-label="Console">
+  <button class="nav" data-view="overview" aria-current="page">Overview</button>
+  <button class="nav" data-view="aliases">Models</button>
+  <button class="nav" data-view="keys">Providers</button>
+  <button class="nav" data-view="controls">Controls</button>
+  <button class="nav" data-view="logs">Logs</button>
+  <button class="nav" data-view="settings">Settings</button>
+  <span class="tabs-end"><button class="connect" data-goto="keys">Connect a client</button></span>
+</nav>
 <main>
-  <header class="top">
+  <div class="page-head">
     <h1 id="title">Overview</h1>
-    <button id="refresh" class="ghost" title="Refresh now">Refresh</button>
-  </header>
+    <div class="page-actions">
+      <button class="ghost" data-goto="playground">Playground</button>
+      <button id="refresh" class="icon-button" title="Refresh now">Refresh</button>
+    </div>
+  </div>
 
   <section id="view-overview" class="view">
     <div id="welcome" class="panel" hidden>
@@ -45,7 +52,7 @@
       <div class="card"><div class="label">Aliases</div><div class="value" id="ov-models">—</div><div class="muted tiny">configured routes</div></div>
       <div class="card"><div class="label">Requests</div><div class="value" id="ov-requests">—</div><div class="muted tiny" id="ov-errors"></div><div class="muted tiny" id="ov-repairs"></div></div>
       <div class="card"><div class="label">Characters served</div><div class="value" id="ov-chars">—</div><div class="muted tiny">estimated replies</div></div>
-      <div class="card"><div class="label">Tool reshaping</div><div class="value" id="ov-tools">—</div><div class="muted tiny" id="ov-tools-unknown"></div><div class="muted tiny" id="ov-tools-mix"></div><div class="muted tiny" id="ov-tools-ttl"></div><div class="muted tiny" id="ov-tools-off" hidden></div><div class="row"><button id="ov-tools-drop" class="ghost tiny">Drop expired</button><button id="ov-tools-reset" class="ghost tiny">Reset all</button></div></div>
+
     </div>
 
     <div class="panel">
@@ -67,7 +74,7 @@
 
   <section id="view-aliases" class="view" hidden>
     <div class="panel">
-      <div class="panel-head"><h2>Add alias</h2></div>
+      <div class="panel-head"><h2>Add model</h2></div>
       <form id="model-form" class="grid-form">
         <label>Provider<select name="provider" id="model-provider" required></select></label>
         <label>Credential<select name="label" id="model-label"></select></label>
@@ -76,12 +83,12 @@
         <label>Protocol<select name="protocol"><option value="">chat</option><option value="messages">messages</option><option value="responses">responses</option></select></label>
         <label>Privacy<select name="privacy"><option value="consumer_cloud">consumer_cloud</option><option value="zdr">zdr</option><option value="e2ee">e2ee</option><option value="public_research">public_research</option></select></label>
         <label class="check"><input type="checkbox" name="e2ee" id="model-e2ee"> Encrypt to enclave</label>
-        <div class="form-foot"><button type="submit" class="primary">Add alias</button><span class="muted tiny" id="model-caps">responses routes need a credential</span></div>
+        <div class="form-foot"><button type="submit" class="primary">Add model</button><span class="muted tiny" id="model-caps">responses routes need a credential</span></div>
       </form>
     </div>
     <div class="panel">
-      <div class="panel-head"><h2>Aliases</h2><span class="muted tiny">changes apply live</span></div>
-      <div class="table-wrap"><table id="models"><thead><tr><th>Alias</th><th>Provider</th><th>Protocol</th><th>Privacy</th><th>Credential</th><th>Upstream</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="panel-head"><h2>Models</h2><div class="row"><span class="muted tiny">changes apply live</span><button class="ghost" data-goto="discovery">Discover</button></div></div>
+      <div class="table-wrap"><table id="models"><thead><tr><th>Model</th><th>Provider</th><th>Protocol</th><th>Privacy</th><th>Credential</th><th>Upstream</th><th></th></tr></thead><tbody></tbody></table></div>
     </div>
   </section>
 
@@ -124,6 +131,25 @@
       <p class="muted">Rotating replaces the key every client must use. Existing clients keep working until you update them.</p>
       <button id="rotate" class="ghost">Rotate gateway key</button>
       <pre id="rotate-out" class="out" hidden></pre>
+    </div>
+  </section>
+
+  <section id="view-controls" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Proxy list</h2><span id="proxy-count" class="muted tiny"></span></div>
+      <p class="muted">One proxy per line: <code>host:port</code>, <code>host:port:user:pass</code>, or <code>http://user:pass@host:port</code>. Used for API-key providers; web-chat sessions keep their own network.</p>
+      <textarea id="proxy-text" rows="6" placeholder="127.0.0.1:8080:user:pass"></textarea>
+      <div class="form-foot"><button id="proxy-save" class="primary">Save proxies</button><button id="proxy-clear" class="ghost">Clear</button></div>
+      <pre id="proxy-out" class="out" hidden></pre>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Tool names</h2></div>
+      <div class="metric" id="ov-tools">—</div>
+      <div class="muted tiny" id="ov-tools-unknown"></div>
+      <div class="muted tiny" id="ov-tools-mix"></div>
+      <div class="muted tiny" id="ov-tools-ttl"></div>
+      <div class="muted tiny" id="ov-tools-off" hidden></div>
+      <div class="row"><button id="ov-tools-drop" class="ghost tiny">Drop expired</button><button id="ov-tools-reset" class="ghost tiny">Reset all</button></div>
     </div>
   </section>
 
@@ -171,17 +197,23 @@
   </section>
 
   <section id="view-settings" class="view" hidden>
-    <div class="panel">
+    <nav class="settings-bar" aria-label="Settings sections">
+      <a href="#settings-general">General</a>
+      <a href="#settings-privacy">Privacy</a>
+      <a href="#settings-clients">Clients</a>
+      <a href="#settings-files">Files</a>
+    </nav>
+    <div class="panel" id="settings-general">
       <div class="panel-head"><h2>Diagnostics</h2><button id="doctor" class="ghost">Run checks</button></div>
       <p class="muted tiny">Local checks only: config, vault, listener, alias credentials, capture browser.</p>
       <div id="doctor-out" class="stack"></div>
     </div>
-    <div class="panel">
+    <div class="panel" id="settings-privacy">
       <div class="panel-head"><h2>Privacy floor</h2></div>
       <p class="muted">Requests may raise the floor with <code>X-ALLAIIS-Min-Privacy</code>, never lower it.</p>
       <div class="row"><select id="set-privacy"></select><button id="set-privacy-save" class="primary">Save</button></div>
     </div>
-    <div class="panel">
+    <div class="panel" id="settings-clients">
       <div class="panel-head"><h2>Client snippets</h2></div>
       <div class="stack">
         <div><div class="label">curl</div><pre class="out" id="snip-curl"></pre></div>
@@ -190,7 +222,7 @@
       </div>
       <div class="row"><button id="copy-curl" class="ghost">Copy curl</button><button id="copy-claude" class="ghost">Copy Claude Code</button></div>
     </div>
-    <div class="panel">
+    <div class="panel" id="settings-files">
       <div class="panel-head"><h2>Files and maintenance</h2></div>
       <dl class="facts">
         <dt>Data directory</dt><dd id="fact-data"></dd>

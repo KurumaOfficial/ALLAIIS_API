@@ -49,8 +49,11 @@ function switchView (next) {
     if (button.dataset.view === next) button.setAttribute('aria-current', 'page')
   }
   for (const section of document.querySelectorAll('.view')) section.hidden = section.id !== 'view-' + next
-  $('title').textContent = next[0].toUpperCase() + next.slice(1)
+  const titles = { overview: 'Overview', aliases: 'Models', keys: 'Providers', controls: 'Controls',
+    logs: 'Logs', settings: 'Settings', discovery: 'Discovery', playground: 'Playground' }
+  $('title').textContent = titles[next] || (next[0].toUpperCase() + next.slice(1))
   if (next === 'logs') refreshLogs()
+  if (next === 'controls') refreshProxies()
 }
 
 function render () {
@@ -111,8 +114,11 @@ function render () {
 
   const health = $('provider-health')
   health.replaceChildren()
-  if (!state.providers.length) health.innerHTML = '<p class="muted">No providers configured.</p>'
-  for (const provider of state.providers) {
+  // The state carries every built-in provider; the health card is about the
+  // ones this machine actually has a credential for, or a web route to capture.
+  const configured = state.providers.filter(provider => provider.labels.length > 0 || provider.web)
+  if (!configured.length) health.innerHTML = '<p class="muted">No credential yet. Add one under Providers.</p>'
+  for (const provider of configured) {
     const line = document.createElement('div')
     line.className = 'row'
     const coolingLabels = Object.keys(provider.cooldowns || {})
@@ -297,6 +303,16 @@ function fillLabelsFor (providerId, labelId) {
   fillSelect($(labelId), (provider ? provider.labels : []), $(labelId).value)
 }
 
+async function refreshProxies () {
+  try {
+    const data = await api('/api/proxies')
+    $('proxy-text').value = data.text || ''
+    $('proxy-count').textContent = data.count ? data.count + ' proxies' : 'no proxies'
+  } catch (error) {
+    $('proxy-count').textContent = 'unavailable'
+  }
+}
+
 async function refresh () {
   try {
     state = await api('/api/state')
@@ -439,6 +455,23 @@ for (const button of document.querySelectorAll('[data-goto]')) button.onclick = 
   $('capture-open').onclick = async () => {
     try { show('capture-out', 'Opening the capture browser…'); show('capture-out', (await api('/api/web/chrome', { method: 'POST' })).output || 'Capture browser started') } catch (error) { show('capture-out', error.message) }
   }
+  $('proxy-save').onclick = async () => {
+    try {
+      const result = await api('/api/proxies', { method: 'POST', body: JSON.stringify({ text: $('proxy-text').value }) })
+      show('proxy-out', 'Saved ' + result.count + ' proxy(es)')
+      await refreshProxies()
+    } catch (error) { show('proxy-out', error.message) }
+  }
+
+  $('proxy-clear').onclick = async () => {
+    $('proxy-text').value = ''
+    try {
+      await api('/api/proxies', { method: 'POST', body: JSON.stringify({ text: '' }) })
+      show('proxy-out', 'Proxy list cleared')
+      await refreshProxies()
+    } catch (error) { show('proxy-out', error.message) }
+  }
+
   $('import-opencode').onclick = async () => {
     $('import-opencode').disabled = true
     try {
@@ -648,8 +681,9 @@ async function recaptureSession (provider) {
 
 bind()
 refresh()
+refreshProxies()
 setInterval(() => {
-  if (view === 'overview' || view === 'aliases' || view === 'keys') refresh()
+  if (view === 'overview' || view === 'aliases' || view === 'keys' || view === 'controls') refresh()
   if (view === 'logs') refreshLogs()
   if (view === 'playground') refreshHealth()
 }, 4000)

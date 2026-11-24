@@ -49,6 +49,7 @@ func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, 
 	}
 
 	live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithVersion(version).WithConfig(cfg).WithToolNameTTLFor(retentionTTL(cfg, configPath)).WithStateDir(ctx, dir).WithReload(configPath, store)
+	applyStoredProxies(ctx, store, live)
 	panel, err := admin.New(admin.Options{
 		Gateway: live, Store: store, ConfigPath: configPath, DataDir: dir,
 		Passphrase: append([]byte{}, passphrase...), Version: version,

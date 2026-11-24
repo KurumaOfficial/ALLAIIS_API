@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -315,6 +316,7 @@ func run(ctx context.Context, args []string) error {
 		}
 		advertise(os.Stdout, cfg, routes.Models(cfg.MinPrivacy))
 		live := gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithVersion(version).WithConfig(cfg).WithToolNameTTLFor(retentionTTL(cfg, configPath)).WithStateDir(ctx, dir).WithReload(configPath, store)
+		applyStoredProxies(ctx, store, live)
 		go live.Watch(ctx)
 		return serve(ctx, cfg.Listen, live)
 	}
@@ -600,6 +602,24 @@ func advertise(w io.Writer, cfg config.Config, models []router.Model) {
 	}
 	if unpinned > 0 {
 		fmt.Fprintf(w, "Hint: %d alias(es) have no --label; a multi-session pool then picks one by request hash.\n", unpinned)
+	}
+}
+
+// applyStoredProxies puts the panel's saved pool on a fresh gateway.
+func applyStoredProxies(ctx context.Context, store *vault.Store, live *gateway.Gateway) {
+	entries, err := store.Entries(ctx, "proxy", "pool")
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.Label != "default" {
+			continue
+		}
+		if text := strings.TrimSpace(string(entry.Key)); text != "" {
+			if _, err := live.SetProxyList(text); err != nil {
+				slog.Warn("stored proxy list is invalid", "error", err)
+			}
+		}
 	}
 }
 
