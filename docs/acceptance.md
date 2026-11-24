@@ -10,7 +10,7 @@ says otherwise; the guest session was out of its chat window.
 
 | Check | How | Result |
 | --- | --- | --- |
-| Chat Completions, JSON and SSE | `venice-deepseek`, plain and streaming | 200, deltas and `[DONE]` |
+| Chat Completions, JSON and SSE | `venice-deepseek`, plain and streaming | 200, first chunk carries the assistant role, deltas and `[DONE]` |
 | Anthropic Messages, JSON and SSE | `cc-free-venice-web` and `cc-venice-web` | 200, `message_start` … `message_stop` |
 | OpenAI Responses, JSON and SSE | `gpt-free-venice-web`, `gpt-venice-web` | 200, `response.created` … `response.completed` |
 | Tool call, three shapes | `read_file` / `get_weather` through Chat, Messages, Responses | a `tool_calls` / `tool_use` / `function_call` each |
@@ -34,7 +34,8 @@ says otherwise; the guest session was out of its chat window.
 | Service restart | kill the gateway under the supervisor | one restart in thirty seconds |
 | Panel | all seven views, Quota button | no console error, plan and credits rendered |
 | Upgrade | `update --force` from the release | checksum verified, binary swapped, service up |
-| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.30"}` |
+| Continuation | a stored response id, and one created with `store: false` | the stored turns replay; the unstored id answers `404 previous_response_not_found` |
+| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.31"}` |
 
 Two facts worth keeping in view: the Pro **credit** bucket is empty (paid models
 answer `402`), and the **chat** allowance is the counter free models draw on.
