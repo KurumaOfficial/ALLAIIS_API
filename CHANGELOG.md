@@ -5,6 +5,11 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.36
+
+The keep-alive stops before the terminal frame, and a parked model is not
+probed again.
+
 - **A keep-alive ping never follows `[DONE]`.** The ticker stopped only when
   the handler returned, so a tick could land after the terminal frame; pings are
   stopped before any terminal write now. A slow-writer test reproduces the old
@@ -12,6 +17,7 @@ Releases are tagged from `main`; the binaries are on the release page with
 - **The panel's smoke skips a parked model.** It used to spend a request that
   could only answer `402`; the model-scoped balance mark is honoured now, and a
   test pins that the upstream is not called.
+
 ## v0.1.35
 
 A tool result is labelled, merged with the question that follows it, and read
