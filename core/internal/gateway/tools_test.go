@@ -964,6 +964,7 @@ func TestResetToolNameStateClearsEverything(t *testing.T) {
 }
 
 func TestWatcherFollowsAnOutsideReset(t *testing.T) {
+	clearToolNameState()
 	dir := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -990,7 +991,9 @@ func TestWatcherFollowsAnOutsideReset(t *testing.T) {
 	toolNameFile.lastSave = time.Time{}
 	toolNameFile.mu.Unlock()
 
-	deadline := time.Now().Add(3 * toolNameWatchEvery)
+	// Five ticks leave room for a tick that started just before the deletion and
+	// for a loaded CI machine; the old three-tick deadline flaked under shuffle.
+	deadline := time.Now().Add(5 * toolNameWatchEvery)
 	for time.Now().Before(deadline) {
 		// Other tests leave names in the package-global record; this test only
 		// owns wx_gone and asks that its own name follows the deletion.
@@ -1249,6 +1252,7 @@ func TestToolNameTTLForAcceptsMinutes(t *testing.T) {
 }
 
 func TestToolNamesEndpoint(t *testing.T) {
+	clearToolNameState()
 	g := &Gateway{}
 	seedUnknownName("tx_bash", time.Now())
 	seedUnknownName("tx_grep", time.Now())
