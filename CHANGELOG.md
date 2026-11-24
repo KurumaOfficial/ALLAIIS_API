@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.31
+
+Attachments are read or refused, and every stream says what happened.
+
 - **An unknown `previous_response_id` is a 404.** A follow-up on an id that was
   never stored (`store: false`, expired, a typo) answered with no history, so a
   fresh conversation looked continuous. It is `previous_response_not_found` now
