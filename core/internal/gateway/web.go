@@ -1262,6 +1262,15 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 			reason.turns = append(reason.turns, webprov.Message{Role: "assistant", Content: text})
 		default:
 			lastToolResult = false
+			// A question asked right after a tool result belongs beside it: two
+			// consecutive user turns made a model treat the second as a fresh
+			// request and call the same tool again.
+			if len(reason.turns) > 0 && reason.turns[len(reason.turns)-1].Role == "user" {
+				last := &reason.turns[len(reason.turns)-1]
+				last.Content += "\n" + text
+				last.Images = append(last.Images, images...)
+				break
+			}
 			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
 		}
 	}

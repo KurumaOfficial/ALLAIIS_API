@@ -125,8 +125,9 @@ func TestWebMergesParallelToolResults(t *testing.T) {
 		last := messages[len(messages)-1].(map[string]any)
 		text, _ := last["content"].(string)
 		if !strings.Contains(text, "Tool result from read_file:") ||
-			!strings.Contains(text, "Tool result from list_files:") {
-			t.Errorf("results not merged and labelled: %q", text)
+			!strings.Contains(text, "Tool result from list_files:") ||
+			!strings.Contains(text, "and then?") {
+			t.Errorf("results and the question not merged: %q", text)
 		}
 		seen.Store(true)
 		writeFrames(w, "done")
@@ -138,7 +139,8 @@ func TestWebMergesParallelToolResults(t *testing.T) {
 		`{"id":"c1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"a.txt\"}"}},` +
 		`{"id":"c2","type":"function","function":{"name":"list_files","arguments":"{\"path\":\".\"}"}}]},` +
 		`{"role":"tool","tool_call_id":"c1","content":"grape"},` +
-		`{"role":"tool","tool_call_id":"c2","content":"a.txt"}]` +
+		`{"role":"tool","tool_call_id":"c2","content":"a.txt"},` +
+		`{"role":"user","content":"and then?"}]` +
 		`,"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}},` +
 		`{"type":"function","function":{"name":"list_files","parameters":{"type":"object"}}}]}`
 	result := complete(handler, store.ClientKey(), "", body)
