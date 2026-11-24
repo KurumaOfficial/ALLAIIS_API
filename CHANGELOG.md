@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **The model endpoints belong to no protocol.** `GET /v1/models` accepted only a
+  Bearer key, so a Claude client sending `x-api-key` got a 401; both header
+  shapes work now, and `GET /v1/models/{id}` answers for one alias.
+
 ## v0.1.19
 
 The version is one word away.
