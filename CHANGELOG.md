@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **`models discover` names the labels to pick.** With two stored sessions the
+  error asked to "select the provider and a credential", though the provider was
+  already selected; it now lists the labels, and a test pins the wording.
+
 ## v0.1.20
 
 The model list answers a Claude client and a single alias.

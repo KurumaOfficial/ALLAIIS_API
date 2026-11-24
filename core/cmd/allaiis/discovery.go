@@ -157,7 +157,14 @@ func catalogCredential(ctx context.Context, store *vault.Store, id string, provi
 			return entries[0], "", nil
 		}
 		if len(entries) > 1 {
-			return vault.Entry{}, "needs_label", errors.New("select the provider and a credential with --label")
+			// Name the labels: the provider is already selected, so "select the
+			// provider and a credential" left the reader guessing which ones.
+			labels := make([]string, 0, len(entries))
+			for _, entry := range entries {
+				labels = append(labels, entry.Label)
+			}
+			return vault.Entry{}, "needs_label",
+				fmt.Errorf("pick a credential label with --label: %s", strings.Join(labels, ", "))
 		}
 	}
 	if provider.CatalogPublic {
