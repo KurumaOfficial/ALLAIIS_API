@@ -5,6 +5,18 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.49
+
+The ALLAIIS mark and an optimizer charter.
+
+- **The ALLAIIS logo is now in the console header, the favicon and both
+  READMEs.** It is the supplied white-A / blue-circuit mark, stored as a
+  transparent PNG under `core/internal/admin/static/assets/`.
+- **An optimizer charter states what an AI may change and what it must not.**
+  It requires measurements, a golden evaluation set, provider-term checks,
+  privacy checks and a one-step rollback; it forbids quota or billing evasion,
+  account sharing, hidden quality cuts and cross-user private caches.
+
 ## v0.1.48
 
 Web token usage is reported as estimated tokens, not characters.

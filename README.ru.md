@@ -1,5 +1,7 @@
 <h1 align="center">ALLAIIS API</h1>
 
+<p align="center"><img src="core/internal/admin/static/assets/logo.png" alt="ALLAIIS logo" width="180"></p>
+
 <p align="center"><strong>Один локальный ключ для выбранных AI API.</strong></p>
 
 <p align="center">
@@ -10,7 +12,7 @@
 
 <p align="center"><a href="README.md">English</a> · <strong>Русский</strong></p>
 
-[Быстрый старт](#быстрый-старт) · [API](#api) · [Провайдеры](#провайдеры) · [Статус](#статус) · [Запуск у себя](docs/runbook.ru.md) · [Блокеры интеграции](docs/BLOCKED.md)
+[Быстрый старт](#быстрый-старт) · [API](#api) · [Провайдеры](#провайдеры) · [Статус](#статус) · [Запуск у себя](docs/runbook.ru.md) · [Блокеры интеграции](docs/BLOCKED.md) · [Оптимизатор](docs/optimizer.md)
 
 ALLAIIS — локальный шлюз на Go для AI-клиентов, включая OpenCode. Регистрируй алиасы моделей, храни ключи провайдеров в зашифрованном хранилище и используй один loopback-адрес для JSON и потоковых ответов.
 

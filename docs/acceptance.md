@@ -47,7 +47,7 @@ recorded before that keep the names that were in use then.
 | Continuation | a stored response id, and one created with `store: false` | the stored turns replay; the unstored id answers `404 previous_response_not_found` |
 | Stream terminal | a streaming reply, tail inspected | ends with `data: [DONE]`, no `: ping` after it |
 | First run | the release binary with no arguments in an empty directory | config, vault and passphrase created; panel opened; health 200 |
-| Console shell | seven tabs, settings sidebar, no console errors | all views shown; Limits rows; proxy list saved and cleared from Controls |
+| Console shell | seven tabs, settings sidebar, no console errors | all views shown; logo in header and favicon; Limits rows; proxy list saved and cleared from Controls |
 | Limits countdown | open Limits with a stored Pro session | resets in, safe pace, amber at 1,000 and red at 500 |
 | Deep tool history | a Chat body with 40 past tool calls | 200, `X-ALLAIIS-Tool-Calls: 40`, warning header and a WARN log line |
 | Parallel tool batch | two independent `read_file` calls | one assistant turn with both calls, one chat |
@@ -61,7 +61,7 @@ recorded before that keep the names that were in use then.
 | Proxy at rest | save a proxy with a unique host and password, search the vault file | no plaintext of either in `vault.sqlite` |
 | Limits tab | open Limits | guest and PRO rows with chat left, credits and reset dates |
 | Config export | `/api/export`, served from a fresh dir on a spare port | `providers: {}`, health 200, 11 models |
-| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.48"}` |
+| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.49"}` |
 
 Two facts worth keeping in view: the Pro **credit** bucket is empty (paid models
 answer `402`), and the **chat** allowance is the counter free models draw on.

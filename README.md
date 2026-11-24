@@ -1,5 +1,7 @@
 <h1 align="center">ALLAIIS API</h1>
 
+<p align="center"><img src="core/internal/admin/static/assets/logo.png" alt="ALLAIIS logo" width="180"></p>
+
 <p align="center"><strong>One local key for the AI APIs you choose.</strong></p>
 
 <p align="center">
@@ -10,7 +12,7 @@
 
 <p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
 
-[Quick start](#quick-start) · [API](#api) · [Providers](#providers) · [Status](#status) · [Run it yourself](docs/runbook.md) · [Integration blockers](docs/BLOCKED.md)
+[Quick start](#quick-start) · [API](#api) · [Providers](#providers) · [Status](#status) · [Run it yourself](docs/runbook.md) · [Integration blockers](docs/BLOCKED.md) · [Optimizer](docs/optimizer.md)
 
 ALLAIIS is a self-hosted Go gateway for AI clients such as OpenCode. Register model aliases, store provider keys in an encrypted local vault, and use one loopback endpoint for native JSON and streaming responses.
 
