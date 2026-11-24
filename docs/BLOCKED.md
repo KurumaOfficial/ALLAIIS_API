@@ -16,10 +16,11 @@ bounded by the configurable `max_request_mb`.
 
 ## B1b. Current environment notes
 
-Checked 2026-11-23 with the stored Pro session's own claims:
+Checked 2026-11-24 with the stored Pro session's own claims:
 
-- The account is **PRO** and the chat allowance is large (`remaining: 9685`);
-  the guest chat allowance is `0` for the rest of its window.
+- The account is **PRO** and the daily chat allowance refilled overnight
+  (`remaining: 9988`, resets 07:00); the guest session got its eight chats back
+  at 07:19 and answered again after yesterday's `429`, without a recapture.
 - The **credit** bucket paid models draw on is empty
   (`availableCredits: 0`, `usedThisCycle: 100` of `100`, refill on
   2026-12-16). Venice answers `{"error":"insufficientBalance"}` for a credit
