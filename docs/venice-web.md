@@ -134,7 +134,8 @@ signed-in label look empty. `allaiis up` prints every alias it serves.
   endpoint. An attachment that produces no bytes — an unreachable URL, bad
   base64, a `file_id`, an Anthropic `document` block — is refused with
   `invalid_request` naming it, rather than dropped while the model answers as if
-  it had been read.
+  it had been read. An image in a system or developer turn is refused for the
+  same reason: the web endpoint pairs images with user content only.
 - **Agent endpoint differences.** Image turns run on the agent endpoint, which
   answers with SSE (`response.output_text.delta`) instead of NDJSON, so both
   decoders coexist.

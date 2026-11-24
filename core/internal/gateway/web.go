@@ -1114,6 +1114,9 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		}
 		switch message.Role {
 		case "system", "developer":
+			if len(images) > 0 {
+				return webprov.Request{}, nil, nil, systemImageError()
+			}
 			if reason.system == "" {
 				reason.system = text
 			} else {
@@ -1177,6 +1180,13 @@ func (i *imageRef) UnmarshalJSON(raw []byte) error {
 // attachmentError is what a caller reads when a part names an attachment that
 // could not be read. Silently dropping it made the model answer as if the file
 // had been sent.
+// systemImageError is what a caller reads when an image sits in a system turn.
+// The web endpoint takes images only with user content, and dropping one left
+// the model answering as if it had seen the picture.
+func systemImageError() error {
+	return errors.New("an image cannot be attached to a system or developer turn; send it in a user turn")
+}
+
 func attachmentError() error {
 	return errors.New("an attachment could not be read: send it inline " +
 		"(a data URL or a base64 image block), or remove it")
@@ -1302,8 +1312,11 @@ func fetchImage(raw string) (webprov.Image, bool) {
 	if !strings.HasPrefix(mime, "image/") {
 		return webprov.Image{}, false
 	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxRequest))
-	if err != nil || len(data) == 0 {
+	// One byte past the cap tells a full image from a truncated one; the old
+	// limit silently kept the first 8 MiB of a larger file, which the model then
+	// saw as a corrupt picture.
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxRequest+1))
+	if err != nil || len(data) == 0 || len(data) > maxRequest {
 		return webprov.Image{}, false
 	}
 	return webprov.Image{Data: data, MIME: mime}, true

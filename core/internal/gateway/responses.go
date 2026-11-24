@@ -126,6 +126,9 @@ func responsesTurns(raw json.RawMessage, reason *webReason) error {
 			// A developer item is the Responses spelling of a system turn, so
 			// it joins the system prompt instead of becoming a user message.
 			case "developer", "system":
+				if len(images) > 0 {
+					return systemImageError()
+				}
 				if text == "" {
 					continue
 				}

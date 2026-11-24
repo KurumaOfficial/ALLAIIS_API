@@ -114,6 +114,14 @@ func TestFetchImage(t *testing.T) {
 	if _, ok := fetchImage(html.URL); ok {
 		t.Fatal("non-image content type accepted")
 	}
+	huge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(make([]byte, maxRequest+1))
+	}))
+	defer huge.Close()
+	if image, ok := fetchImage(huge.URL); ok {
+		t.Fatalf("oversized image accepted, %d bytes", len(image.Data))
+	}
 }
 
 func TestToolGuardParsesInvokeXML(t *testing.T) {

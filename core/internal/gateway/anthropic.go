@@ -50,7 +50,9 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 	reason := &webReason{reasoning: request.Reasoning}
 	if text, images, missing := messageParts(input.System); missing > 0 {
 		return webprov.Request{}, nil, nil, attachmentError()
-	} else if text != "" || len(images) > 0 {
+	} else if len(images) > 0 {
+		return webprov.Request{}, nil, nil, systemImageError()
+	} else if text != "" {
 		reason.system = text
 	}
 	for _, message := range input.Messages {

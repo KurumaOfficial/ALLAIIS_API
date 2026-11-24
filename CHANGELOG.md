@@ -8,6 +8,8 @@ Releases are tagged from `main`; the binaries are on the release page with
 - **Anthropic image blocks reach the model.** A Messages `image` part with a
   base64 `source` used to fall through the parser, so vision answered as if no
   image had been sent.
+- **An image in a system turn is refused.** The web endpoint pairs images with
+  user content, so a system or developer image used to vanish without a word.
 - **An unreadable attachment is refused.** An unreachable image URL, bad base64,
   a `file_id` or a document block was silently dropped; it is now a 400 that
   names the attachment, and the request never reaches upstream.
