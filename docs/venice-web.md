@@ -143,8 +143,8 @@ signed-in label look empty. `allaiis up` prints every alias it serves.
   `--privacy zdr` for Venice Private models. An `e2ee-*` id works when signed in;
   it is sealed to the enclave once the route carries `e2ee`, and goes out in
   plaintext without it.
-- **Proxies**: a pool saved in Controls is used for provider requests, web
-  chats included. HTTP, HTTPS and SOCKS5 proxies are tunnelled before the
+- **Proxies**: a pool saved in Controls is used for provider requests and
+  catalog discovery, web chats included. HTTP, HTTPS and SOCKS5 proxies are tunnelled before the
   Chrome TLS fingerprint is applied and rotated per connection; the capture
   browser keeps its own network.
 
