@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.39
+
+The control panel is an ALLAIIS console, and a proxy pool can be pasted in.
+
 - **The panel is an ALLAIIS console in the OpenCode cabinet's language.** A top
   bar, horizontal tabs, cards, tables and a settings sidebar replace the old
   rail; Models/Providers mirror Aliases/Keys, and the tool controls moved to
@@ -22,6 +26,7 @@ Releases are tagged from `main`; the binaries are on the release page with
   that suffix when an alias is generated; Venice keeps `-venice`.
 - **The capture browser accepts Edge and Brave.** Chrome is no longer the only
   option on a fresh Windows PC.
+
 ## v0.1.38
 
 New aliases carry the real model name, with Venice at the end.
