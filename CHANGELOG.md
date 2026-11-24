@@ -5,6 +5,8 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Every Venice web provider keeps the `-venice` suffix**, not only the built-in
+  `venice-web` id; other web transports still end with `-WebAPI`.
 - **A proxy URL is now checked like the shorthand form.** An empty host or a
   port outside 1-65535 is rejected when the list is saved, not left to fail on
   the first request.

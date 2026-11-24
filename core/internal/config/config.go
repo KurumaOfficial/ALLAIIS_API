@@ -245,7 +245,7 @@ func DefaultAlias(provider, model string) string {
 func DefaultAliasFor(provider, model string, web bool) string {
 	suffix := strings.TrimSuffix(provider, "-web")
 	if web {
-		if provider == "venice-web" {
+		if strings.HasPrefix(strings.ToLower(provider), "venice") {
 			suffix = "venice"
 		} else {
 			suffix = "WebAPI"

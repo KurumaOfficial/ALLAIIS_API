@@ -215,6 +215,7 @@ func TestDefaultAliasForWebChats(t *testing.T) {
 		want            string
 	}{
 		{"venice-web", "deepseek-v4-1-flash-uncensored", true, "deepseek-v4-1-flash-uncensored-venice"},
+		{"venice-web-eu", "deepseek-v4-1-flash-uncensored", true, "deepseek-v4-1-flash-uncensored-venice"},
 		{"other-web", "model-one", true, "model-one-WebAPI"},
 		{"openai", "gpt-4", false, "gpt-4-openai"},
 	}
