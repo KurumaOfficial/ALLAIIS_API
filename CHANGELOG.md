@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.42
+
+Proxy credentials, idle connections and misspelled tool sentinels were audited.
+
 - **Tool calls survive a misspelled sentinel.** Models have written
   `ALLTOOL_CALL`, `ALLALIS_TOOL_CALL` and `ALL_AIIS_TOOL_CALL` instead of
   `ALLAIIS_TOOL_CALL`; the web guard now recognizes the block and the client
@@ -14,6 +18,7 @@ Releases are tagged from `main`; the binaries are on the release page with
   the list and credentials that were just saved instead of an old tunnel.
 - **The Limits tab covers every stored web session.** It asks each web
   provider separately and labels every row with the provider it came from.
+
 ## v0.1.41
 
 A Limits tab shows every web session's remaining allowance.
