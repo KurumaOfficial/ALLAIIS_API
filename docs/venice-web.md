@@ -310,8 +310,8 @@ and supply the key through the environment:
         "apiKey": "{env:ALLAIIS_API_KEY}"
       },
       "models": {
-        "venice-deepseek": {
-          "name": "DeepSeek V4.1 Flash Uncensored (Venice web)",
+        "deepseek-v4-1-flash-uncensored-venice": {
+          "name": "DeepSeek V4.1 Flash Uncensored (Venice)",
           "limit": { "context": 524288, "input": 480000, "output": 131072 },
           "capabilities": {
             "tools": true,
@@ -332,7 +332,7 @@ and supply the key through the environment:
 
 ```sh
 export ALLAIIS_API_KEY="$(./allaiis key)"
-opencode run --standalone --model allaiis/venice-deepseek "…"
+opencode run --standalone --model allaiis/deepseek-v4-1-flash-uncensored-venice "…"
 ```
 
 OpenCode runs models in **Code Mode** by default: its prompt says the tools can
@@ -354,7 +354,7 @@ a finished step is not a reason to yield:
 ---
 description: DeepSeek on the Venice web transport for long tasks
 mode: primary
-model: allaiis/venice-deepseek
+model: allaiis/deepseek-v4-1-flash-uncensored-venice
 steps: 200
 ---
 ```

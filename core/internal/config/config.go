@@ -232,6 +232,50 @@ func (c Config) ProviderIDs() []string {
 	})
 }
 
+// DefaultAlias names a newly added model after the upstream model ID, with the
+// provider at the end. A provider called "venice-web" therefore ends the alias
+// with "venice", so the API model name is the real one plus the provider.
+func DefaultAlias(provider, model string) string {
+	provider = strings.TrimSuffix(provider, "-web")
+	base := aliasPart(model)
+	if len(base) > 56 {
+		base = strings.Trim(base[:56], "-.")
+	}
+	alias := strings.Trim(base+"-"+aliasPart(provider), "-.")
+	if len(alias) > 72 {
+		alias = strings.Trim(alias[:72], "-.")
+	}
+	if alias == "" {
+		alias = "alias"
+	}
+	return alias
+}
+
+// aliasPart lower-cases a name and turns every run of punctuation into one
+// dash, keeping it usable as a URL segment and a JSON model ID.
+func aliasPart(raw string) string {
+	var built strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(raw) {
+		valid := r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '.'
+		if valid {
+			built.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if r == '-' {
+			built.WriteRune(r)
+			lastDash = true
+			continue
+		}
+		if !lastDash {
+			built.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(built.String(), "-.")
+}
+
 func Load(path string) (Config, error) {
 	file, err := os.Open(path)
 	if err != nil {

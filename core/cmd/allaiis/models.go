@@ -101,7 +101,7 @@ func runModels(ctx context.Context, path string, args []string) error {
 			return err
 		}
 		route := config.Route{
-			ID: name + "-" + *providerID, Provider: *providerID, UpstreamModel: model,
+			ID: config.DefaultAlias(*providerID, name), Provider: *providerID, UpstreamModel: model,
 			Privacy: config.Privacy(privacy), CredentialLabel: label, Protocol: config.Protocol(protocol),
 			Reasoning: thinking, MaxContext: maxContext, MaxResponse: maxResponse, MaxImages: maxImages,
 			MaxTools: maxTools, WebSearch: webSearch, LargeContext: largeContext,

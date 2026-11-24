@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **New aliases are named after the real model, with the provider at the end.**
+  The panel used to put the provider first and the CLI appended `-venice-web`;
+  both now use the upstream model ID first and end with the provider (`-venice`
+  for `venice-web`), so a client sees the real model name in the API.
 ## v0.1.37
 
 An exported config round-trips, and the diagnostics say what they mean.

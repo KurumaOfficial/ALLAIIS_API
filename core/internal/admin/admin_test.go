@@ -420,8 +420,11 @@ func TestPanelSettings(t *testing.T) {
 
 func TestAliasFor(t *testing.T) {
 	got := aliasFor("venice-web", "claude-opus-5-5")
-	if got != "venice-web-claude-opus-5-5" {
+	if got != "claude-opus-5-5-venice" {
 		t.Fatalf("unexpected alias %q", got)
+	}
+	if other := aliasFor("openai", "gpt-4"); other != "gpt-4-openai" {
+		t.Fatalf("unexpected alias %q", other)
 	}
 	long := aliasFor("p", strings.Repeat("x", 200))
 	if len(long) > 72 {

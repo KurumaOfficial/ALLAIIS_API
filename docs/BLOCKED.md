@@ -33,9 +33,9 @@ Checked 2026-11-24 with the stored Pro session's own claims:
 - An unattested programmatic call to the agent endpoint answers `403` with a
   Terms-of-Service warning; attested calls are answered normally. The warning is
   worth knowing about for a long-running automation on a personal account.
-- Free E2EE route: `e2ee-oss` on `venice-web` with `e2ee-gpt-oss-120b-p`, sealed
+- Free E2EE route: `e2ee-gpt-oss-120b-p-venice` on `venice-web` with `e2ee-gpt-oss-120b-p`, sealed
   and opened live, tools included.
-- Working free route for the model in the browser: `venice-deepseek` on
+- Working free route for the model in the browser: `deepseek-v4-1-flash-uncensored-venice` on
   `venice-web` with `deepseek-v4-1-flash-uncensored` (vision, tools, 524K
   context), pinned to the `pro` label so the pool does not land on the spent
   guest session.
@@ -46,7 +46,7 @@ Checked 2026-11-24 with the stored Pro session's own claims:
    capture Chrome captured a Pro session; `claude-opus-5-5` and
    `openai-gpt-62-astra-pro` answered with streaming and with a tool call.
 2. **Pool isolation (done 2026-11-22).** `guest-venice-web` (guest) and
-   `opus-venice-web` (Pro) answered side by side from one local key; each alias is
+   `claude-opus-5-5-venice` (Pro) answered side by side from one local key; each alias is
    pinned with `--label`. Independent 429 cooldowns follow from per-key
    selection.
 

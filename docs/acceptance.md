@@ -6,7 +6,9 @@ The offline suites are listed in the [status matrix](../README.md#status); this
 page is the other half.
 
 Recorded 2026-11-23 and 2026-11-24. The label was the Pro session unless a row
-says otherwise; the guest session was out of its chat window.
+says otherwise; the guest session was out of its chat window. On 2026-11-24 the
+aliases were renamed to the upstream model ID with `-venice` at the end; rows
+recorded before that keep the names that were in use then.
 
 | Check | How | Result |
 | --- | --- | --- |

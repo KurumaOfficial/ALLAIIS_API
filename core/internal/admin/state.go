@@ -743,28 +743,4 @@ func failureText(raw []byte) string {
 }
 
 // aliasFor builds a readable, valid alias from a provider and model name.
-func aliasFor(provider, model string) string {
-	raw := strings.ToLower(provider + "-" + model)
-	var built strings.Builder
-	lastDash := false
-	for _, r := range raw {
-		valid := r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == '/' || r == ':' || r == '@'
-		if valid {
-			built.WriteRune(r)
-			lastDash = r == '-'
-			continue
-		}
-		if !lastDash {
-			built.WriteByte('-')
-			lastDash = true
-		}
-	}
-	alias := strings.Trim(built.String(), "-._:/@")
-	if alias == "" {
-		alias = "alias"
-	}
-	if len(alias) > 72 {
-		alias = strings.Trim(alias[:72], "-._:/@")
-	}
-	return alias
-}
+func aliasFor(provider, model string) string { return config.DefaultAlias(provider, model) }
