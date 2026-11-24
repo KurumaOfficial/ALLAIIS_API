@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -24,6 +25,10 @@ func TestNativeProviderUsesProxyPool(t *testing.T) {
 		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/chat/completions") {
 			t.Errorf("proxy saw %s %s", r.Method, r.URL)
 		}
+		const auth = "Basic YWxpY2U6czNjcmV0"
+		if got := r.Header.Get("Proxy-Authorization"); got != auth {
+			t.Errorf("proxy authorization %q", got)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"via proxy"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":2,"total_tokens":4}}`)
 	}))
@@ -35,8 +40,13 @@ func TestNativeProviderUsesProxyPool(t *testing.T) {
 	if !ok {
 		t.Fatalf("unexpected handler %T", handler)
 	}
-	if count, err := live.SetProxyList(proxy.URL); err != nil || count != 1 {
-		t.Fatalf("set proxies: %d %v", count, err)
+	parsed, err := url.Parse(proxy.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed.User = url.UserPassword("alice", "s3cret")
+	if count, err := live.SetProxyList(parsed.String()); err != nil || count != 1 {
+		t.Fatalf("set authenticated proxy: %d %v", count, err)
 	}
 	result := complete(handler, store.ClientKey(), "", `{"model":"demo","messages":[{"role":"user","content":"hello"}]}`)
 	if result.Code != http.StatusOK || !proxied.Load() {
