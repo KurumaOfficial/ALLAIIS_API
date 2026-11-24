@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.32
+
+Bad input is refused locally, and every shape says what happened.
+
 - **A UTF-8 BOM before the JSON is accepted.** A Windows tool that writes one
   used to get a syntax error for a document that was otherwise valid.
 - **`top_logprobs: 0` is not a logprobs request.** It asks for no token data,
