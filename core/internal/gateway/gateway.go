@@ -92,7 +92,10 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
-	mux.HandleFunc("GET /v1/models", g.authorize(config.Chat, g.models))
+	// A models request carries no body protocol, and a Claude client sends
+	// x-api-key while an OpenAI one sends Bearer; accept either.
+	mux.HandleFunc("GET /v1/models", g.authorizeAny(g.models))
+	mux.HandleFunc("GET /v1/models/{id}", g.authorizeAny(g.modelByID))
 	mux.HandleFunc("POST /v1/chat/completions", g.completion(config.Chat, "/chat/completions"))
 	mux.HandleFunc("POST /v1/responses", g.completion(config.Responses, "/responses"))
 	mux.HandleFunc("POST /v1/messages", g.completion(config.Messages, "/messages"))
@@ -323,6 +326,19 @@ func (g *Gateway) authorize(protocol config.Protocol, next http.HandlerFunc) htt
 	}
 }
 
+// authorizeAny accepts the key in either header shape, for the endpoints that
+// belong to no single protocol.
+func (g *Gateway) authorizeAny(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if g.validKey(clientCredential(r, config.Messages)) || g.validKey(clientCredential(r, config.Chat)) {
+			next(w, r)
+			return
+		}
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		writeError(w, config.Chat, http.StatusUnauthorized, "invalid_api_key", "A valid ALLAIIS key is required.")
+	}
+}
+
 func clientCredential(r *http.Request, protocol config.Protocol) string {
 	auth := r.Header.Values("Authorization")
 	if keys := r.Header.Values("X-Api-Key"); protocol == config.Messages && len(keys) > 0 {
@@ -420,6 +436,25 @@ func (g *Gateway) countTokens(w http.ResponseWriter, r *http.Request) {
 		size += len(tool.Function.Description) + len(tool.Function.Parameters)
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"input_tokens": estimateChars(size)})
+}
+
+// modelByID answers GET /v1/models/{id}, which a client uses to validate one
+// alias before a long run.
+func (g *Gateway) modelByID(w http.ResponseWriter, r *http.Request) {
+	minimum, ok := g.privacy(r)
+	if !ok {
+		writeError(w, config.Chat, http.StatusBadRequest, "invalid_privacy", "Invalid X-ALLAIIS-Min-Privacy value.")
+		return
+	}
+	id := r.PathValue("id")
+	for _, model := range g.table().routes.Models(minimum) {
+		if model.ID == id {
+			writeJSON(w, http.StatusOK, model)
+			return
+		}
+	}
+	writeError(w, config.Chat, http.StatusNotFound, "model_not_found",
+		"The requested model is unavailable for this endpoint under the current policy.")
 }
 
 func (g *Gateway) completion(protocol config.Protocol, path string) http.HandlerFunc {

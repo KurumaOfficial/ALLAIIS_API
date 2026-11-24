@@ -379,6 +379,38 @@ func TestModelsCarryLimits(t *testing.T) {
 	}
 }
 
+// TestModelsAnswerEitherHeaderAndOneAlias pins what a client does before a long
+// run: read the list with its own header style, then ask about one alias.
+func TestModelsAnswerEitherHeaderAndOneAlias(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+
+	one := httptest.NewRequest(http.MethodGet, "/v1/models/demo", nil)
+	one.Header.Set("X-Api-Key", store.ClientKey())
+	one.Header.Set("Anthropic-Version", "2023-06-01")
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, one)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"id":"demo"`) {
+		t.Fatalf("single model: %d %s", result.Code, result.Body)
+	}
+
+	list := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	list.Header.Set("X-Api-Key", store.ClientKey())
+	result = httptest.NewRecorder()
+	handler.ServeHTTP(result, list)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"id":"demo"`) {
+		t.Fatalf("list with x-api-key: %d %s", result.Code, result.Body)
+	}
+
+	missing := httptest.NewRequest(http.MethodGet, "/v1/models/nope", nil)
+	missing.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result = httptest.NewRecorder()
+	handler.ServeHTTP(result, missing)
+	if result.Code != http.StatusNotFound || !strings.Contains(result.Body.String(), "model_not_found") {
+		t.Fatalf("missing model: %d %s", result.Code, result.Body)
+	}
+}
+
 func TestInvalidRequestIDIsReplaced(t *testing.T) {
 	store, cfg := setup(t, "http://127.0.0.1:1")
 	handler := newGateway(t, cfg, store)
