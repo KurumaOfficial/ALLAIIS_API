@@ -85,6 +85,10 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 		// The Anthropic field stays raw here; choiceNote wants a decoded value.
 		var choice any
 		_ = json.Unmarshal(input.ToolChoice, &choice)
+		if name := forcedToolName(choice); name != "" && !offeredTool(tools, name) {
+			return webprov.Request{}, nil, nil, fmt.Errorf(
+				"tool_choice names %q, which is not in the offered tools", name)
+		}
 		if reason.choiceNote(choice, nil) {
 			tools = nil
 		}

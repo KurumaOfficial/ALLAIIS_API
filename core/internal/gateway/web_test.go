@@ -300,6 +300,32 @@ func TestWebRejectsOutOfRangeSampling(t *testing.T) {
 	}
 }
 
+// TestWebRefusesAFormatOrToolItCannotHonour pins two silent ignores: an unknown
+// structured-output type and a forced choice naming a tool that was never
+// offered both used to reach the model as ordinary prose.
+func TestWebRefusesAFormatOrToolItCannotHonour(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := webGateway(t, server.URL)
+	tools := `"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]`
+	for _, tc := range []struct{ name, extra, want string }{
+		{"format", `"response_format":{"type":"xml"}`, "response_format.type"},
+		{"tool", `"tool_choice":{"type":"function","function":{"name":"missing"}},` + tools,
+			"not in the offered tools"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`",`+tc.extra+`,`+
+				`"messages":[{"role":"user","content":"hi"}]}`)
+			if result.Code != http.StatusBadRequest ||
+				!strings.Contains(result.Body.String(), tc.want) {
+				t.Fatalf("got %d %s", result.Code, result.Body)
+			}
+		})
+	}
+}
+
 func TestWebChatSchemaGoesIntoTheSystemTurn(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		text := body["prompt"].([]any)[0].(map[string]any)["content"].(string)

@@ -65,6 +65,9 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 	// Instructions and developer items are in; the stand-in for a
 	// structured-output switch goes after them.
 	format := input.Text.Format
+	if err := checkFormat(format.Type, "text.format.type"); err != nil {
+		return webprov.Request{}, nil, nil, err
+	}
 	if name, schema, wanted := structuredFormat(format.Type, format.JSONSchema, format.Name); wanted {
 		reason.jsonMode(name, schema)
 	}
@@ -82,6 +85,10 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 		tools = append(tools, spec)
 	}
 	if len(tools) > 0 {
+		if name := forcedToolName(input.ToolChoice); name != "" && !offeredTool(tools, name) {
+			return webprov.Request{}, nil, nil, fmt.Errorf(
+				"tool_choice names %q, which is not in the offered tools", name)
+		}
 		if reason.choiceNote(input.ToolChoice, input.ParallelCalls) {
 			tools = nil
 		}

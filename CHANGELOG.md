@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A tool choice naming an unoffered tool is a 400.** The stand-in instruction
+  used to name it anyway, so the model was asked for a call it could not make.
+- **An unknown structured-output type is a 400.** It used to be ignored, and a
+  client waiting for a document got prose.
 - **A sampling value out of range is a local 400.** Venice rejects it with a
   400, which the gateway turned into a 502 blaming the provider; temperature,
   `top_p`, `min_p`, penalties and a negative cap are checked against the

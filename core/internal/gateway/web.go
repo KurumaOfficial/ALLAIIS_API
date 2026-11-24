@@ -945,6 +945,40 @@ func cleanStops(many []string) []string {
 	return kept
 }
 
+// checkFormat rejects a structured-output type the gateway cannot stand in for.
+// An unknown spelling used to be ignored, so the client got prose while it
+// waited for a document.
+func checkFormat(kind, field string) error {
+	switch kind {
+	case "", "text", "json_object", "json_schema":
+		return nil
+	}
+	return fmt.Errorf("%s %q is not supported; use json_object or json_schema", field, kind)
+}
+
+// forcedToolName is the tool named by a tool_choice, or "".
+func forcedToolName(value any) string {
+	typed, ok := value.(map[string]any)
+	if !ok {
+		return ""
+	}
+	name, _ := typed["name"].(string)
+	if function, ok := typed["function"].(map[string]any); ok && name == "" {
+		name, _ = function["name"].(string)
+	}
+	return name
+}
+
+// offeredTool reports whether the name is in the list the caller sent.
+func offeredTool(tools []toolSpec, name string) bool {
+	for _, tool := range tools {
+		if tool.Function.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // toolChoice reads a forced tool choice, in any of the three spellings, and
 // turns it into an instruction: the web endpoint gets a tool list but no way to
 // require a call from it.
@@ -1134,6 +1168,9 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	if input.Logprobs != nil && *input.Logprobs || input.TopLogprobs != nil {
 		return webprov.Request{}, nil, nil, errors.New("logprobs are not available over a web session")
 	}
+	if err := checkFormat(input.ResponseFormat.Type, "response_format.type"); err != nil {
+		return webprov.Request{}, nil, nil, err
+	}
 	// A negative cap is a caller mistake, not an absent one; without this the
 	// fallback below would treat it as unset and answer normally.
 	if input.MaxTokens < 0 || input.MaxCompletion < 0 {
@@ -1196,6 +1233,10 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	}
 	tools := input.Tools
 	if len(tools) > 0 {
+		if name := forcedToolName(input.ToolChoice); name != "" && !offeredTool(tools, name) {
+			return webprov.Request{}, nil, nil, fmt.Errorf(
+				"tool_choice names %q, which is not in the offered tools", name)
+		}
 		if reason.choiceNote(input.ToolChoice, input.ParallelCalls) {
 			tools = nil
 		}

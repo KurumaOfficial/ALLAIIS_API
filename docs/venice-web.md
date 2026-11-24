@@ -443,7 +443,9 @@ Structured output is emulated the same way: `response_format` on Chat and
 `text.format` on Responses (`json_object`, or `json_schema` with its schema)
 append the schema to the system turn and add `json_mode` to
 `X-ALLAIIS-Emulated-Features`. The web endpoint has no switch behind it, so a
-reply can still drift — validate it if a wrong shape matters.
+reply can still drift — validate it if a wrong shape matters. A format type
+other than `text`, `json_object` or `json_schema` is a 400, since ignoring it
+would return prose to a client waiting for a document.
 
 Fields a web turn cannot fill are refused rather than faked: `n` above one and
 `logprobs` answer `invalid_request`. `max_completion_tokens` is read like
@@ -458,7 +460,9 @@ A forced `tool_choice` is spelled out the same way: Chat `required` and Messages
 naming it, and `parallel_tool_calls: false` (or Messages
 `disable_parallel_tool_use`) asks for a single call. `"none"` drops the tools
 from the request altogether. None of it is enforced by the endpoint, and the
-header adds `tool_choice` whenever a stand-in was written.
+header adds `tool_choice` whenever a stand-in was written. A forced choice
+naming a tool that is not in the offered list is a 400: the instruction would
+otherwise ask the model for a call it cannot make.
 
 Stop sequences are cut by the gateway, because the endpoint ignores them: Chat
 `stop` (one string or an array), Messages `stop_sequences` and a `stop` on
