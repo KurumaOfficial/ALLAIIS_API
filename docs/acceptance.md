@@ -24,6 +24,7 @@ says otherwise; the guest session was out of its chat window.
 | E2EE sealed reply | `e2ee-gpt-oss-120b-p` canary | `decrypted: true` |
 | E2EE tool loop | call and result inside the sealed turns | the final answer used the result |
 | Quota and plan | `web quota`, doctor | `pro: … chat, PRO, 0/100 credits`, reset dates |
+| Daily window reset | after the window rolled over, `guest-venice-web` | 200 again; `pro` read 9988 chats and doctor's plan line went from warn to ok |
 | Long agent task | eight-file `stats` package and a smaller task | 14 steps/27 tools and 11/13, zero tool errors |
 | Service restart | kill the gateway under the supervisor | one restart in thirty seconds |
 | Panel | all seven views, Quota button | no console error, plan and credits rendered |
