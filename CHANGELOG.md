@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.33
+
+A model that miswrites a call no longer poisons its own repair.
+
 - **A repair after a malformed tool block sends no empty assistant turn.**
   Venice rejects an empty assistant message, so a model that called a tool
   before writing any prose turned its own repair into a 502. The repair carries
