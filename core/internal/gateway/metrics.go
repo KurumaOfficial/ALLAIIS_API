@@ -279,7 +279,7 @@ func (m *metrics) prometheus(models int) string {
 	out.WriteString("# HELP allaiis_tool_name_suffix_total Calls that lost a trailing word after the tool name.\n")
 	out.WriteString("# TYPE allaiis_tool_name_suffix_total counter\n")
 	fmt.Fprintf(&out, "allaiis_tool_name_suffix_total %d\n", toolCounters.suffix.Load())
-	out.WriteString("# HELP allaiis_tool_unknown_total Calls delivered with a name no tool declares.\n")
+	out.WriteString("# HELP allaiis_tool_unknown_total Calls whose tool name no offered tool declares, before any repair.\n")
 	out.WriteString("# TYPE allaiis_tool_unknown_total counter\n")
 	fmt.Fprintf(&out, "allaiis_tool_unknown_total %d\n", toolCounters.unknown.Load())
 	// Retention and expiry are gauges, so a scrape can tell "no unknown names"

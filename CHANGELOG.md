@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **The unknown-tool metric says what it counts.** It includes a name the
+  repair replaced, so "Calls delivered with a name no tool declares" was
+  wrong; the HELP names the attempt before repair.
 ## v0.1.36
 
 The keep-alive stops before the terminal frame, and a parked model is not
