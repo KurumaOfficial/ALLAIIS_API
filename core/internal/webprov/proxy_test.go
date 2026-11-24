@@ -5,11 +5,14 @@ package webprov
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -111,5 +114,22 @@ func TestConnectTunnelRejectsARefusal(t *testing.T) {
 	proxy, _ := url.Parse("http://" + listener.Addr().String())
 	if _, err := dialProxy(context.Background(), proxy, "example.com:443"); err == nil {
 		t.Fatal("a refused tunnel was accepted")
+	}
+}
+
+type closeTracker struct{ closed atomic.Int32 }
+
+func (c *closeTracker) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("unexpected round trip")
+}
+
+func (c *closeTracker) CloseIdleConnections() { c.closed.Add(1) }
+
+func TestSetProxiesDropsIdleConnections(t *testing.T) {
+	tracker := &closeTracker{}
+	client := &Client{http: &http.Client{Transport: tracker}}
+	client.SetProxies(nil)
+	if tracker.closed.Load() != 1 {
+		t.Fatalf("idle connections were not closed: %d", tracker.closed.Load())
 	}
 }

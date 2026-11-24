@@ -581,7 +581,7 @@ func (s *Server) proxiesGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"text": text, "count": count})
 }
 
-// proxiesSet validates a list, applies it to API-key providers, then stores it.
+// proxiesSet validates a list, applies it to every provider transport, then stores it.
 func (s *Server) proxiesSet(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Text string `json:"text"`

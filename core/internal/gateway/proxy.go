@@ -112,8 +112,8 @@ func (p *proxyPool) Proxy(*http.Request) (*url.URL, error) {
 	return p.urls[index%uint64(len(p.urls))], nil
 }
 
-// SetProxyList parses a panel list and applies it to the API-key providers.
-// Web-chat sessions do not share this transport.
+// SetProxyList parses a panel list and applies it to every provider transport:
+// API-key clients and web-chat sessions both take the pool.
 func (g *Gateway) SetProxyList(text string) (int, error) {
 	urls, err := ParseProxyList(text)
 	if err != nil {
@@ -124,6 +124,11 @@ func (g *Gateway) SetProxyList(text string) (int, error) {
 	}
 	if g.web != nil {
 		g.web.SetProxies(urls)
+	}
+	// Idle native connections were dialled through the previous pool; close
+	// them so the list that was just saved governs the next request.
+	if g.client != nil {
+		g.client.CloseIdleConnections()
 	}
 	return len(urls), nil
 }

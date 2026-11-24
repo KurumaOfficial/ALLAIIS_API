@@ -128,7 +128,7 @@ function render () {
       '<strong>' + esc(provider.id) + '</strong><span class="muted tiny">' + (provider.web ? 'web transport' : 'API') +
       ' · ' + provider.labels.length + ' credential(s)' +
       (coolingLabels.length
-        ? ' · cooling: ' + coolingLabels.map(label => label + ' until ' + stamp(provider.cooldowns[label])).join(', ')
+        ? ' · cooling: ' + coolingLabels.map(label => esc(label) + ' until ' + stamp(provider.cooldowns[label])).join(', ')
         : provider.cooldown_until ? ' · provider cooling until ' + stamp(provider.cooldown_until) : '') + '</span>'
     if (bad) {
       const resume = document.createElement('button')
@@ -305,28 +305,40 @@ function fillLabelsFor (providerId, labelId) {
 }
 
 async function refreshLimits () {
+  if (!state) return
   const box = $('limits-out')
   box.innerHTML = '<p class="muted">Fetching…</p>'
-  try {
-    const result = await api('/api/web/quota', { method: 'POST', body: JSON.stringify({ provider: 'venice-web' }) })
-    box.replaceChildren()
-    for (const row of result.labels || []) {
-      const line = document.createElement('div')
-      line.className = 'row'
-      line.innerHTML = '<span class="badge ' + (row.low ? 'warn' : 'ok') + '">' + esc(row.plan || 'guest') + '</span>' +
-        '<strong>' + esc(row.label) + '</strong><span class="muted tiny">' +
-        (row.chat_remaining ?? '?') + ' chat left' +
-        (row.reset_at ? ' · resets ' + new Date(row.reset_at).toLocaleString() : '') +
-        (row.credits !== undefined && row.credits !== null ? ' · ' + row.credits + '/' + (row.credit_cap ?? '?') + ' credits' : '') +
-        (row.credit_refill_at ? ' · refill ' + new Date(row.credit_refill_at).toLocaleDateString() : '') +
-        (row.principal === 'anonymous' ? ' · anonymous' : '') +
-        (row.error ? ' · ' + esc(row.error) : '') + '</span>'
-      box.append(line)
+  const rows = []
+  const errors = []
+  for (const provider of (state.providers || []).filter(item => item.web)) {
+    try {
+      const result = await api('/api/web/quota', { method: 'POST', body: JSON.stringify({ provider: provider.id }) })
+      for (const row of result.labels || []) rows.push({ ...row, provider: provider.id })
+    } catch (error) {
+      errors.push(provider.id + ': ' + error.message)
     }
-    if (!(result.labels || []).length) box.innerHTML = '<p class="muted">No web session stored.</p>'
-  } catch (error) {
-    box.innerHTML = '<p class="muted">' + esc(error.message) + '</p>'
   }
+  box.replaceChildren()
+  for (const row of rows) {
+    const line = document.createElement('div')
+    line.className = 'row'
+    line.innerHTML = '<span class="badge ' + (row.low ? 'warn' : 'ok') + '">' + esc(row.plan || 'guest') + '</span>' +
+      '<strong>' + esc(row.label) + '</strong><span class="muted tiny">' + esc(row.provider) + ' · ' +
+      (row.chat_remaining ?? '?') + ' chat left' +
+      (row.reset_at ? ' · resets ' + new Date(row.reset_at).toLocaleString() : '') +
+      (row.credits !== undefined && row.credits !== null ? ' · ' + row.credits + '/' + (row.credit_cap ?? '?') + ' credits' : '') +
+      (row.credit_refill_at ? ' · refill ' + new Date(row.credit_refill_at).toLocaleDateString() : '') +
+      (row.principal === 'anonymous' ? ' · anonymous' : '') +
+      (row.error ? ' · ' + esc(row.error) : '') + '</span>'
+    box.append(line)
+  }
+  for (const error of errors) {
+    const line = document.createElement('p')
+    line.className = 'muted'
+    line.textContent = error
+    box.append(line)
+  }
+  if (!rows.length && !errors.length) box.innerHTML = '<p class="muted">No web session stored.</p>'
 }
 
 async function refreshProxies () {
@@ -393,9 +405,9 @@ async function refreshHealth () {
       // differently from one that broke once.
       const streak = (result.recent?.[id] || [])
         .map(step => '<span class="dot ' + (step.ok ? 'ok' : 'bad') + '" title="' +
-          stamp(Date.parse(step.time)) + ' · ' + (step.ok ? 'ok' : step.status) + '"></span>')
+          stamp(Date.parse(step.time)) + ' · ' + (step.ok ? 'ok' : esc(step.status)) + '"></span>')
         .join('')
-      line.innerHTML = '<span class="badge ' + (item.ok ? 'ok' : 'bad') + '">' + (item.ok ? 'ok' : item.status) +
+      line.innerHTML = '<span class="badge ' + (item.ok ? 'ok' : 'bad') + '">' + (item.ok ? 'ok' : esc(item.status)) +
         '</span><strong>' + esc(id) + '</strong><span class="streak">' + streak + '</span>' +
         '<span class="muted tiny">' + stamp(Date.parse(item.time)) + ' · ' +
         item.millis + ' ms · ' + esc(item.detail.slice(0, 120)) + '</span>'
@@ -411,8 +423,8 @@ async function refreshLogs () {
     const box = $('logs')
     for (const line of result.lines) {
       const node = document.createElement('div')
-      node.className = 'log-line ' + line.level
-      node.innerHTML = '<span class="t">' + stamp(line.time) + '</span><span class="lvl">' + line.level + '</span><span>' + esc(line.message) + '</span>'
+      node.className = 'log-line ' + esc(line.level)
+      node.innerHTML = '<span class="t">' + stamp(line.time) + '</span><span class="lvl">' + esc(line.level) + '</span><span>' + esc(line.message) + '</span>'
       box.append(node)
     }
     while (box.childElementCount > 800) box.firstElementChild.remove()
@@ -632,7 +644,7 @@ for (const button of document.querySelectorAll('[data-goto]')) button.onclick = 
         const line = document.createElement('div')
         line.className = 'row'
         line.innerHTML = '<span class="badge ' + (item.status === 200 && item.text ? 'ok' : 'bad') + '">' +
-          (item.status || '—') + '</span><strong>' + esc(item.alias) + '</strong><span class="badge ' + esc(item.protocol) + '">' +
+          esc(item.status || '—') + '</span><strong>' + esc(item.alias) + '</strong><span class="badge ' + esc(item.protocol) + '">' +
           (item.protocol || 'chat') + '</span><span class="muted tiny">' + item.millis + ' ms · ' +
           esc((item.text || item.error || '').slice(0, 120)) + '</span>'
         box.append(line)
@@ -670,7 +682,7 @@ for (const button of document.querySelectorAll('[data-goto]')) button.onclick = 
         const line = document.createElement('div')
         line.className = 'row'
         line.innerHTML = '<span class="badge ' + (item.status === 'ok' ? 'ok' : item.status === 'error' ? 'bad' : '') + '">' +
-          item.status + '</span><strong>' + esc(item.name) + '</strong><span class="muted tiny">' + esc(item.detail) + '</span>'
+          esc(item.status) + '</span><strong>' + esc(item.name) + '</strong><span class="muted tiny">' + esc(item.detail) + '</span>'
         box.append(line)
       }
     } catch (error) { box.innerHTML = ''; toast(error.message, true) }

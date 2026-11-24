@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Changing the proxy pool drops idle connections**, so the next request uses
+  the list and credentials that were just saved instead of an old tunnel.
+- **The Limits tab covers every stored web session.** It asks each web
+  provider separately and labels every row with the provider it came from.
 ## v0.1.41
 
 A Limits tab shows every web session's remaining allowance.

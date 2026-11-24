@@ -48,6 +48,8 @@ recorded before that keep the names that were in use then.
 | First run | the release binary with no arguments in an empty directory | config, vault and passphrase created; panel opened; health 200 |
 | Console shell | six tabs, settings sidebar, no console errors | all views shown; proxy list saved and cleared from Controls |
 | Proxy tunnel | a local CONNECT proxy in Controls, one Venice chat | clerk and outerface tunnels opened; 200 "Ready." |
+| Proxy auth | an authenticated CONNECT proxy, one Venice chat | tunnels opened; wrong credentials answered 502 |
+| SOCKS5 proxy | a SOCKS5 server with user/pass, one Venice chat | outerface tunnel opened; 200 "Ready." |
 | Limits tab | open Limits | guest and PRO rows with chat left, credits and reset dates |
 | Config export | `/api/export`, served from a fresh dir on a spare port | `providers: {}`, health 200, 11 models |
 | Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.40"}` |

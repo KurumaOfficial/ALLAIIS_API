@@ -56,6 +56,11 @@ func (c *Client) SetProxies(urls []*url.URL) {
 		c.proxies = newProxySet()
 	}
 	c.proxies.set(urls)
+	// Existing idle connections belong to the old pool; drop them so the new
+	// list applies to the next request instead of only to a later reconnect.
+	if c.http != nil {
+		c.http.CloseIdleConnections()
+	}
 }
 
 func (c *Client) dialTLS(ctx context.Context, network, addr string) (net.Conn, error) {
