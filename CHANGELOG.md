@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.26
+
+Each model list offers only what that client can call.
+
 
 - **The model list is filtered by protocol.** A Claude client was offered Chat
   aliases that answer only on the OpenAI shape, and an OpenAI client the reverse;
