@@ -30,7 +30,7 @@ func TestToolNameVerdict(t *testing.T) {
 		t.Fatalf("repairs mostly worked: %q %v", status, ok)
 	}
 	status, detail, ok := toolNameVerdict(1, 5, []string{"bash", "grep"})
-	if !ok || status != "warn" || !strings.Contains(detail, "outside the catalog") {
+	if !ok || status != "warn" || !strings.Contains(detail, "did not match an offered tool") {
 		t.Fatalf("unknown names not flagged: %q %q %v", status, detail, ok)
 	}
 	if !strings.Contains(detail, "bash, grep") {

@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **The tool-name warning counts names, not calls.** It said "only 0 were
+  repaired" although an unknown call is repaired once now; the line separates a
+  name that never matched from one that only differed by case.
+
 ## v0.1.24
 
 A call to a tool that was never offered is repaired, not handed to the client.

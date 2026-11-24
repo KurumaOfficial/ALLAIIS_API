@@ -491,10 +491,14 @@ func toolNameVerdict(repaired, unknown int64, names []string) (status, detail st
 	if len(names) > 0 {
 		listed = " (" + strings.Join(names, ", ") + ")"
 	}
+	// The counters are names, not calls: a call to an unknown name is repaired
+	// once when nothing has streamed, but the name itself never matched.
 	if unknown > repaired {
-		return "warn", fmt.Sprintf("%d call(s) named a tool outside the catalog%s, only %d were repaired", unknown, listed, repaired), true
+		return "warn", fmt.Sprintf("%d name(s) did not match an offered tool%s; %d differed only by case or separators",
+			unknown, listed, repaired), true
 	}
-	return "ok", fmt.Sprintf("%d call(s) had a name repaired, %d stayed unknown%s", repaired, unknown, listed), true
+	return "ok", fmt.Sprintf("%d name(s) differed only by case or separators, %d stayed unknown%s",
+		repaired, unknown, listed), true
 }
 
 // toolReset clears the tool name record, or only its expired names when the
