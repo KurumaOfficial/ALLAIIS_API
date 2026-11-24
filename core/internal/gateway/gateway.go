@@ -384,7 +384,35 @@ func (g *Gateway) models(w http.ResponseWriter, r *http.Request) {
 		writeError(w, config.Chat, http.StatusBadRequest, "invalid_privacy", "Invalid X-ALLAIIS-Min-Privacy value.")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": g.table().routes.Models(minimum)})
+	models := g.table().routes.Models(minimum)
+	// An Anthropic client reads data[].type and display_name, and sends its
+	// version header on every call, so the same path can answer both shapes.
+	if r.Header.Get("Anthropic-Version") != "" {
+		writeAnthropicModels(w, models)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": models})
+}
+
+// writeAnthropicModels renders the list in the shape the Messages API uses.
+func writeAnthropicModels(w http.ResponseWriter, models []router.Model) {
+	type entry struct {
+		Type        string `json:"type"`
+		ID          string `json:"id"`
+		DisplayName string `json:"display_name"`
+		CreatedAt   string `json:"created_at"`
+	}
+	created := time.Now().UTC().Format(time.RFC3339)
+	items := make([]entry, 0, len(models))
+	for _, model := range models {
+		items = append(items, entry{Type: "model", ID: model.ID, DisplayName: model.ID, CreatedAt: created})
+	}
+	reply := map[string]any{"data": items, "has_more": false}
+	if len(items) > 0 {
+		reply["first_id"] = items[0].ID
+		reply["last_id"] = items[len(items)-1].ID
+	}
+	writeJSON(w, http.StatusOK, reply)
 }
 
 // countTokens answers Anthropic's count_tokens without calling upstream.

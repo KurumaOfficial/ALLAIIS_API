@@ -411,6 +411,23 @@ func TestModelsAnswerEitherHeaderAndOneAlias(t *testing.T) {
 	}
 }
 
+// TestModelsAnswerTheAnthropicShape pins the same path answering the shape a
+// Claude client parses when it sends its version header.
+func TestModelsAnswerTheAnthropicShape(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	request.Header.Set("X-Api-Key", store.ClientKey())
+	request.Header.Set("Anthropic-Version", "2023-06-01")
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	body := result.Body.String()
+	if result.Code != http.StatusOK || !strings.Contains(body, `"type":"model"`) ||
+		!strings.Contains(body, `"display_name":"demo"`) || !strings.Contains(body, `"has_more":false`) {
+		t.Fatalf("anthropic list: %d %s", result.Code, body)
+	}
+}
+
 func TestInvalidRequestIDIsReplaced(t *testing.T) {
 	store, cfg := setup(t, "http://127.0.0.1:1")
 	handler := newGateway(t, cfg, store)
