@@ -5,12 +5,17 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.37
+
+An exported config round-trips, and the diagnostics say what they mean.
+
 - **An exported config keeps `providers` an object.** A config using only the
   built-in providers answered `"providers": null`; it is `{}` now, so a reader
   always sees the same shape.
 - **The unknown-tool metric says what it counts.** It includes a name the
   repair replaced, so "Calls delivered with a name no tool declares" was
   wrong; the HELP names the attempt before repair.
+
 ## v0.1.36
 
 The keep-alive stops before the terminal frame, and a parked model is not
