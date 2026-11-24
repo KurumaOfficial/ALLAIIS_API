@@ -21,8 +21,8 @@ Panel and catalog traffic follow the proxy pool, and a leaked snapshot is gone.
 
 - **A committed panel snapshot with the local gateway key was removed.** The
   file was a saved `/api/state` response, not a build input; it is ignored now.
-- **Native catalog discovery follows the proxy pool.** `allaiis models
-  discover` and the panel's Discovery tab now send catalog requests through the
+- **Native catalog discovery can follow the proxy pool.** The panel's Discovery
+  tab and `allaiis models discover --with-keys` send catalog requests through the
   saved list, with one proxy per connection. A public catalog read without a
   vault no longer touches a nil store.
 - **The panel's catalog, Limits and enclave checks use the proxy pool too.**
