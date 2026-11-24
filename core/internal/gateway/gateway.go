@@ -724,8 +724,18 @@ func messagesVersion(values []string) (string, error) {
 
 func parseCompletion(body []byte, protocol config.Protocol) (map[string]json.RawMessage, string, bool, []byte, error) {
 	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(body, &fields); err != nil || fields == nil {
-		return nil, "", false, nil, errors.New("expected a JSON object")
+	if err := json.Unmarshal(body, &fields); err != nil {
+		// A truncated body and a JSON array are different mistakes, and "expected
+		// a JSON object" described neither. Say which one it is, with the decoder
+		// message for a syntax error so the caller can see where it stopped.
+		var typeError *json.UnmarshalTypeError
+		if errors.As(err, &typeError) {
+			return nil, "", false, nil, errors.New("the request body must be a JSON object")
+		}
+		return nil, "", false, nil, fmt.Errorf("the request body is not valid JSON: %v", err)
+	}
+	if fields == nil {
+		return nil, "", false, nil, errors.New("the request body must be a JSON object")
 	}
 	var model string
 	if json.Unmarshal(fields["model"], &model) != nil || model == "" {

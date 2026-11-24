@@ -4,6 +4,13 @@ package gateway
 
 import "testing"
 
+func TestStopCutRemembersTheMatchedWord(t *testing.T) {
+	cut := newStopCut([]string{"\nUser:", "STOP"})
+	if _, ended := cut.feed("answer STOP tail"); !ended || cut.matched != "STOP" {
+		t.Fatalf("ended %v matched %q", ended, cut.matched)
+	}
+}
+
 func TestStopCutCutsAtTheFirstWord(t *testing.T) {
 	cut := newStopCut([]string{"\nUser:", "STOP"})
 	out, ended := cut.feed("Hello there\nUser: again")

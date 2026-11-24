@@ -113,6 +113,8 @@ type anthropicShape struct {
 	open    bool
 	tooling bool
 	started bool
+	// stopped is the caller's stop sequence that ended the reply, if any.
+	stopped string
 }
 
 func (s *anthropicShape) begin(kind string, content map[string]any) {
@@ -192,15 +194,9 @@ func (s *anthropicShape) calls(calls []toolCall) {
 func (s *anthropicShape) end(reason string, usage map[string]any) {
 	s.hello()
 	s.close()
-	stop := "end_turn"
-	if reason == "tool_calls" || len(reason) == 0 {
-		stop = "tool_use"
-	}
-	if reason == "length" {
-		stop = "max_tokens"
-	}
+	stop, sequence := s.stopReason(reason)
 	payload, _ := json.Marshal(map[string]any{
-		"type": "message_delta", "delta": map[string]any{"stop_reason": stop, "stop_sequence": nil},
+		"type": "message_delta", "delta": map[string]any{"stop_reason": stop, "stop_sequence": sequence},
 		"usage": anthropicUsage(usage),
 	})
 	fmt.Fprintf(s.w, "event: message_delta\ndata: %s\n\n", payload)
@@ -245,14 +241,29 @@ func anthropicToolCalls(raw json.RawMessage) []toolCall {
 	return calls
 }
 
+// stoppedAt remembers the caller's own stop sequence that ended the reply.
+func (s *anthropicShape) stoppedAt(word string) { s.stopped = word }
+
+// stopReason maps a gateway finish reason to the Anthropic pair. A matched stop
+// sequence wins over every generic reason: the client is waiting for its string.
+func (s *anthropicShape) stopReason(reason string) (string, any) {
+	if s.stopped != "" {
+		return "stop_sequence", s.stopped
+	}
+	switch reason {
+	case "length":
+		return "max_tokens", nil
+	case "tool_calls", "":
+		return "tool_use", nil
+	}
+	return "end_turn", nil
+}
+
 func (s *anthropicShape) reply(content, reasoning string, calls []toolCall, usage map[string]any, finish string) {
 	blocks := make([]any, 0, 2+len(calls))
-	stop := "end_turn"
-	if finish == "length" {
-		stop = "max_tokens"
-	}
-	if finish == "tool_calls" || len(calls) > 0 {
-		stop = "tool_use"
+	stop, sequence := s.stopReason(finish)
+	if len(calls) > 0 {
+		stop, sequence = "tool_use", nil
 	}
 	if reasoning != "" {
 		blocks = append(blocks, map[string]any{"type": "thinking", "thinking": reasoning, "signature": ""})
@@ -268,7 +279,7 @@ func (s *anthropicShape) reply(content, reasoning string, calls []toolCall, usag
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"id": s.id, "type": "message", "role": "assistant", "model": s.model,
-		"content": blocks, "stop_reason": stop, "stop_sequence": nil,
+		"content": blocks, "stop_reason": stop, "stop_sequence": sequence,
 		"usage": map[string]any{
 			"input_tokens": usage["prompt_tokens"], "output_tokens": usage["completion_tokens"],
 		},

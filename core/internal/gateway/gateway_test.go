@@ -486,6 +486,28 @@ func TestInvalidUTF8IsRefused(t *testing.T) {
 	}
 }
 
+// TestParseErrorNamesTheMistake pins the message a caller reads after a broken
+// body: "expected a JSON object" was printed for a truncated document too.
+func TestParseErrorNamesTheMistake(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	for _, tc := range []struct{ name, body, want string }{
+		{"truncated", `{"model":"demo","messages":[{"role":"user","content":"hi"}]`, "not valid JSON"},
+		{"array", `[]`, "must be a JSON object"},
+		{"null", `null`, "must be a JSON object"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(tc.body))
+			request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+			result := httptest.NewRecorder()
+			handler.ServeHTTP(result, request)
+			if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), tc.want) {
+				t.Fatalf("got %d %s", result.Code, result.Body)
+			}
+		})
+	}
+}
+
 func TestInvalidRequestIDIsReplaced(t *testing.T) {
 	store, cfg := setup(t, "http://127.0.0.1:1")
 	handler := newGateway(t, cfg, store)

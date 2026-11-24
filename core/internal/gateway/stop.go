@@ -18,6 +18,9 @@ type stopCut struct {
 	hold  int
 	buf   strings.Builder
 	done  bool
+	// matched is the sequence that ended the reply, so a protocol that names it
+	// (Anthropic Messages) can report the caller's own string.
+	matched string
 }
 
 func newStopCut(words []string) *stopCut {
@@ -41,8 +44,9 @@ func (c *stopCut) feed(chunk string) (string, bool) {
 	}
 	c.buf.WriteString(chunk)
 	text := c.buf.String()
-	if at := earliestStop(text, c.words); at >= 0 {
+	if at, word := earliestStop(text, c.words); at >= 0 {
 		c.done = true
+		c.matched = word
 		c.buf.Reset()
 		return text[:at], true
 	}
@@ -67,14 +71,15 @@ func (c *stopCut) flush() string {
 	return out
 }
 
-// earliestStop is the byte index of the first stop word in text, or -1.
-func earliestStop(text string, words []string) int {
-	best := -1
+// earliestStop is the byte index of the first stop word in text, or -1, plus
+// the word itself.
+func earliestStop(text string, words []string) (int, string) {
+	best, hit := -1, ""
 	for _, word := range words {
 		at := strings.Index(text, word)
 		if at >= 0 && (best < 0 || at < best) {
-			best = at
+			best, hit = at, word
 		}
 	}
-	return best
+	return best, hit
 }

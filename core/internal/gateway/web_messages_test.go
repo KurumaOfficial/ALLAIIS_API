@@ -58,6 +58,43 @@ func anthropicCall(handler http.Handler, key, body string) *httptest.ResponseRec
 
 const messagesBody = `{"model":"claude-venice-web-fixture","max_tokens":64,"system":"be terse","messages":[{"role":"user","content":"say hi"}]}`
 
+// TestMessagesNamesTheMatchedStopSequence pins the Anthropic contract: a reply
+// cut by one of the caller's stop_sequences reports stop_reason stop_sequence
+// and the sequence itself, not a generic end_turn with null.
+func TestMessagesNamesTheMatchedStopSequence(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		writeFrames(w, "one two STOP three")
+	})
+	handler, store := messagesGateway(t, server.URL)
+	request := `{"model":"claude-venice-web-fixture","max_tokens":64,"stop_sequences":["STOP"],` +
+		`"messages":[{"role":"user","content":"count"}]}`
+
+	plain := anthropicCall(handler, store.ClientKey(), request)
+	var reply struct {
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
+		StopReason   string  `json:"stop_reason"`
+		StopSequence *string `json:"stop_sequence"`
+	}
+	if err := json.Unmarshal(plain.Body.Bytes(), &reply); err != nil {
+		t.Fatalf("%v in %s", err, plain.Body)
+	}
+	if reply.StopReason != "stop_sequence" || reply.StopSequence == nil || *reply.StopSequence != "STOP" {
+		t.Errorf("stop %q %v", reply.StopReason, reply.StopSequence)
+	}
+	if len(reply.Content) == 0 || reply.Content[0].Text != "one two " {
+		t.Errorf("content %+v", reply.Content)
+	}
+
+	streamed := anthropicCall(handler, store.ClientKey(),
+		strings.Replace(request, `"messages"`, `"stream":true,"messages"`, 1))
+	text := streamed.Body.String()
+	if !strings.Contains(text, `"stop_reason":"stop_sequence"`) || !strings.Contains(text, `"stop_sequence":"STOP"`) {
+		t.Errorf("stream did not name the sequence: %s", text)
+	}
+}
+
 func TestMessagesProtocolStreams(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		messages := body["prompt"].([]any)

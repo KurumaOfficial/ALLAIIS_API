@@ -5,6 +5,12 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A broken body says what is wrong with it.** Every decode failure answered
+  "expected a JSON object", so a truncated document and a JSON array read the
+  same; a syntax error now quotes the decoder, and a non-object says so.
+- **A matched stop sequence is named.** Anthropic Messages answered
+  `stop_reason: end_turn` with a null `stop_sequence` even when the caller's own
+  sequence ended the reply; it now reports `stop_sequence` and the string.
 - **A NUL byte is refused locally.** Venice answers 400 for a prompt carrying
   one, which the gateway turned into a 502 and blamed on upstream; an agent can
   produce it by pasting a binary file. It is a 400 naming the byte now, and the

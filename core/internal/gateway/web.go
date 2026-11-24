@@ -53,6 +53,10 @@ func (w *lockedWriter) Flush() {
 
 var webDebug = os.Getenv("ALLAIIS_WEB_DEBUG") != ""
 
+// stopNamer is implemented by a shape whose protocol names the sequence that
+// ended the reply, as Anthropic Messages does.
+type stopNamer interface{ stoppedAt(word string) }
+
 // webShape renders a web reply in one inbound protocol.
 type webShape interface {
 	reasoning(string)
@@ -207,6 +211,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	sent := false
 	var streaming atomic.Bool
 	finish := "stop"
+	matchedStop := ""
 	var calls []toolCall
 	// Calls wait for the end of the stream, so a repair turn can replace a
 	// broken call before the client ever sees it.
@@ -295,6 +300,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				text, ended = stop.feed(text)
 				if ended {
 					finish = "stop"
+					matchedStop = stop.matched
 				}
 				if text == "" {
 					return nil
@@ -543,6 +549,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	usage := map[string]any{
 		"prompt_tokens": promptTokens, "completion_tokens": completion,
 		"total_tokens": promptTokens + completion, "estimated": true,
+	}
+	if namer, ok := shape.(stopNamer); ok {
+		namer.stoppedAt(matchedStop)
 	}
 	if stream {
 		startStream()
