@@ -83,6 +83,26 @@ func TestToolGuardAcceptsAGarbledOpenMarker(t *testing.T) {
 	}
 }
 
+// TestToolGuardKeepsProseBeforeAGarbledMarker pins the split: only the marker
+// is consumed, the sentence before it still reaches the client.
+func TestToolGuardKeepsProseBeforeAGarbledMarker(t *testing.T) {
+	guard := guardFor("read_file")
+	block := `{"calls":[{"name":"read_file","arguments":{"path":"a.txt"}}]}`
+	text, calls, err := guard.Write("Reading now. <ALLAIIS_TOOL_CALL>>>" + block + "<<<END_TOOL_CALL>>>")
+	if err != nil || text != "Reading now. " || len(calls) != 1 {
+		t.Fatalf("text=%q calls=%d err=%v", text, len(calls), err)
+	}
+}
+
+// TestToolGuardStripsAGarbledCloseTag pins the close side of the same typo.
+func TestToolGuardStripsAGarbledCloseTag(t *testing.T) {
+	guard := guardFor("read_file")
+	text, calls, err := guard.Write("done <END_TOOL_CALL>")
+	if err != nil || text != "done " || len(calls) != 0 {
+		t.Fatalf("text=%q calls=%d err=%v", text, len(calls), err)
+	}
+}
+
 func TestToolGuardRejectsBadBlocks(t *testing.T) {
 	guard := guardFor("read_file")
 	if _, _, err := guard.Write("<<<ALLAIIS_TOOL_CALL>>>{\"calls\":[{\"name\":\"read_file\",\"arguments\":{\"path\":}}]}<<<END_TOOL_CALL>>>"); err == nil {
