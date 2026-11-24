@@ -130,10 +130,12 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | `GET /healthz` | Проверка доступности локального шлюза без ключа: `{"status":"ok","version":"…"}` |
 | `OPTIONS /v1/*` | CORS-preflight без ключа |
 | `GET /metrics` | Счётчики Prometheus, без ключа, loopback |
-| `GET /v1/models` | Алиасы, доступные по настроенной политике приватности |
+| `GET /v1/models` | Алиасы, доступные по настроенной политике приватности; с `Anthropic-Version` — форма Anthropic и только те маршруты, которые она может вызвать |
+| `GET /v1/models/{id}` | Один алиас с его лимитами — для клиента, который проверяет его заранее |
 | `POST /v1/chat/completions` | Chat Completions с нативным JSON или SSE |
 | `POST /v1/responses` | Создание Responses в синхронном режиме с JSON или SSE |
 | `POST /v1/messages` | Создание Anthropic Messages с нативным JSON или SSE, в том числе на веб-маршрутах |
+| `POST /v1/messages/count_tokens` | Оценка токенов для тела Messages без обращения к провайдеру |
 
 Каждый алиас обслуживает один эндпоинт генерации. По умолчанию `models add` выбирает протокол `chat`. `GET /v1/models` помечает алиасы Responses и Messages полем `allaiis_protocol`. Шлюз передаёт нативные вызовы инструментов и статистику токенов, если их возвращает настроенный API.
 
