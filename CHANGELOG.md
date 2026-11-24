@@ -5,6 +5,12 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A stream failure is a protocol event.** After some text had gone out, a dead
+  web stream left a Responses client with a bare `data` line and no terminal
+  event; it now receives a typed `error` event with `code: upstream_error`.
+- **The emulation header names stop cutting and forced choice.** `stop` and
+  `tool_choice` join `usage_estimate`, `tools` and `json_mode` whenever the
+  gateway stood in for them.
 - **A broken body says what is wrong with it.** Every decode failure answered
   "expected a JSON object", so a truncated document and a JSON array read the
   same; a syntax error now quotes the decoder, and a non-object says so.

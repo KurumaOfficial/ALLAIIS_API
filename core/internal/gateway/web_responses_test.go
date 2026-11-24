@@ -68,6 +68,28 @@ func responsesCall(handler http.Handler, key, body string) *httptest.ResponseRec
 	return result
 }
 
+// TestResponsesStreamFailureIsAnEvent pins what a client sees when the web
+// stream dies after some text: Responses used to get a bare data line, which is
+// not a typed event, and waited for a terminal one that never arrived.
+func TestResponsesStreamFailureIsAnEvent(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		fmt.Fprint(w, `{"kind":"content","content":"partial "}`)
+		w.(http.Flusher).Flush()
+		panic(http.ErrAbortHandler)
+	})
+	handler, store := responsesGateway(t, server.URL)
+	result := responsesCall(handler, store.ClientKey(),
+		`{"model":"gpt-venice-web-fixture","stream":true,"input":"hi"}`)
+	text := result.Body.String()
+	if !strings.Contains(text, "event: error") || !strings.Contains(text, `"type":"error"`) ||
+		!strings.Contains(text, `"code":"upstream_error"`) {
+		t.Fatalf("no typed error event: %s", text)
+	}
+	if strings.Contains(text, "response.completed") {
+		t.Errorf("a failed stream reported completion: %s", text)
+	}
+}
+
 func TestResponsesProtocolJSON(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		messages := body["prompt"].([]any)

@@ -16,6 +16,8 @@ says otherwise; the guest session was out of its chat window.
 | Tool call, three shapes | `read_file` / `get_weather` through Chat, Messages, Responses | a `tool_calls` / `tool_use` / `function_call` each |
 | Tool result round trip | second turn carrying the result | the answer used it on every shape |
 | Streaming tool call | a tool offered with `stream: true` on each shape | Chat deltas + `tool_calls`, Messages `input_json_delta` + `tool_use`, Responses done events + `completed.output` |
+| Stop sequence | `stop_sequences: ["6"]` on a count to ten, plain and streamed | content cut before 6, `stop_reason: stop_sequence`, `stop_sequence: "6"` in both |
+| Emulation header | a request with `stop` and a forced `tool_choice` | `X-ALLAIIS-Emulated-Features` adds `stop` and `tool_choice` |
 | Vision | a red PNG through Chat and Responses | described red on both |
 | Structured output | `response_format` / `text.format` with a schema | a JSON object matching it |
 | Stop sequences | a stop word mid-reply, JSON and stream | cut before the word |

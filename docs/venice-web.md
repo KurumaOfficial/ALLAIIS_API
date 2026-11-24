@@ -447,13 +447,22 @@ A forced `tool_choice` is spelled out the same way: Chat `required` and Messages
 `any` become "call one of the tools now", a named function becomes a sentence
 naming it, and `parallel_tool_calls: false` (or Messages
 `disable_parallel_tool_use`) asks for a single call. `"none"` drops the tools
-from the request altogether. None of it is enforced by the endpoint.
+from the request altogether. None of it is enforced by the endpoint, and the
+header adds `tool_choice` whenever a stand-in was written.
 
 Stop sequences are cut by the gateway, because the endpoint ignores them: Chat
 `stop` (one string or an array), Messages `stop_sequences` and a `stop` on
 Responses. A sequence split across two chunks is still found, and the cut runs on
-the stream too. A route with tools leaves them off — a word inside a call block
-would otherwise cut the block in half — so an agent loop should end on its own.
+the stream too, with `stop` added to `X-ALLAIIS-Emulated-Features`. Anthropic
+Messages names the caller's own string: `stop_reason: stop_sequence` and that
+sequence in the reply and in `message_delta`. A route with tools leaves them off
+— a word inside a call block would otherwise cut the block in half — so an agent
+loop should end on its own.
+
+A failure after the stream has started is reported in the protocol's own shape
+instead of ending as a silent EOF: a Chat `data` line with an error and `[DONE]`,
+an Anthropic `error` event, and a typed `error` event (`code:
+upstream_error`) on Responses, which a Responses client can act on.
 
 The reply names the credential label in `X-ALLAIIS-Credential` and the panel
 shows it next to the request, so a pool can be followed in a log.

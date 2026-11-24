@@ -285,6 +285,9 @@ func TestWebCutsTheReplyAtAStopSequence(t *testing.T) {
 	if got := reply.Choices[0].FinishReason; got != "stop" {
 		t.Errorf("finish reason %q", got)
 	}
+	if features := result.Header().Get("X-ALLAIIS-Emulated-Features"); !strings.Contains(features, "stop") {
+		t.Errorf("stop cutting not declared: %q", features)
+	}
 }
 
 // TestWebStopLeavesCallsAlone pins that a stop word inside a held tool block
@@ -315,6 +318,9 @@ func TestWebForcedToolChoiceIsSpelledOut(t *testing.T) {
 		`"parameters":{"type":"object"}}}],"messages":[{"role":"user","content":"read"}]}`)
 	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "read_file") {
 		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+	if features := result.Header().Get("X-ALLAIIS-Emulated-Features"); !strings.Contains(features, "tool_choice") {
+		t.Errorf("forced choice not declared: %q", features)
 	}
 }
 

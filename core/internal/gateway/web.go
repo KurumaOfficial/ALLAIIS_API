@@ -186,26 +186,6 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		writeError(w, protocol, http.StatusBadRequest, "context_length_exceeded", err.Error())
 		return 0, 0
 	}
-	emulated := "usage_estimate"
-	if len(tools) > 0 {
-		emulated = "tools,usage_estimate"
-	}
-	if reason.json {
-		emulated = strings.Replace(emulated, "usage_estimate", "usage_estimate,json_mode", 1)
-	}
-	// Shape and pings write from different goroutines, so the writer serialises
-	// them; a keep-alive must never split a frame.
-	writer := &lockedWriter{ResponseWriter: w}
-	w = writer
-	w.Header().Set(tierHeader, "tier_c3")
-	w.Header().Set("X-ALLAIIS-Provider", target.Route.Provider)
-	w.Header().Set("X-ALLAIIS-Credential", target.Entry.Label)
-	w.Header().Set("X-ALLAIIS-Model", target.Route.ID)
-	w.Header().Set("X-ALLAIIS-Emulated-Features", emulated)
-	if target.Route.E2EE {
-		w.Header().Set("X-ALLAIIS-E2EE", "envelope")
-	}
-
 	id := replyID(protocol)
 	created := time.Now().Unix()
 	sent := false
@@ -228,6 +208,34 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	var stop *stopCut
 	if len(tools) == 0 {
 		stop = newStopCut(request.StopSequences)
+	}
+
+	// Everything the web endpoint cannot do natively is named here, so a client
+	// can tell emulation from native behaviour without guessing.
+	emulated := "usage_estimate"
+	if len(tools) > 0 {
+		emulated = "tools,usage_estimate"
+	}
+	if reason.json {
+		emulated += ",json_mode"
+	}
+	if stop != nil {
+		emulated += ",stop"
+	}
+	if reason.choice {
+		emulated += ",tool_choice"
+	}
+	// Shape and pings write from different goroutines, so the writer serialises
+	// them; a keep-alive must never split a frame.
+	writer := &lockedWriter{ResponseWriter: w}
+	w = writer
+	w.Header().Set(tierHeader, "tier_c3")
+	w.Header().Set("X-ALLAIIS-Provider", target.Route.Provider)
+	w.Header().Set("X-ALLAIIS-Credential", target.Entry.Label)
+	w.Header().Set("X-ALLAIIS-Model", target.Route.ID)
+	w.Header().Set("X-ALLAIIS-Emulated-Features", emulated)
+	if target.Route.E2EE {
+		w.Header().Set("X-ALLAIIS-E2EE", "envelope")
 	}
 
 	shape := newShape(protocol, w, id, target.Route.ID, created)
@@ -757,6 +765,13 @@ func writeStreamError(w http.ResponseWriter, protocol config.Protocol, err error
 			"type": "error", "error": map[string]string{"type": "api_error", "message": err.Error()},
 		})
 		fmt.Fprintf(w, "event: error\ndata: %s\n\n", payload)
+	case config.Responses:
+		// A Responses client reads typed events; a bare data line with an error
+		// object was not one, so it waited for a terminal event that never came.
+		payload, _ := json.Marshal(map[string]any{
+			"type": "error", "code": "upstream_error", "message": err.Error(), "param": nil,
+		})
+		fmt.Fprintf(w, "event: error\ndata: %s\n\n", payload)
 	default:
 		fmt.Fprintf(w, "data: {\"error\":{\"message\":%q,\"type\":\"upstream_error\"}}\n\n", err.Error())
 		fmt.Fprint(w, "data: [DONE]\n\n")
@@ -840,13 +855,16 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 
 // webReason accumulates the reply and keeps the request history for a repair.
 type webReason struct {
-	text           strings.Builder
-	reasoningText  strings.Builder
-	system         string
-	turns          []webprov.Message
-	reasoning      bool
-	includeUsage   bool
-	json           bool
+	text          strings.Builder
+	reasoningText strings.Builder
+	system        string
+	turns         []webprov.Message
+	reasoning     bool
+	includeUsage  bool
+	json          bool
+	// choice records that tool_choice needed a stand-in, so the header can say
+	// the behaviour is emulated rather than native.
+	choice         bool
 	charsN         int
 	reasoningChars int
 }
@@ -920,6 +938,9 @@ func toolChoice(value any) (note string, drop, single bool) {
 // one asks for one call, and the rest becomes a system instruction.
 func (r *webReason) choiceNote(value any, parallel *bool) (drop bool) {
 	note, drop, single := toolChoice(value)
+	if note != "" || drop {
+		r.choice = true
+	}
 	if parallel != nil && !*parallel {
 		single = true
 	}
