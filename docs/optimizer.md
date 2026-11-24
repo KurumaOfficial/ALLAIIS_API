@@ -72,6 +72,43 @@ Do not compare plans using a number the provider does not publish.
 If a proposal depends on an uncertain term, stop and ask the operator to confirm
 it with the provider before implementing it.
 
+## Third-party endpoint gate
+
+A relay, free tier or unlimited plan is added only after all of these are
+answered in writing:
+
+- Is the API documented and does the provider permit this traffic, including
+  coding agents and automated clients?
+- Is one account per operator enough, or does the provider sell additional
+  seats? Never create extra accounts, use catch-all addresses, rotate keys or
+  stack plans to exceed a published limit.
+- What are the data-retention, training and logging terms? Code and prompts
+  must not be retained or reused without consent.
+- Is the model the exact version advertised, at the advertised context and
+  quality, or a quantised/older substitute?
+- What are the concurrency, request-size, fair-use and availability limits?
+  "Unlimited" is not a capacity guarantee.
+- What happens on a `429`, a timeout, a model change or a shutdown? Is there a
+  paid fallback and a one-step rollback?
+- Is payment and cancellation handled by the provider's own interface?
+
+Reject the endpoint if any answer depends on evading metering, sharing
+credentials, temporary identities or a term the operator cannot confirm.
+
+## Cost math that survives review
+
+Use the same token mix on both sides. A request-priced plan and a token-priced
+API are not comparable at a single $/1M figure:
+
+- Request-priced: `monthly price / (requests per month x tokens per request)`.
+  The result depends on utilisation and context size; show both the realistic
+  average and the theoretical ceiling separately.
+- Token-priced: bill input and output separately, then apply cache-hit, peak
+  and discount rules. Never compare an input-only price with a blended number.
+- A theoretical ceiling such as "128K tokens on every request" is not a
+  realistic blended price. Label it as a ceiling and show the average case.
+- Include retries, failed requests, queueing and the cost of the fallback.
+
 ## Proposal format
 
 Every proposal must be a small, reversible change and contain:
