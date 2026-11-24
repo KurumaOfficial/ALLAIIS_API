@@ -1166,6 +1166,9 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	if err := decodeJSONObject(payload, &input); err != nil {
 		return webprov.Request{}, nil, nil, err
 	}
+	if len(input.Messages) == 0 {
+		return webprov.Request{}, nil, nil, errors.New("messages must be a non-empty array of message objects")
+	}
 	// A single answer is all a web turn can return, and there is no token-level
 	// data to hand out; saying so beats a client waiting for what never comes.
 	if input.N > 1 {

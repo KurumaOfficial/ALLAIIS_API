@@ -364,6 +364,25 @@ func TestWebNamesAWrongFieldType(t *testing.T) {
 	}
 }
 
+// TestWebChatRejectsAnEmptyConversation pins the web Chat path: the native
+// path checked for messages, this one turned an empty array into an empty
+// prompt and a generic answer.
+func TestWebChatRejectsAnEmptyConversation(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := webGateway(t, server.URL)
+	for _, messages := range []string{"[]", "null"} {
+		result := complete(handler, store.ClientKey(), "",
+			`{"model":"`+webModel+`","messages":`+messages+`}`)
+		if result.Code != http.StatusBadRequest ||
+			!strings.Contains(result.Body.String(), "non-empty array") {
+			t.Fatalf("%s: got %d %s", messages, result.Code, result.Body)
+		}
+	}
+}
+
 func TestWebChatSchemaGoesIntoTheSystemTurn(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		text := body["prompt"].([]any)[0].(map[string]any)["content"].(string)
