@@ -47,8 +47,9 @@ recorded before that keep the names that were in use then.
 | Stream terminal | a streaming reply, tail inspected | ends with `data: [DONE]`, no `: ping` after it |
 | First run | the release binary with no arguments in an empty directory | config, vault and passphrase created; panel opened; health 200 |
 | Console shell | six tabs, settings sidebar, no console errors | all views shown; proxy list saved and cleared from Controls |
+| Proxy tunnel | a local CONNECT proxy in Controls, one Venice chat | clerk and outerface tunnels opened; 200 "Ready." |
 | Config export | `/api/export`, served from a fresh dir on a spare port | `providers: {}`, health 200, 11 models |
-| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.39"}` |
+| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.40"}` |
 
 Two facts worth keeping in view: the Pro **credit** bucket is empty (paid models
 answer `402`), and the **chat** allowance is the counter free models draw on.

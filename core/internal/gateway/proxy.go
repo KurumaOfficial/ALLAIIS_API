@@ -122,5 +122,8 @@ func (g *Gateway) SetProxyList(text string) (int, error) {
 	if g.proxies != nil {
 		g.proxies.set(urls)
 	}
+	if g.web != nil {
+		g.web.SetProxies(urls)
+	}
 	return len(urls), nil
 }

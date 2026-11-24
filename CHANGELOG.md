@@ -14,9 +14,11 @@ The control panel is an ALLAIIS console, and a proxy pool can be pasted in.
   bar, horizontal tabs, cards, tables and a settings sidebar replace the old
   rail; Models/Providers mirror Aliases/Keys, and the tool controls moved to
   Controls.
-- **A proxy pool can be pasted into the panel and is used for API-key
-  providers.** Each line is `host:port`, `host:port:user:pass` or a URL; the
-  list is validated, sealed in the vault and rotated per outbound connection.
+- **A proxy pool can be pasted into the panel and is used for provider
+  requests, including web chats.** Each line is `host:port`,
+  `host:port:user:pass` or a URL; the list is validated, sealed in the vault and
+  rotated per outbound connection. HTTP, HTTPS and SOCKS5 proxies are tunnelled
+  before the Chrome TLS fingerprint is applied.
 - **A downloaded binary starts itself.** With no command it creates the
   per-user data directory, config and vault (generating a passphrase file when
   none is configured), starts the gateway and opens the panel. The First steps

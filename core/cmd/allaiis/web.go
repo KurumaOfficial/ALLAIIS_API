@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
@@ -124,6 +125,7 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 		cred.DistinctID = webprov.NewDistinctID()
 	}
 	client := webprov.New(60 * time.Second)
+	applyProxiesToWeb(ctx, store, client)
 	limits, err := client.Probe(ctx, cred)
 	if err != nil {
 		return fmt.Errorf("validate the captured session: %w", err)
@@ -191,6 +193,7 @@ func webQuota(ctx context.Context, store *vault.Store, provider config.Provider,
 		return errors.New("no stored web session; run allaiis web login")
 	}
 	client := webprov.New(60 * time.Second)
+	applyProxiesToWeb(ctx, store, client)
 	results := make(map[string]any, len(entries))
 	for _, entry := range entries {
 		if label != "" && entry.Label != label {
@@ -228,6 +231,16 @@ func webQuota(ctx context.Context, store *vault.Store, provider config.Provider,
 
 // webE2EE verifies the enclave and sends one sealed canary, which is the whole
 // thing that can be checked without knowing whether a reply opens.
+// applyProxiesToWeb puts the saved pool on a CLI web client, so login,
+// quota and the e2ee canary take the same network path as the gateway.
+func applyProxiesToWeb(ctx context.Context, store *vault.Store, client *webprov.Client) {
+	if text := storedProxyText(ctx, store); text != "" {
+		if urls, err := gateway.ParseProxyList(text); err == nil {
+			client.SetProxies(urls)
+		}
+	}
+}
+
 func webE2EE(ctx context.Context, store *vault.Store, provider config.Provider, providerID, model, label string) error {
 	entries, err := store.Entries(ctx, providerID, provider.BaseURL)
 	if err != nil {
@@ -235,6 +248,7 @@ func webE2EE(ctx context.Context, store *vault.Store, provider config.Provider, 
 	}
 	results := map[string]any{}
 	client := webprov.New(30 * time.Second)
+	applyProxiesToWeb(ctx, store, client)
 	for _, entry := range entries {
 		if label != "" && entry.Label != label {
 			continue

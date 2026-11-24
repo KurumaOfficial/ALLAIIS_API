@@ -104,7 +104,9 @@ func discoverProvider(ctx context.Context, store *vault.Store, id string, provid
 			result.Status, result.Error = "error", err.Error()
 			return result
 		}
-		models, err := webprov.New(60*time.Second).Catalog(ctx, cred)
+		web := webprov.New(60 * time.Second)
+		applyProxiesToWeb(ctx, store, web)
+		models, err := web.Catalog(ctx, cred)
 		if err != nil {
 			result.Status, result.Error = "error", err.Error()
 			return result

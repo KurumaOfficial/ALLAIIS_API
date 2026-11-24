@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	utls "github.com/refraction-networking/utls"
 	"golang.org/x/net/http2"
 )
 
@@ -202,6 +201,7 @@ type Client struct {
 	attesting map[string][]cached      // client attestation token pool by user key
 	locks     map[string]chan struct{} // one generation per credential
 	e2ee      e2eeCache
+	proxies   *proxySet
 }
 
 type cached struct {
@@ -211,26 +211,7 @@ type cached struct {
 
 // New builds a client with a Chrome TLS fingerprint and HTTP/2.
 func New(timeout time.Duration) *Client {
-	//lint:ignore SA1019 the uTLS dialer needs this hook, which the stdlib transport lacks
-	transport := &http2.Transport{
-		//lint:ignore SA1019 same hook, kept for the fingerprint
-		DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-			raw, err := net.DialTimeout(network, addr, 15*time.Second)
-			if err != nil {
-				return nil, err
-			}
-			host, _, _ := net.SplitHostPort(addr)
-			conn := utls.UClient(raw, &utls.Config{
-				ServerName: host, NextProtos: []string{"h2", "http/1.1"},
-			}, utls.HelloChrome_Auto)
-			if err := conn.Handshake(); err != nil {
-				return nil, err
-			}
-			return conn, nil
-		},
-	}
-	return &Client{
-		http:      &http.Client{Transport: transport, Timeout: timeout},
+	client := &Client{
 		base:      veniceOuterface,
 		clerk:     clerkBase,
 		now:       time.Now,
@@ -238,7 +219,17 @@ func New(timeout time.Duration) *Client {
 		attesting: map[string][]cached{},
 		locks:     map[string]chan struct{}{},
 		e2ee:      e2eeCache{sessions: map[string]*e2eeSession{}},
+		proxies:   newProxySet(),
 	}
+	//lint:ignore SA1019 the uTLS dialer needs this hook, which the stdlib transport lacks
+	transport := &http2.Transport{
+		//lint:ignore SA1019 same hook, kept for the fingerprint
+		DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+			return client.dialTLS(ctx, network, addr)
+		},
+	}
+	client.http = &http.Client{Transport: transport, Timeout: timeout}
+	return client
 }
 
 // WithBase points the client at another host, used by tests.
