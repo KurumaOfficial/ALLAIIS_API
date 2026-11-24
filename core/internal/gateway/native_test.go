@@ -75,7 +75,6 @@ func TestNativeProtocols(t *testing.T) {
 	for _, session := range []string{"original", "continuation"} {
 		r := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(responseRequest))
 		r.Header.Set("Authorization", "Bearer "+store.ClientKey())
-		r.Header.Set("X-Api-Key", "do-not-forward")
 		r.Header.Set("OpenAI-Project", "do-not-forward")
 		r.Header.Set("Anthropic-Beta", "do-not-forward")
 		r.Header.Set("X-ALLAIIS-Session", session)
@@ -108,8 +107,8 @@ func TestNativeProtocols(t *testing.T) {
 			http.Header{"X-Api-Key": {store.ClientKey()}}, http.StatusUnauthorized, ""},
 		{"Messages requires the local key", "/v1/messages", messageRequest, "authentication_error",
 			http.Header{"X-Api-Key": {"fixture-secret-1"}}, http.StatusUnauthorized, ""},
-		{"two credential headers", "/v1/messages", messageRequest, "authentication_error",
-			http.Header{"Authorization": {"Bearer " + store.ClientKey()}, "X-Api-Key": {store.ClientKey()}}, http.StatusUnauthorized, ""},
+		{"two credential headers", "/v1/messages", messageRequest, "ambiguous_credentials",
+			http.Header{"Authorization": {"Bearer " + store.ClientKey()}, "X-Api-Key": {store.ClientKey()}}, http.StatusBadRequest, "ambiguous_credentials"},
 		{"repeated version", "/v1/messages", messageRequest, "invalid_request_error",
 			http.Header{"X-Api-Key": {store.ClientKey()}, "Anthropic-Version": {"2023-06-01", "2026-10-21"}}, http.StatusBadRequest, ""},
 		{"Responses on a chat route", "/v1/responses", strings.Replace(responseRequest, `"response"`, `"demo"`, 1),
