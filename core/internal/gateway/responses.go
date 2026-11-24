@@ -41,8 +41,8 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 		ToolChoice    any   `json:"tool_choice"`
 		ParallelCalls *bool `json:"parallel_tool_calls"`
 	}
-	if err := json.Unmarshal(payload, &input); err != nil {
-		return webprov.Request{}, nil, nil, errors.New("expected a JSON object")
+	if err := decodeJSONObject(payload, &input); err != nil {
+		return webprov.Request{}, nil, nil, err
 	}
 	request := webprov.Request{
 		RequestID: randomID(), Model: model,
@@ -113,7 +113,10 @@ func responsesTurns(raw json.RawMessage, reason *webReason) error {
 	for _, item := range items {
 		switch item.Type {
 		case "", "message":
-			text, images := messageParts(item.Content)
+			text, images, missing := messageParts(item.Content)
+			if missing > 0 {
+				return attachmentError()
+			}
 			switch item.Role {
 			case "assistant":
 				if text == "" {
@@ -152,8 +155,11 @@ func responsesTurns(raw json.RawMessage, reason *webReason) error {
 		case "function_call_output":
 			// The blank line is what tells the model the call was answered;
 			// without it it tends to call the same tool again.
-			text, _ := messageParts(item.Output)
-			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: "\n" + text})
+			text, images, missing := messageParts(item.Output)
+			if missing > 0 {
+				return attachmentError()
+			}
+			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: "\n" + text, Images: images})
 		}
 	}
 	return nil

@@ -1078,8 +1078,8 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 			JSONSchema json.RawMessage `json:"json_schema"`
 		} `json:"response_format"`
 	}
-	if err := json.Unmarshal(payload, &input); err != nil {
-		return webprov.Request{}, nil, nil, errors.New("expected a JSON object")
+	if err := decodeJSONObject(payload, &input); err != nil {
+		return webprov.Request{}, nil, nil, err
 	}
 	// A single answer is all a web turn can return, and there is no token-level
 	// data to hand out; saying so beats a client waiting for what never comes.
@@ -1108,7 +1108,10 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		strings.Contains(strings.ToLower(model), "reasoning")
 	reason := &webReason{reasoning: request.Reasoning, includeUsage: input.StreamOptions.IncludeUsage}
 	for _, message := range input.Messages {
-		text, images := messageParts(message.Content)
+		text, images, missing := messageParts(message.Content)
+		if missing > 0 {
+			return webprov.Request{}, nil, nil, attachmentError()
+		}
 		switch message.Role {
 		case "system", "developer":
 			if reason.system == "" {
@@ -1171,17 +1174,33 @@ func (i *imageRef) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// messageParts joins text parts and decodes inline data-URL images.
-func messageParts(raw json.RawMessage) (string, []webprov.Image) {
+// attachmentError is what a caller reads when a part names an attachment that
+// could not be read. Silently dropping it made the model answer as if the file
+// had been sent.
+func attachmentError() error {
+	return errors.New("an attachment could not be read: send it inline " +
+		"(a data URL or a base64 image block), or remove it")
+}
+
+// messageParts joins text parts and decodes attachments: Chat image_url and
+// input_image parts, Anthropic base64 images, and base64 files. The count is
+// how many parts named an attachment that produced none.
+func messageParts(raw json.RawMessage) (string, []webprov.Image, int) {
 	var text string
 	if json.Unmarshal(raw, &text) == nil {
-		return text, nil
+		return text, nil, 0
 	}
 	var parts []struct {
 		Type     string    `json:"type"`
 		Text     string    `json:"text"`
 		ImageURL *imageRef `json:"image_url"`
-		File     *struct {
+		Source   *struct {
+			Type      string `json:"type"`
+			MediaType string `json:"media_type"`
+			Data      string `json:"data"`
+			URL       string `json:"url"`
+		} `json:"source"`
+		File *struct {
 			Name string `json:"filename"`
 			Data string `json:"file_data"`
 		} `json:"file"`
@@ -1189,37 +1208,73 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image) {
 		URL        string          `json:"url"`
 	}
 	if json.Unmarshal(raw, &parts) != nil {
-		return string(raw), nil
+		return string(raw), nil, 0
 	}
 	var joined strings.Builder
 	var images []webprov.Image
+	missing := 0
 	for _, part := range parts {
 		if part.Text != "" {
 			joined.WriteString(part.Text)
 		}
-		url := part.URL
-		if part.ImageURL != nil {
-			url = part.ImageURL.URL
-		}
-		if image, ok := decodeDataURL(url); ok {
-			images = append(images, image)
-		} else if image, ok := fetchImageForParts(url); ok {
-			images = append(images, image)
+		switch {
+		case part.Source != nil && (part.Type == "image" || part.Type == "input_image"):
+			// Anthropic sends a base64 image as a source block, not a URL; it
+			// used to fall through and never reach the model.
+			if part.Source.Type == "base64" && strings.HasPrefix(part.Source.MediaType, "image/") {
+				if data, err := base64.StdEncoding.DecodeString(part.Source.Data); err == nil && len(data) > 0 {
+					images = append(images, webprov.Image{Data: data, MIME: part.Source.MediaType})
+					break
+				}
+			}
+			if part.Source.Type == "url" {
+				if image, ok := loadImage(part.Source.URL); ok {
+					images = append(images, image)
+					break
+				}
+			}
+			missing++
+		case part.Source != nil:
+			// A document block has no path to the web endpoint yet, and an
+			// unknown source block must not read as if it were sent.
+			missing++
+		case part.ImageURL != nil || part.Type == "image_url" || part.Type == "input_image":
+			url := part.URL
+			if part.ImageURL != nil {
+				url = part.ImageURL.URL
+			}
+			if image, ok := loadImage(url); ok {
+				images = append(images, image)
+			} else {
+				missing++
+			}
 		}
 		if strings.HasPrefix(part.Type, "tool_result") && part.ToolResult != nil {
-			result, _ := messageParts(part.ToolResult)
+			result, resultImages, resultMissing := messageParts(part.ToolResult)
 			if result != "" {
 				joined.WriteString("\n" + result)
 			}
+			images = append(images, resultImages...)
+			missing += resultMissing
 		}
 		if part.File != nil {
 			if file, ok := decodeDataURL(part.File.Data); ok {
 				file.Name = part.File.Name
 				images = append(images, file)
+			} else {
+				missing++
 			}
 		}
 	}
-	return joined.String(), images
+	return joined.String(), images, missing
+}
+
+// loadImage decodes an inline image or downloads an http(s) one.
+func loadImage(url string) (webprov.Image, bool) {
+	if image, ok := decodeDataURL(url); ok {
+		return image, true
+	}
+	return fetchImageForParts(url)
 }
 
 // fetchImage downloads an http(s) image and returns its bytes.

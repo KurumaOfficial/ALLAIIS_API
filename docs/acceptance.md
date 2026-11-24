@@ -18,6 +18,8 @@ says otherwise; the guest session was out of its chat window.
 | Streaming tool call | a tool offered with `stream: true` on each shape | Chat deltas + `tool_calls`, Messages `input_json_delta` + `tool_use`, Responses done events + `completed.output` |
 | Stop sequence | `stop_sequences: ["6"]` on a count to ten, plain and streamed | content cut before 6, `stop_reason: stop_sequence`, `stop_sequence: "6"` in both |
 | Emulation header | a request with `stop` and a forced `tool_choice` | `X-ALLAIIS-Emulated-Features` adds `stop` and `tool_choice` |
+| Anthropic vision | a base64 `image` block in Messages | the image arrives in the agent multipart turn |
+| Bad attachment | an unreachable image URL, a document block | 400 `invalid_request`, upstream not called |
 | Vision | a red PNG through Chat and Responses | described red on both |
 | Structured output | `response_format` / `text.format` with a schema | a JSON object matching it |
 | Stop sequences | a stop word mid-reply, JSON and stream | cut before the word |

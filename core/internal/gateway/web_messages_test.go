@@ -3,8 +3,10 @@
 package gateway_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -92,6 +94,91 @@ func TestMessagesNamesTheMatchedStopSequence(t *testing.T) {
 	text := streamed.Body.String()
 	if !strings.Contains(text, `"stop_reason":"stop_sequence"`) || !strings.Contains(text, `"stop_sequence":"STOP"`) {
 		t.Errorf("stream did not name the sequence: %s", text)
+	}
+}
+
+// TestEveryShapeNamesTheJSONMistake pins the shared decoder on the entry points
+// that still answered "expected a JSON object" for any failure, including a
+// truncated body.
+func TestEveryShapeNamesTheJSONMistake(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		writeFrames(w, "hi")
+	})
+	chatHandler, chatStore := webGateway(t, server.URL)
+	messagesHandler, messagesStore := messagesGateway(t, server.URL)
+	responsesHandler, responsesStore := responsesGateway(t, server.URL)
+
+	for _, tc := range []struct {
+		name   string
+		result *httptest.ResponseRecorder
+	}{
+		{"chat", complete(chatHandler, chatStore.ClientKey(), "", `{"model":"x","messages":[`)},
+		{"messages", anthropicCall(messagesHandler, messagesStore.ClientKey(), `{"model":"x","messages":[`)},
+		{"responses", responsesCall(responsesHandler, responsesStore.ClientKey(), `{"model":"x","input":`)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.result.Code != http.StatusBadRequest ||
+				!strings.Contains(tc.result.Body.String(), "not valid JSON") {
+				t.Fatalf("got %d %s", tc.result.Code, tc.result.Body)
+			}
+		})
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(`{"model":`))
+	request.Header.Set("x-api-key", messagesStore.ClientKey())
+	request.Header.Set("Anthropic-Version", "2023-06-01")
+	result := httptest.NewRecorder()
+	messagesHandler.ServeHTTP(result, request)
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "not valid JSON") {
+		t.Fatalf("count_tokens: %d %s", result.Code, result.Body)
+	}
+}
+
+// TestMessagesVisionReadsABase64Block pins the Anthropic image shape: a base64
+// source block used to fall through and the model answered as if no image had
+// been sent.
+func TestMessagesVisionReadsABase64Block(t *testing.T) {
+	png := base64.StdEncoding.EncodeToString([]byte("pngbytes"))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/mint"):
+			io.WriteString(w, `{"tokens":[{"token":"t"}]}`)
+		case r.URL.Path == "/inference/chat/agents/venice":
+			body, _ := io.ReadAll(r.Body)
+			if !strings.Contains(string(body), "input_image") || !strings.Contains(string(body), "pngbytes") {
+				t.Errorf("image missing from body")
+			}
+			io.WriteString(w, "event: response.output_text.delta\ndata: {\"delta\":\"Red\"}\n\ndata: [DONE]\n\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	handler, store := messagesGateway(t, server.URL)
+	body := `{"model":"claude-venice-web-fixture","max_tokens":32,"messages":[{"role":"user","content":[` +
+		`{"type":"text","text":"colour?"},{"type":"image","source":{"type":"base64",` +
+		`"media_type":"image/png","data":"` + png + `"}}]}]}`
+	result := anthropicCall(handler, store.ClientKey(), body)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "Red") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
+// TestMessagesRefusesADocumentBlock pins honesty for the one attachment shape
+// with no path to the web endpoint: it used to be ignored, so the model answered
+// as if the document had been read.
+func TestMessagesRefusesADocumentBlock(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := messagesGateway(t, server.URL)
+	body := `{"model":"claude-venice-web-fixture","max_tokens":32,"messages":[{"role":"user","content":[` +
+		`{"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"JVBERi0="}}]}]}`
+	result := anthropicCall(handler, store.ClientKey(), body)
+	if result.Code != http.StatusBadRequest ||
+		!strings.Contains(result.Body.String(), "attachment could not be read") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
 	}
 }
 

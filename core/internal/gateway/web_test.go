@@ -232,6 +232,27 @@ func TestWebVisionUsesAgentMultipart(t *testing.T) {
 	}
 }
 
+// TestWebRefusesAnUnreadableAttachment pins that a dead image URL no longer
+// disappears: the model used to answer as if the picture had been sent.
+func TestWebRefusesAnUnreadableAttachment(t *testing.T) {
+	var calls atomic.Int32
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		calls.Add(1)
+		writeFrames(w, "hi")
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`","messages":[{"role":"user",`+
+		`"content":[{"type":"text","text":"look"},{"type":"image_url",`+
+		`"image_url":{"url":"http://127.0.0.1:1/none.png"}}]}]}`)
+	if result.Code != http.StatusBadRequest ||
+		!strings.Contains(result.Body.String(), "attachment could not be read") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+	if calls.Load() != 0 {
+		t.Fatal("the request reached upstream")
+	}
+}
+
 func TestWebChatSchemaGoesIntoTheSystemTurn(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		text := body["prompt"].([]any)[0].(map[string]any)["content"].(string)

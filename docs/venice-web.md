@@ -125,13 +125,16 @@ signed-in label look empty. `allaiis up` prints every alias it serves.
   request hash. Pass `--label` to `models add` so a route always uses the
   intended account.
 - **Attachments work.** An `image_url` part (a `data:` URL or an http(s) image
-  the gateway downloads, up to 8 MiB), or a `file` part
-  with `file_data`, is re-encoded as a `multipart/form-data` turn to
+  the gateway downloads, up to 8 MiB), an Anthropic base64 `image` block, or a
+  `file` part with `file_data`, is re-encoded as a `multipart/form-data` turn to
   `/api/inference/chat/agents/venice`: the JSON lives in the `request` part and
   each attachment in a `media.<id>.<n>` part, so a message carrying attachments
   needs an `id` equal to the media prefix. Non-image MIME types become
   `input_file` with their filename; text-only turns stay on the cheaper JSON
-  endpoint.
+  endpoint. An attachment that produces no bytes — an unreachable URL, bad
+  base64, a `file_id`, an Anthropic `document` block — is refused with
+  `invalid_request` naming it, rather than dropped while the model answers as if
+  it had been read.
 - **Agent endpoint differences.** Image turns run on the agent endpoint, which
   answers with SSE (`response.output_text.delta`) instead of NDJSON, so both
   decoders coexist.

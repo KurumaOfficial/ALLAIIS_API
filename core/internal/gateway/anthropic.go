@@ -4,7 +4,6 @@ package gateway
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -36,8 +35,8 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 			BudgetTokens int    `json:"budget_tokens"`
 		} `json:"thinking"`
 	}
-	if err := json.Unmarshal(payload, &input); err != nil {
-		return webprov.Request{}, nil, nil, errors.New("expected a JSON object")
+	if err := decodeJSONObject(payload, &input); err != nil {
+		return webprov.Request{}, nil, nil, err
 	}
 	request := webprov.Request{
 		RequestID: randomID(), Model: model,
@@ -49,11 +48,16 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 		request.ReasoningEffort = effortFor(input.Thinking.BudgetTokens)
 	}
 	reason := &webReason{reasoning: request.Reasoning}
-	if text, images := messageParts(input.System); text != "" || len(images) > 0 {
+	if text, images, missing := messageParts(input.System); missing > 0 {
+		return webprov.Request{}, nil, nil, attachmentError()
+	} else if text != "" || len(images) > 0 {
 		reason.system = text
 	}
 	for _, message := range input.Messages {
-		text, images := messageParts(message.Content)
+		text, images, missing := messageParts(message.Content)
+		if missing > 0 {
+			return webprov.Request{}, nil, nil, attachmentError()
+		}
 		switch message.Role {
 		case "assistant":
 			if calls := anthropicToolCalls(message.Content); len(calls) > 0 {

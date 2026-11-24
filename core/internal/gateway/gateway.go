@@ -500,8 +500,12 @@ func (g *Gateway) countTokens(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Model string `json:"model"`
 	}
-	if json.Unmarshal(body, &input) != nil || input.Model == "" {
-		writeError(w, config.Messages, http.StatusBadRequest, "invalid_request", "expected a JSON object with a model")
+	if err := decodeJSONObject(body, &input); err != nil {
+		writeError(w, config.Messages, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	if input.Model == "" {
+		writeError(w, config.Messages, http.StatusBadRequest, "invalid_request", "model must be a non-empty string")
 		return
 	}
 	found := false
@@ -722,20 +726,28 @@ func messagesVersion(values []string) (string, error) {
 	return "", errors.New("Anthropic-Version must be a single date in YYYY-MM-DD format")
 }
 
-func parseCompletion(body []byte, protocol config.Protocol) (map[string]json.RawMessage, string, bool, []byte, error) {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(body, &fields); err != nil {
-		// A truncated body and a JSON array are different mistakes, and "expected
-		// a JSON object" described neither. Say which one it is, with the decoder
-		// message for a syntax error so the caller can see where it stopped.
+// decodeJSONObject decodes a body that must be one JSON object and names the
+// actual mistake: a syntax error quotes the decoder, a non-object says what it
+// wanted. "expected a JSON object" used to cover both.
+func decodeJSONObject(body []byte, target any) error {
+	if err := json.Unmarshal(body, target); err != nil {
 		var typeError *json.UnmarshalTypeError
 		if errors.As(err, &typeError) {
-			return nil, "", false, nil, errors.New("the request body must be a JSON object")
+			return errors.New("the request body must be a JSON object")
 		}
-		return nil, "", false, nil, fmt.Errorf("the request body is not valid JSON: %v", err)
+		return fmt.Errorf("the request body is not valid JSON: %v", err)
 	}
-	if fields == nil {
-		return nil, "", false, nil, errors.New("the request body must be a JSON object")
+	// A null body decodes into a struct without an error.
+	if trimmed := bytes.TrimSpace(body); len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return errors.New("the request body must be a JSON object")
+	}
+	return nil
+}
+
+func parseCompletion(body []byte, protocol config.Protocol) (map[string]json.RawMessage, string, bool, []byte, error) {
+	var fields map[string]json.RawMessage
+	if err := decodeJSONObject(body, &fields); err != nil {
+		return nil, "", false, nil, err
 	}
 	var model string
 	if json.Unmarshal(fields["model"], &model) != nil || model == "" {

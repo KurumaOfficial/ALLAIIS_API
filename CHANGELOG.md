@@ -5,6 +5,12 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Anthropic image blocks reach the model.** A Messages `image` part with a
+  base64 `source` used to fall through the parser, so vision answered as if no
+  image had been sent.
+- **An unreadable attachment is refused.** An unreachable image URL, bad base64,
+  a `file_id` or a document block was silently dropped; it is now a 400 that
+  names the attachment, and the request never reaches upstream.
 - **A stream failure is a protocol event.** After some text had gone out, a dead
   web stream left a Responses client with a bare `data` line and no terminal
   event; it now receives a typed `error` event with `code: upstream_error`.
