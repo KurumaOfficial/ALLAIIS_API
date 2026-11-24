@@ -30,6 +30,7 @@ says otherwise; the guest session was out of its chat window.
 | Service restart | kill the gateway under the supervisor | one restart in thirty seconds |
 | Panel | all seven views, Quota button | no console error, plan and credits rendered |
 | Upgrade | `update --force` from the release | checksum verified, binary swapped, service up |
+| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.30"}` |
 
 Two facts worth keeping in view: the Pro **credit** bucket is empty (paid models
 answer `402`), and the **chat** allowance is the counter free models draw on.
