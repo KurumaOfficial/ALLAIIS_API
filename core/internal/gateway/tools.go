@@ -229,6 +229,10 @@ type toolGuard struct {
 	probe bool
 }
 
+// pending is the unprocessed tail, used to show a repair what the model wrote
+// before the malformed block was rejected.
+func (g *toolGuard) pending() string { return g.buf.String() }
+
 // unique drops a call that repeats the previous one, which happens when a model
 // emits a sentinel block and the XML form for the same call.
 func (g *toolGuard) unique(calls []toolCall) []toolCall {
@@ -1355,6 +1359,15 @@ func repairMessages(messages []webprovMessage, raw, detail string) []webprovMess
 	note := toolRepairNote
 	if detail != "" {
 		note += " Problem: " + detail + "."
+	}
+	// The web endpoint rejects an assistant turn with empty content, and a NUL
+	// byte poisons the prompt. A repair must not carry either.
+	raw = strings.ReplaceAll(raw, "\x00", "")
+	if strings.TrimSpace(raw) == "" {
+		raw = "(the previous reply contained a malformed tool call)"
+	}
+	if runes := []rune(raw); len(runes) > 2048 {
+		raw = string(runes[:2048]) + "..."
 	}
 	fixed := append([]webprovMessage{}, messages...)
 	fixed = append(fixed,

@@ -143,12 +143,34 @@ func TestWebToolRepairRetry(t *testing.T) {
 		if !strings.Contains(last["content"].(string), "System validation error") {
 			t.Errorf("repair message missing: %v", last)
 		}
+		// The web endpoint rejects an assistant turn with empty content; a
+		// model that called a tool before saying anything used to produce one.
+		assistant := messages[len(messages)-2].(map[string]any)
+		if content, _ := assistant["content"].(string); strings.TrimSpace(content) == "" {
+			t.Errorf("empty assistant turn in repair: %v", assistant)
+		}
 		writeFrames(w, toolBlock("fixed.txt"))
 	})
 	handler, store := webGateway(t, server.URL)
 	result := complete(handler, store.ClientKey(), "", toolPayload)
 	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
 		t.Fatalf("repair failed: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
+	}
+}
+
+// TestWebDropsATruncatedToolBlock pins the leak: a call cut by the token cap
+// used to be copied into the answer, so the client's transcript held the
+// gateway's raw sentinel and half a JSON argument.
+func TestWebDropsATruncatedToolBlock(t *testing.T) {
+	server := venueWithToolBodies(t, "<<<ALLAIIS_TOOL_CALL>>>"+`{"calls":[{"name":"read_file","arguments":{"path":"a`)
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", toolPayload)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+	if strings.Contains(result.Body.String(), "ALLAIIS_TOOL_CALL") ||
+		strings.Contains(result.Body.String(), "read_file") {
+		t.Fatalf("half a call leaked: %s", result.Body)
 	}
 }
 

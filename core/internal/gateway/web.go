@@ -424,7 +424,14 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		if errors.Is(err, errToolRepair) && repairs < 1 && attempts < 3 {
 			repairs++
 			g.metrics.noteBlockFix()
-			request.Messages = repairMessages(reason.messages(envelope), reason.text.String(), "")
+			raw := reason.text.String()
+			if strings.TrimSpace(raw) == "" {
+				// Nothing streamed before the malformed block: show the model
+				// what it actually wrote, or the repair carries an empty turn
+				// that the web endpoint rejects.
+				raw = guard.pending()
+			}
+			request.Messages = repairMessages(reason.messages(envelope), raw, "")
 			reason.reasoningText.Reset()
 			guard.reset()
 			heldCalls, firstSeen, held = nil, false, ""
@@ -492,27 +499,21 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	if len(tools) > 0 {
 		// A block still in the buffer is parsed here, so its call travels with
-		// the held ones and arrives after the text.
-		raw := guard.buf.String()
-		if tail, parsed, parseErr := guard.Flush(); parseErr == nil {
-			if len(parsed) > 0 && strings.TrimSpace(tail) == "" {
-				tail = ""
-			}
-			if tail != "" {
-				reason.append(tail)
-				if stream {
-					startStream()
-					shape.text(tail)
-				}
-			}
-			reason.callsChars(parsed)
-			heldCalls = append(heldCalls, parsed...)
-		} else if tail := strings.TrimSpace(trimPartialClose(strings.TrimPrefix(raw, toolOpen), toolClose)); tail != "" {
+		// the held ones and arrives after the text. A block that cannot be
+		// parsed — cut by the token cap, or malformed past repair — is dropped:
+		// its text is the gateway's own syntax, not an answer, and showing it
+		// put a raw half-call into the client's transcript.
+		tail, parsed, parseErr := guard.Flush()
+		if tail != "" {
 			reason.append(tail)
 			if stream {
 				startStream()
 				shape.text(tail)
 			}
+		}
+		if parseErr == nil {
+			reason.callsChars(parsed)
+			heldCalls = append(heldCalls, parsed...)
 		}
 	}
 	if len(heldCalls) > 0 {
@@ -588,6 +589,11 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		reply := reason.text.String()
 		if len(calls) > 0 {
 			reply = renderCallList(reply, calls)
+		}
+		if strings.TrimSpace(reply) == "" {
+			// A stored empty assistant turn would make every follow-up fail
+			// upstream for an empty assistant message.
+			reply = "(empty)"
 		}
 		turns := append(append([]webprov.Message{}, reason.turns...), webprov.Message{Role: "assistant", Content: reply})
 		if raw, err := json.Marshal(turns); err == nil {

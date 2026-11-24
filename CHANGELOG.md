@@ -5,6 +5,13 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A repair after a malformed tool block sends no empty assistant turn.**
+  Venice rejects an empty assistant message, so a model that called a tool
+  before writing any prose turned its own repair into a 502. The repair carries
+  what the model actually wrote, or a statement of the malformed call.
+- **A tool block cut by the token cap is dropped, not copied into the answer.**
+  Its text is the gateway's sentinel and half-written arguments, and streaming
+  it put raw emulation syntax into the client's transcript.
 ## v0.1.32
 
 Bad input is refused locally, and every shape says what happened.
