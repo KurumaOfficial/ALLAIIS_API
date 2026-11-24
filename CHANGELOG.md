@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.30
+
+The health probe says which build answered.
+
 
 - **`/healthz` names the build.** A monitor or a bug report could see that the
   process was healthy but not which binary answered; the probe carries the
