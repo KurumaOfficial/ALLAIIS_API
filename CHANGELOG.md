@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.27
+
+The last Responses event holds the answer.
+
 
 - **`response.completed` carries the finished items.** Its `output` array was
   empty, so a streaming client that reads the last event instead of rebuilding
