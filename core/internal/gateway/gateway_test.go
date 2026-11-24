@@ -387,7 +387,6 @@ func TestModelsAnswerEitherHeaderAndOneAlias(t *testing.T) {
 
 	one := httptest.NewRequest(http.MethodGet, "/v1/models/demo", nil)
 	one.Header.Set("X-Api-Key", store.ClientKey())
-	one.Header.Set("Anthropic-Version", "2023-06-01")
 	result := httptest.NewRecorder()
 	handler.ServeHTTP(result, one)
 	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"id":"demo"`) {
@@ -415,6 +414,10 @@ func TestModelsAnswerEitherHeaderAndOneAlias(t *testing.T) {
 // Claude client parses when it sends its version header.
 func TestModelsAnswerTheAnthropicShape(t *testing.T) {
 	store, cfg := setup(t, "http://127.0.0.1:1")
+	cfg.Models = append(cfg.Models, config.Route{
+		ID: "demo-msg", Provider: "fixture", UpstreamModel: "real-model",
+		Privacy: config.Consumer, Protocol: config.Messages,
+	})
 	handler := newGateway(t, cfg, store)
 	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 	request.Header.Set("X-Api-Key", store.ClientKey())
@@ -423,8 +426,19 @@ func TestModelsAnswerTheAnthropicShape(t *testing.T) {
 	handler.ServeHTTP(result, request)
 	body := result.Body.String()
 	if result.Code != http.StatusOK || !strings.Contains(body, `"type":"model"`) ||
-		!strings.Contains(body, `"display_name":"demo"`) || !strings.Contains(body, `"has_more":false`) {
+		!strings.Contains(body, `"display_name":"demo-msg"`) || !strings.Contains(body, `"has_more":false`) {
 		t.Fatalf("anthropic list: %d %s", result.Code, body)
+	}
+	if strings.Contains(body, `"id":"demo"`) {
+		t.Fatalf("a Chat alias is offered to a Messages caller: %s", body)
+	}
+	// The OpenAI shape keeps the Chat aliases and hides the Messages one.
+	list := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	list.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result = httptest.NewRecorder()
+	handler.ServeHTTP(result, list)
+	if strings.Contains(result.Body.String(), `"id":"demo-msg"`) {
+		t.Fatalf("a Messages alias is offered to a Chat caller: %s", result.Body)
 	}
 }
 

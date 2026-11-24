@@ -244,7 +244,9 @@ free model for both if you want the fallback:
 `GET /v1/models` and `GET /v1/models/{id}` accept either header shape, so a
 Claude client that sends `x-api-key` can read the catalogue and validate one
 alias before a long run; with `Anthropic-Version` the list comes back in the
-Anthropic shape (`type`, `display_name`, `has_more`), otherwise in the OpenAI one.
+Anthropic shape (`type`, `display_name`, `has_more`), otherwise in the OpenAI
+one. Either list carries only the routes that shape can call: Messages aliases
+for the Anthropic one, Chat and Responses aliases for the OpenAI one.
 
 `/v1/messages/count_tokens` answers with the same character-based estimate the
 context guard uses and spends no message, so an Anthropic client can budget a

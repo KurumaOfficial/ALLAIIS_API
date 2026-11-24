@@ -386,12 +386,44 @@ func (g *Gateway) models(w http.ResponseWriter, r *http.Request) {
 	}
 	models := g.table().routes.Models(minimum)
 	// An Anthropic client reads data[].type and display_name, and sends its
-	// version header on every call, so the same path can answer both shapes.
+	// version header on every call, so the same path answers both shapes. The
+	// list carries only routes the caller can actually reach: a Messages alias
+	// would 404 on Chat and the other way round.
 	if r.Header.Get("Anthropic-Version") != "" {
-		writeAnthropicModels(w, models)
+		writeAnthropicModels(w, modelsOfProtocol(models, config.Messages))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": models})
+	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": modelsExceptMessages(models)})
+}
+
+// modelsOfProtocol keeps the routes a Messages caller can reach.
+func modelsOfProtocol(models []router.Model, protocol config.Protocol) []router.Model {
+	kept := make([]router.Model, 0, len(models))
+	for _, model := range models {
+		if model.Protocol == protocol {
+			kept = append(kept, model)
+		}
+	}
+	return kept
+}
+
+// modelsExceptMessages keeps what the OpenAI shapes can serve.
+func modelsExceptMessages(models []router.Model) []router.Model {
+	kept := make([]router.Model, 0, len(models))
+	for _, model := range models {
+		if model.Protocol != config.Messages {
+			kept = append(kept, model)
+		}
+	}
+	return kept
+}
+
+// writeAnthropicModel renders one alias in the Messages shape.
+func writeAnthropicModel(w http.ResponseWriter, model router.Model) {
+	writeJSON(w, http.StatusOK, map[string]string{
+		"type": "model", "id": model.ID, "display_name": model.ID,
+		"created_at": time.Now().UTC().Format(time.RFC3339),
+	})
 }
 
 // writeAnthropicModels renders the list in the shape the Messages API uses.
@@ -475,11 +507,20 @@ func (g *Gateway) modelByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
+	anthropic := r.Header.Get("Anthropic-Version") != ""
 	for _, model := range g.table().routes.Models(minimum) {
-		if model.ID == id {
-			writeJSON(w, http.StatusOK, model)
+		if model.ID != id {
+			continue
+		}
+		if anthropic != (model.Protocol == config.Messages) {
+			break
+		}
+		if anthropic {
+			writeAnthropicModel(w, model)
 			return
 		}
+		writeJSON(w, http.StatusOK, model)
+		return
 	}
 	writeError(w, config.Chat, http.StatusNotFound, "model_not_found",
 		"The requested model is unavailable for this endpoint under the current policy.")
