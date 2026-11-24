@@ -55,6 +55,7 @@ recorded before that keep the names that were in use then.
 | SOCKS5 proxy | a SOCKS5 server with user/pass, one Venice chat | outerface tunnel opened; 200 "Ready." |
 | E2EE canary proxy | `allaiis web e2ee` with a local CONNECT proxy | attestation and `decrypted: true` through clerk/outerface tunnels |
 | Proxy after restart | save a local CONNECT proxy, restart the gateway, one chat | clerk and outerface tunnels opened after the restart |
+| Proxy at rest | save a proxy with a unique host and password, search the vault file | no plaintext of either in `vault.sqlite` |
 | Limits tab | open Limits | guest and PRO rows with chat left, credits and reset dates |
 | Config export | `/api/export`, served from a fresh dir on a spare port | `providers: {}`, health 200, 11 models |
 | Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.44"}` |
