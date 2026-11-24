@@ -4,6 +4,7 @@ package gateway
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -37,6 +38,9 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 	}
 	if err := decodeJSONObject(payload, &input); err != nil {
 		return webprov.Request{}, nil, nil, err
+	}
+	if len(input.Messages) == 0 {
+		return webprov.Request{}, nil, nil, errors.New("messages must be a non-empty array of message objects")
 	}
 	request := webprov.Request{
 		RequestID: randomID(), Model: model,

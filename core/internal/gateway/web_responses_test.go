@@ -119,6 +119,20 @@ func TestResponsesRefusesAnUnknownPreviousResponse(t *testing.T) {
 	}
 }
 
+// TestResponsesRejectsAMissingInput pins the required field on the Responses
+// shape: without it the gateway asked the model an empty prompt.
+func TestResponsesRejectsAMissingInput(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := responsesGateway(t, server.URL)
+	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture"}`)
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "input is required") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestResponsesProtocolJSON(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		messages := body["prompt"].([]any)

@@ -44,6 +44,9 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 	if err := decodeJSONObject(payload, &input); err != nil {
 		return webprov.Request{}, nil, nil, err
 	}
+	if trimmed := strings.TrimSpace(string(input.Input)); trimmed == "" || trimmed == "null" {
+		return webprov.Request{}, nil, nil, errors.New("input is required: a string or an array of items")
+	}
 	request := webprov.Request{
 		RequestID: randomID(), Model: model,
 		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxTokens,

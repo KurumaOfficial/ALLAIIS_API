@@ -215,6 +215,22 @@ func TestMessagesRefusesAForcedToolThatIsNotOffered(t *testing.T) {
 	}
 }
 
+// TestMessagesRejectsAnEmptyConversation pins the required field: an empty
+// messages array used to become an empty prompt and a generic answer.
+func TestMessagesRejectsAnEmptyConversation(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := messagesGateway(t, server.URL)
+	result := anthropicCall(handler, store.ClientKey(),
+		`{"model":"claude-venice-web-fixture","max_tokens":8,"messages":[]}`)
+	if result.Code != http.StatusBadRequest ||
+		!strings.Contains(result.Body.String(), "non-empty array") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestMessagesProtocolStreams(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		messages := body["prompt"].([]any)

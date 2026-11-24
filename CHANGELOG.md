@@ -5,6 +5,12 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A closing sentinel that lost a bracket still closes the call.** The open
+  side already tolerated the typo; the close side dropped the call instead of
+  parsing it.
+- **An empty Messages conversation or a missing Responses input is a 400.**
+  Both used to become an empty prompt and a generic answer instead of naming
+  the missing required field.
 - **A tool sentinel with a dropped bracket is still a call.** A model wrote
   `<ALLAIIS_TOOL_CALL>>>` with one `<`, and the guard took it for prose, so the
   client received the sentinel and half an argument; one to three brackets are
