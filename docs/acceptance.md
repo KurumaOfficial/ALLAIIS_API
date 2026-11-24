@@ -42,7 +42,8 @@ says otherwise; the guest session was out of its chat window.
 | Panel | all seven views, Quota button | no console error, plan and credits rendered |
 | Upgrade | `update --force` from the release | checksum verified, binary swapped, service up |
 | Continuation | a stored response id, and one created with `store: false` | the stored turns replay; the unstored id answers `404 previous_response_not_found` |
-| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.35"}` |
+| Stream terminal | a streaming reply, tail inspected | ends with `data: [DONE]`, no `: ping` after it |
+| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.36"}` |
 
 Two facts worth keeping in view: the Pro **credit** bucket is empty (paid models
 answer `402`), and the **chat** allowance is the counter free models draw on.
