@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.24
+
+A call to a tool that was never offered is repaired, not handed to the client.
+
 
 - **A call to a tool that was never offered gets one repair.** The client could
   only reject `bash` when it never offered one, so the model now gets one turn
