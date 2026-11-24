@@ -411,6 +411,21 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			firstSeen, held = false, ""
 			continue
 		}
+		// A name that was never offered can only be rejected by the client, so
+		// the same single repair names the tools that do exist. Prose that
+		// already streamed stays, since it cannot be retracted.
+		if err == nil && repairs < 1 && attempts < 3 && len(heldCalls) > 0 && !sent {
+			if unknown := guard.unknownNamesOf(heldCalls); len(unknown) > 0 {
+				repairs++
+				request.Messages = repairMessages(reason.messages(envelope), renderCallList(reason.text.String(), heldCalls),
+					"there is no tool named "+unknown[0]+"; call one of: "+advertisedNames(tools))
+				reason.reasoningText.Reset()
+				guard.reset()
+				heldCalls, firstSeen, held = nil, false, ""
+				reason.text.Reset()
+				continue
+			}
+		}
 		// A call short of an argument is worth a repair turn: the model has the
 		// block in front of it and only has to fill the gap. The turn names the
 		// field, and the call is replaced before the client runs it.

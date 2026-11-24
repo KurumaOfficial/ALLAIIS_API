@@ -41,6 +41,7 @@ results, and its checkbox forces a refetch.
 | Stream dies before the first event | one retry |
 | `403` attestation | one retry with a fresh token, then `cloudflare_challenge` |
 | Malformed tool block | one repair turn, also after prose has streamed |
+| Call to a tool that was never offered | one repair turn naming the offered tools, only while nothing has streamed |
 | Empty reply (200, or only `processing`) | one retry, only when nothing was streamed |
 | `429` | no retry; the label cools for the stated reset |
 | Unpinned pool, one label cooling | the resolver picks a label that is not cooling; a failing label (429, 402, expired or challenged session) is parked and the request retried on another with nothing streamed yet; when every label cools the call is answered `429` |

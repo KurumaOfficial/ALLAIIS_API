@@ -274,6 +274,34 @@ func (g *toolGuard) known(name string) bool {
 	return false
 }
 
+// unknownNamesOf lists the calls whose tool was never offered, in order and
+// without repeats. A name that folds onto an advertised one is not listed.
+func (g *toolGuard) unknownNamesOf(calls []toolCall) []string {
+	var names []string
+	seen := map[string]bool{}
+	for _, call := range calls {
+		name := call.Function.Name
+		if g.known(name) || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	return names
+}
+
+// advertisedNames renders the offered tool names for a repair note.
+func advertisedNames(tools []toolSpec) string {
+	names := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		names = append(names, tool.Function.Name)
+		if len(names) == 12 {
+			break
+		}
+	}
+	return strings.Join(names, ", ")
+}
+
 // resolve rewrites a name that differs from exactly one advertised tool only by
 // case or separators, so `Read-File` reaches the client as `read_file`.
 func (g *toolGuard) resolve(calls []toolCall) []toolCall {

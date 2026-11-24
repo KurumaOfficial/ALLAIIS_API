@@ -107,6 +107,30 @@ func TestWebToolHistoryReplaysAssistantCalls(t *testing.T) {
 	}
 }
 
+// TestWebRepairsAnUnknownToolName pins the call the client could only reject:
+// the repair names the tools that exist, and the replaced call is what ships.
+func TestWebRepairsAnUnknownToolName(t *testing.T) {
+	var attempts atomic.Int32
+	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
+		if attempts.Add(1) == 1 {
+			writeFrames(w, `<<<ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"bash","arguments":{"command":"ls"}}]}<<<END_TOOL_CALL>>>`)
+			return
+		}
+		messages := body["prompt"].([]any)
+		last := messages[len(messages)-1].(map[string]any)
+		text := last["content"].(string)
+		if !strings.Contains(text, "no tool named bash") || !strings.Contains(text, "read_file") {
+			t.Errorf("repair note %q", text)
+		}
+		writeFrames(w, toolBlock("fixed.txt"))
+	})
+	handler, store := webGateway(t, server.URL)
+	result := complete(handler, store.ClientKey(), "", toolPayload)
+	if result.Code != http.StatusOK || attempts.Load() != 2 || !strings.Contains(result.Body.String(), "fixed.txt") {
+		t.Fatalf("unknown name not repaired: %d attempts=%d %s", result.Code, attempts.Load(), result.Body)
+	}
+}
+
 func TestWebToolRepairRetry(t *testing.T) {
 	var attempts atomic.Int32
 	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
