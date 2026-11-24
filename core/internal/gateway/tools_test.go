@@ -935,15 +935,28 @@ func TestWatcherFollowsAnOutsideReset(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "tool-names.json")); err != nil {
 		t.Fatal(err)
 	}
+	// The file's last save may be recent; a real outside deletion happens long
+	// after the write, so age the marker and let the next tick clear.
+	toolNameFile.mu.Lock()
+	toolNameFile.lastSave = time.Time{}
+	toolNameFile.mu.Unlock()
 
 	deadline := time.Now().Add(3 * toolNameWatchEvery)
 	for time.Now().Before(deadline) {
-		if _, unknown := ToolNameStats(); unknown == 0 && len(ToolUnknownNames(0)) == 0 {
+		// Other tests leave names in the package-global record; this test only
+		// owns wx_gone and asks that its own name follows the deletion.
+		found := false
+		for _, name := range ToolUnknownNames(0) {
+			if name == "wx_gone" {
+				found = true
+			}
+		}
+		if !found {
 			return
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("deletion not followed: %v", ToolUnknownNames(3))
+	t.Fatalf("wx_gone survived the deletion: %v", ToolUnknownNames(3))
 }
 
 func setToolNameTTL(t *testing.T, days int) {
