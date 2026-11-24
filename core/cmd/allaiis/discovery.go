@@ -47,18 +47,36 @@ func discoverModels(ctx context.Context, path, id, match, label string, withKeys
 		return errors.New("invalid credential label")
 	}
 
+	// A public catalog needs no key, but an existing unlocked vault may carry
+	// the proxy pool; open it without prompting when the passphrase is already
+	// available, so discovery follows the same network path as a chat.
+	explicitKeys := withKeys
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(filepath.Join(dir, "vault.sqlite")); err == nil && passphraseAvailable(dir) {
+		withKeys = true
+	}
+
 	var store *vault.Store
 	if withKeys {
-		passphrase, err := readPassphrase(filepath.Dir(path))
+		passphrase, err := readPassphrase(dir)
 		if err != nil {
-			return err
+			if explicitKeys {
+				return err
+			}
+			withKeys = false
+		} else {
+			store, err = vault.Open(ctx, filepath.Join(dir, "vault.sqlite"), passphrase)
+			clear(passphrase)
+			if err != nil {
+				if explicitKeys {
+					return fmt.Errorf("open vault (initialize it and add provider keys): %w", err)
+				}
+				store = nil
+			}
 		}
-		store, err = vault.Open(ctx, filepath.Join(filepath.Dir(path), "vault.sqlite"), passphrase)
-		clear(passphrase)
-		if err != nil {
-			return fmt.Errorf("open vault (initialize it and add provider keys): %w", err)
+		if store != nil {
+			defer store.Close()
 		}
-		defer store.Close()
 	}
 	if id != "" {
 		provider, _ := cfg.Provider(id)
@@ -86,6 +104,16 @@ func discoverModels(ctx context.Context, path, id, match, label string, withKeys
 		return err
 	}
 	return ctx.Err()
+}
+
+// passphraseAvailable reports an environment value or generated file, so a
+// public catalog can read the proxy pool without prompting.
+func passphraseAvailable(dir string) bool {
+	if os.Getenv("ALLAIIS_VAULT_PASSPHRASE") != "" {
+		return true
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, passphraseFile))
+	return err == nil && strings.TrimSpace(string(raw)) != ""
 }
 
 func discoverProvider(ctx context.Context, store *vault.Store, id string, provider config.Provider, match, label string) catalogResult {
