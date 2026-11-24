@@ -10,7 +10,8 @@ Releases are tagged from `main`; the binaries are on the release page with
   again; they are one turn beginning `Tool result from <name>:`, a question
   asked right after a result joins that turn, and the tool prompt explains the
   format instead of telling the model to call a tool on every turn. An
-  Anthropic text block after a `tool_result` no longer runs into the result.
+  Anthropic text block after a `tool_result` no longer runs into the result, and
+  Responses keeps the same boundary.
 ## v0.1.34
 
 Bad input is named, and a garbled call still works.

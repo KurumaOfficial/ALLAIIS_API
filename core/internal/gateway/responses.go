@@ -176,7 +176,14 @@ func responsesTurns(raw json.RawMessage, reason *webReason) error {
 			if missing > 0 {
 				return attachmentError()
 			}
-			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: "\n" + text, Images: images})
+			content := ""
+			if text != "" {
+				// Same shape the Messages builder produces for a tool result:
+				// a blank line before it and one after, so a following block
+				// does not run into the result.
+				content = "\n" + text + "\n"
+			}
+			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: content, Images: images})
 		}
 	}
 	return nil
