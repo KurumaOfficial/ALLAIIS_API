@@ -31,7 +31,8 @@ the binary.
 **Quota** probes the remaining chat allowance of every stored session for a web
 provider, without spending a message, and shows the reset time, the plan and the
 credit bucket the paid models draw on, with the refill date when that bucket is
-empty. It also reveals whether a session resolves to a signed-in account or fell
+empty. The same line loads once when the page opens, quietly if a session is
+dead, and the button asks again. It also reveals whether a session resolves to a signed-in account or fell
 back to anonymous, which is the first thing to check when a counter looks wrong.
 
 ## Cooldowns
