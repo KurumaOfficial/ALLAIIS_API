@@ -236,12 +236,30 @@ func (c Config) ProviderIDs() []string {
 // provider at the end. A provider called "venice-web" therefore ends the alias
 // with "venice", so the API model name is the real one plus the provider.
 func DefaultAlias(provider, model string) string {
-	provider = strings.TrimSuffix(provider, "-web")
+	return DefaultAliasFor(provider, model, false)
+}
+
+// DefaultAliasFor is DefaultAlias for a known transport: a web-chat provider
+// that is not Venice ends its alias in "WebAPI", so a client can tell those
+// models apart at a glance.
+func DefaultAliasFor(provider, model string, web bool) string {
+	suffix := strings.TrimSuffix(provider, "-web")
+	if web {
+		if provider == "venice-web" {
+			suffix = "venice"
+		} else {
+			suffix = "WebAPI"
+		}
+	}
 	base := aliasPart(model)
 	if len(base) > 56 {
 		base = strings.Trim(base[:56], "-.")
 	}
-	alias := strings.Trim(base+"-"+aliasPart(provider), "-.")
+	tail := suffix
+	if !web {
+		tail = aliasPart(suffix)
+	}
+	alias := strings.Trim(base+"-"+tail, "-.")
 	if len(alias) > 72 {
 		alias = strings.Trim(alias[:72], "-.")
 	}

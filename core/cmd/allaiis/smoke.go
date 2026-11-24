@@ -44,7 +44,7 @@ func runSmoke(ctx context.Context, dir, configPath, vaultPath, alias string, att
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
 	}
-	passphrase, err := readPassphrase()
+	passphrase, err := readPassphrase(dir)
 	if err != nil {
 		return err
 	}

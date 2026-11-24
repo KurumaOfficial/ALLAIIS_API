@@ -24,8 +24,15 @@ const cdpEndpoint = "http://127.0.0.1:9222"
 var chromeCandidates = []string{
 	`C:\Program Files\Google\Chrome\Application\chrome.exe`,
 	`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
+	`C:\Program Files\Microsoft\Edge\Application\msedge.exe`,
+	`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
+	`C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe`,
 	`/usr/bin/google-chrome`,
+	`/usr/bin/microsoft-edge`,
+	`/usr/bin/brave-browser`,
 	`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
+	`/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge`,
+	`/Applications/Brave Browser.app/Contents/MacOS/Brave Browser`,
 }
 
 var chromeOverride = ""
@@ -56,7 +63,7 @@ func LaunchChrome(profileDir, url string) error {
 		}
 	}
 	if binary == "" {
-		return errors.New("google Chrome was not found; install Chrome or pass --chrome")
+		return errors.New("no Chromium browser was found (Chrome, Edge or Brave); install one or pass --chrome")
 	}
 	if err := os.MkdirAll(profileDir, 0o700); err != nil {
 		return err

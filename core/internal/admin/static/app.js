@@ -54,6 +54,9 @@ function switchView (next) {
 }
 
 function render () {
+  const noModels = !(state.models || []).length
+  const noCreds = !(state.providers || []).some(provider => (provider.labels || []).length)
+  $('welcome').hidden = !(noModels || noCreds)
   const reachable = state.reachable
   $('gateway-pill').textContent = reachable ? 'gateway live' : 'gateway down'
   $('gateway-pill').className = 'pill ' + (reachable ? 'ok' : 'bad')
@@ -377,6 +380,7 @@ async function refreshLogs () {
 
 function bind () {
   for (const button of document.querySelectorAll('.nav')) button.onclick = () => switchView(button.dataset.view)
+for (const button of document.querySelectorAll('[data-goto]')) button.onclick = () => switchView(button.dataset.goto)
   $('refresh').onclick = refresh
   $('model-provider').onchange = fillLabels
   $('discover-provider').onchange = () => fillLabelsFor('discover-provider', 'discover-label')
@@ -435,6 +439,15 @@ function bind () {
   $('capture-open').onclick = async () => {
     try { show('capture-out', 'Opening the capture browser…'); show('capture-out', (await api('/api/web/chrome', { method: 'POST' })).output || 'Capture browser started') } catch (error) { show('capture-out', error.message) }
   }
+  $('import-opencode').onclick = async () => {
+    $('import-opencode').disabled = true
+    try {
+      const result = await api('/api/import/opencode', { method: 'POST' })
+      show('import-out', result.output || 'Keys imported')
+      await refresh()
+    } catch (error) { show('import-out', error.message) } finally { $('import-opencode').disabled = false }
+  }
+
   $('capture-run').onclick = async () => {
     const label = $('capture-label').value.trim()
     if (!label) return toast('Enter a label first', true)

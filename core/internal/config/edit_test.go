@@ -207,3 +207,20 @@ func TestCapabilityValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultAliasForWebChats(t *testing.T) {
+	cases := []struct {
+		provider, model string
+		web             bool
+		want            string
+	}{
+		{"venice-web", "deepseek-v4-1-flash-uncensored", true, "deepseek-v4-1-flash-uncensored-venice"},
+		{"other-web", "model-one", true, "model-one-WebAPI"},
+		{"openai", "gpt-4", false, "gpt-4-openai"},
+	}
+	for _, tc := range cases {
+		if got := DefaultAliasFor(tc.provider, tc.model, tc.web); got != tc.want {
+			t.Errorf("%s/%s: got %q want %q", tc.provider, tc.model, got, tc.want)
+		}
+	}
+}

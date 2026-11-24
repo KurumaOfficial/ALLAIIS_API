@@ -23,6 +23,11 @@ var version = "0.1.38"
 
 // runGUI serves the gateway and the loopback control panel together.
 func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, openBrowser bool, smokeEvery time.Duration, smokeWebhook string, noToolProbe bool) error {
+	passphrase, err := autoPassphrase(ctx, dir, configPath, vaultPath)
+	if err != nil {
+		return err
+	}
+	defer clear(passphrase)
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
@@ -33,11 +38,6 @@ func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, 
 	if _, _, err := net.SplitHostPort(cfg.Listen); err != nil {
 		return fmt.Errorf("invalid listen address: %w", err)
 	}
-	passphrase, err := readPassphrase()
-	if err != nil {
-		return err
-	}
-	defer clear(passphrase)
 	store, err := vault.Open(ctx, vaultPath, passphrase)
 	if err != nil {
 		return fmt.Errorf("open vault (run allaiis init for a new vault): %w", err)

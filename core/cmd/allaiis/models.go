@@ -100,8 +100,17 @@ func runModels(ctx context.Context, path string, args []string) error {
 		if err != nil {
 			return err
 		}
+		cfg, err := config.Load(path)
+		if err != nil {
+			return err
+		}
+		provider, ok := cfg.Provider(*providerID)
+		if !ok {
+			return fmt.Errorf("unknown provider %q", *providerID)
+		}
 		route := config.Route{
-			ID: config.DefaultAlias(*providerID, name), Provider: *providerID, UpstreamModel: model,
+			ID:       config.DefaultAliasFor(*providerID, name, provider.Transport == config.TransportVeniceWeb),
+			Provider: *providerID, UpstreamModel: model,
 			Privacy: config.Privacy(privacy), CredentialLabel: label, Protocol: config.Protocol(protocol),
 			Reasoning: thinking, MaxContext: maxContext, MaxResponse: maxResponse, MaxImages: maxImages,
 			MaxTools: maxTools, WebSearch: webSearch, LargeContext: largeContext,

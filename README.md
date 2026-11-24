@@ -51,6 +51,19 @@ in the [status table](#status).
 go test -count=1 -v -run '^TestQuickStartOffline$' ./core/cmd/allaiis
 ```
 
+### Run the release
+
+Download the archive for your platform from the release page and start the
+binary with no arguments. It creates the per-user data directory, config and
+encrypted vault, starts the gateway and opens the control panel. The first run
+without `ALLAIIS_VAULT_PASSPHRASE` generates one and keeps it in `passphrase`
+next to the vault, so the vault is protected like that directory; set the
+variable yourself for a stronger boundary.
+
+The panel's First steps card leads to the setup paths: add an API key, import
+the keys OpenCode already stores, or capture a Venice web session. Venice
+capture uses an installed Chrome, Edge or Brave.
+
 ### Walkthrough
 
 The commands below use the official DeepSeek API as the example; the Venice web

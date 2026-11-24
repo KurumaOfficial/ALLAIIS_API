@@ -99,6 +99,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/smoke/history", s.guard(s.smokeHistory))
 	mux.HandleFunc("GET /api/logs", s.guard(s.logsPage))
 	mux.HandleFunc("POST /api/web/chrome", s.guard(s.openChrome))
+	mux.HandleFunc("POST /api/import/opencode", s.guard(s.importOpenCode))
 	mux.HandleFunc("POST /api/web/login", s.guard(s.webLogin))
 	mux.HandleFunc("POST /api/web/recapture", s.guard(s.recapture))
 	mux.HandleFunc("POST /api/web/quota", s.guard(s.webQuota))
@@ -406,13 +407,15 @@ func (s *Server) addModel(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if _, ok := cfg.Provider(input.Provider); !ok {
+	provider, ok := cfg.Provider(input.Provider)
+	if !ok {
 		fail(w, http.StatusBadRequest, "unknown provider")
 		return
 	}
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
-		name = aliasFor(input.Provider, input.UpstreamModel)
+		name = config.DefaultAliasFor(input.Provider, input.UpstreamModel,
+			provider.Transport == config.TransportVeniceWeb)
 	}
 	route := config.Route{
 		ID: name, Provider: input.Provider, UpstreamModel: strings.TrimSpace(input.UpstreamModel),
@@ -549,6 +552,20 @@ func (s *Server) openChrome(w http.ResponseWriter, r *http.Request) {
 	out, err := s.execAllaiis(r, 90*time.Second, "web", "chrome")
 	if err != nil {
 		fail(w, http.StatusBadGateway, strings.TrimSpace(out+" "+err.Error()))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"output": strings.TrimSpace(out)})
+}
+
+// importOpenCode brings the API keys OpenCode already stores into the vault.
+func (s *Server) importOpenCode(w http.ResponseWriter, r *http.Request) {
+	out, err := s.execAllaiis(r, 2*time.Minute, "import", "--from", "opencode", "--all")
+	if err != nil {
+		fail(w, http.StatusBadGateway, strings.TrimSpace(out+" "+err.Error()))
+		return
+	}
+	if err := s.reloadFile(r.Context()); err != nil {
+		fail(w, http.StatusInternalServerError, "keys imported but reloading failed: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"output": strings.TrimSpace(out)})

@@ -20,6 +20,10 @@ without a prompt:
 $env:ALLAIIS_VAULT_PASSPHRASE = "your long passphrase"
 ```
 
+A first start without the variable generates one and writes `passphrase` (0600)
+next to the vault; the vault is then protected like the data directory. Set the
+variable yourself to keep the key out of the data directory.
+
 The same passphrase is used again by `service install`; it is written into the
 launcher in plain text, so the vault is only as protected as that file. The
 launcher sits in the per-user Startup folder, which Windows restricts to that

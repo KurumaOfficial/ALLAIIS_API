@@ -31,6 +31,15 @@
   </header>
 
   <section id="view-overview" class="view">
+    <div id="welcome" class="panel" hidden>
+      <div class="panel-head"><h2>First steps</h2></div>
+      <p class="muted">No credential is stored yet. Connect one of these, then discover or add a model; the rest can wait.</p>
+      <div class="row">
+        <button class="primary" data-goto="keys">Connect Venice or add an API key</button>
+        <button class="ghost" data-goto="keys">Import OpenCode keys</button>
+        <button class="ghost" data-goto="discovery">Discover models</button>
+      </div>
+    </div>
     <div class="cards">
       <div class="card"><div class="label">Gateway</div><div class="value" id="ov-gateway">—</div><div class="muted tiny" id="ov-listen"></div></div>
       <div class="card"><div class="label">Aliases</div><div class="value" id="ov-models">—</div><div class="muted tiny">configured routes</div></div>
@@ -101,6 +110,13 @@
         <button id="capture-run" class="primary">2. Capture session</button>
       </div>
       <pre id="capture-out" class="out" hidden></pre>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Import from OpenCode</h2></div>
+      <p class="muted">Reads the API keys OpenCode already stores and adds them for the matching providers.</p>
+      <button id="import-opencode" class="ghost">Import keys</button>
+      <pre id="import-out" class="out" hidden></pre>
     </div>
 
     <div class="panel">

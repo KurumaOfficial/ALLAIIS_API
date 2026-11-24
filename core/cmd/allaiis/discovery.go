@@ -47,7 +47,7 @@ func discoverModels(ctx context.Context, path, id, match, label string, withKeys
 
 	var store *vault.Store
 	if withKeys {
-		passphrase, err := readPassphrase()
+		passphrase, err := readPassphrase(filepath.Dir(path))
 		if err != nil {
 			return err
 		}

@@ -5,6 +5,16 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A downloaded binary starts itself.** With no command it creates the
+  per-user data directory, config and vault (generating a passphrase file when
+  none is configured), starts the gateway and opens the panel. The First steps
+  card leads to keys, OpenCode import and Venice capture.
+- **OpenCode keys import from the panel.** The import reads every provider in
+  the auth file, not only providers that already have a model.
+- **Web-chat aliases end in `WebAPI`.** A web transport other than Venice uses
+  that suffix when an alias is generated; Venice keeps `-venice`.
+- **The capture browser accepts Edge and Brave.** Chrome is no longer the only
+  option on a fresh Windows PC.
 ## v0.1.38
 
 New aliases carry the real model name, with Venice at the end.

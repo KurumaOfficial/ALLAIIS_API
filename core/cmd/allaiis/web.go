@@ -79,7 +79,7 @@ func runWeb(ctx context.Context, dataDir, configPath, vaultPath string, args []s
 		fmt.Fprintln(os.Stdout, "Sign in to Venice, then run: allaiis web login --label <label>")
 		return nil
 	}
-	passphrase, err := readPassphrase()
+	passphrase, err := readPassphrase(dataDir)
 	if err != nil {
 		return err
 	}

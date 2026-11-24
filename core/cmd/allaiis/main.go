@@ -3,7 +3,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -52,7 +55,7 @@ const usage = `Usage: allaiis <command>
   version           Print the version (also -v or --version)
   export opencode   Print a custom provider config for OpenCode
   up                Start the loopback gateway
-  gui               Start the gateway and open the control panel
+  gui               Start the gateway and open the control panel (the default)
 `
 
 func main() {
@@ -68,7 +71,12 @@ func main() {
 var flagOutput io.Writer = os.Stderr
 
 func run(ctx context.Context, args []string) error {
-	if len(args) == 0 || slices.Contains([]string{"help", "-h", "--help"}, args[0]) {
+	if len(args) == 0 {
+		// A downloaded binary opened with nothing configured should set itself
+		// up and show the panel rather than print usage into a closing window.
+		args = []string{"gui"}
+	}
+	if slices.Contains([]string{"help", "-h", "--help"}, args[0]) {
 		fmt.Fprint(os.Stdout, usage)
 		return nil
 	}
@@ -121,6 +129,7 @@ func run(ctx context.Context, args []string) error {
 	flags.SetOutput(flagOutput)
 	var sources []string
 	var providerID, label, keyEnv, authPath, listen, ui string
+	var allProviders bool
 	var noOpen, asJSON bool
 	var attempts int
 	var timeout, smokeEvery time.Duration
@@ -134,6 +143,7 @@ func run(ctx context.Context, args []string) error {
 	var offline bool
 	switch command {
 	case "import":
+		flags.BoolVar(&allProviders, "all", false, "every available provider, not only configured models")
 		flags.Func("from", "key source, env or opencode (repeatable)", func(source string) error {
 			if source != "env" && source != "opencode" {
 				return errors.New("expected env or opencode")
@@ -206,7 +216,7 @@ func run(ctx context.Context, args []string) error {
 	if command == "smoke" {
 		return runSmoke(ctx, dir, configPath, vaultPath, label, attempts, timeout, asJSON, noToolProbe, allow)
 	}
-	passphrase, err := readPassphrase()
+	passphrase, err := readPassphrase(dir)
 	if err != nil {
 		return err
 	}
@@ -234,7 +244,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	switch command {
 	case "import":
-		entries, err := readImport(cfg, providerID, authPath, label, sources)
+		entries, err := readImport(cfg, providerID, authPath, label, sources, allProviders)
 		if err != nil {
 			return err
 		}
@@ -332,11 +342,70 @@ func attachLogFile(path string, maxMB, keep int) (func(), error) {
 // handler set and has to include it.
 var logWriter *admin.RotatingFile
 
-func readPassphrase() ([]byte, error) {
+// passphraseFile is where a first run without ALLAIIS_VAULT_PASSPHRASE keeps
+// the generated key, so a double-clicked binary can open its own vault later.
+const passphraseFile = "passphrase"
+
+func readPassphrase(dir string) ([]byte, error) {
 	if value := os.Getenv("ALLAIIS_VAULT_PASSPHRASE"); value != "" {
 		return []byte(value), nil
 	}
+	if dir != "" {
+		if raw, err := os.ReadFile(filepath.Join(dir, passphraseFile)); err == nil {
+			if pass := bytes.TrimSpace(raw); len(pass) > 0 {
+				return pass, nil
+			}
+		}
+	}
 	return readHidden("Vault passphrase", "ALLAIIS_VAULT_PASSPHRASE is required in non-interactive mode")
+}
+
+// autoPassphrase makes a first start work without a terminal: it uses the
+// environment, then the generated key file, then creates a vault with a random
+// passphrase stored next to it. A data directory is per-user, so the vault is
+// protected to the same degree as that directory; a user passphrase is used
+// when one is supplied.
+func autoPassphrase(ctx context.Context, dir, configPath, vaultPath string) ([]byte, error) {
+	_, vaultErr := os.Stat(vaultPath)
+	vaultMissing := errors.Is(vaultErr, os.ErrNotExist)
+	if value := os.Getenv("ALLAIIS_VAULT_PASSPHRASE"); value != "" {
+		pass := []byte(value)
+		if vaultMissing {
+			if err := initialize(ctx, dir, configPath, vaultPath, pass); err != nil {
+				return nil, err
+			}
+		}
+		return pass, nil
+	}
+	if raw, err := os.ReadFile(filepath.Join(dir, passphraseFile)); err == nil {
+		pass := bytes.TrimSpace(raw)
+		if len(pass) > 0 {
+			if vaultMissing {
+				if err := initialize(ctx, dir, configPath, vaultPath, pass); err != nil {
+					return nil, err
+				}
+			}
+			return pass, nil
+		}
+	}
+	if vaultMissing {
+		raw := make([]byte, 24)
+		if _, err := rand.Read(raw); err != nil {
+			return nil, err
+		}
+		pass := []byte(hex.EncodeToString(raw))
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(filepath.Join(dir, passphraseFile), append(pass, '\n'), 0o600); err != nil {
+			return nil, err
+		}
+		if err := initialize(ctx, dir, configPath, vaultPath, pass); err != nil {
+			return nil, err
+		}
+		return pass, nil
+	}
+	return readPassphrase(dir)
 }
 
 func readAPIKey(keyEnv string) ([]byte, error) {
@@ -391,10 +460,14 @@ func initialize(ctx context.Context, dir, configPath, vaultPath string, passphra
 	return nil
 }
 
-func readImport(cfg config.Config, providerID, authPath, label string, sources []string) ([]vault.Entry, error) {
-	ids, err := importer.Providers(cfg, providerID)
-	if err != nil {
-		return nil, err
+func readImport(cfg config.Config, providerID, authPath, label string, sources []string, all bool) ([]vault.Entry, error) {
+	ids := cfg.ProviderIDs()
+	if !all {
+		var err error
+		ids, err = importer.Providers(cfg, providerID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var entries []vault.Entry
 	for _, source := range sources {
