@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.23
+
+The panel opens with the counters already visible.
+
 
 - **The panel shows the quota line on open.** The counters, plan and credits
   needed a click; they load once when the page does, quietly if the session is
