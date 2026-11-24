@@ -342,6 +342,26 @@ func TestPanelExportsTheConfig(t *testing.T) {
 	}
 }
 
+// TestExportWithoutCustomProvidersIsAnObject pins the shape a reader pastes
+// back: a config with no custom providers used to export "providers": null.
+func TestExportWithoutCustomProvidersIsAnObject(t *testing.T) {
+	f := setup(t)
+	if err := os.WriteFile(f.path, []byte(`{"listen":"127.0.0.1:1","models":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result := f.call(t, http.MethodGet, "/api/export", "", "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("export: %d %s", result.Code, result.Body)
+	}
+	var reply map[string]json.RawMessage
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	if string(reply["providers"]) != "{}" {
+		t.Fatalf("providers %s", reply["providers"])
+	}
+}
+
 func TestPanelProbe(t *testing.T) {
 	f := setup(t)
 	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")

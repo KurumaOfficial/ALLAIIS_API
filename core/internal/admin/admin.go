@@ -533,9 +533,15 @@ func (s *Server) exportConfig(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	providers := cfg.Providers
+	if providers == nil {
+		// Built-in providers need no entry in the file, but an export that
+		// answers null is not the object a reader expects.
+		providers = map[string]config.Provider{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"listen": cfg.Listen, "min_privacy": cfg.MinPrivacy,
-		"providers": cfg.Providers, "models": cfg.Models,
+		"providers": providers, "models": cfg.Models,
 	})
 }
 
