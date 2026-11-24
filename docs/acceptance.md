@@ -21,6 +21,7 @@ says otherwise; the guest session was out of its chat window.
 | Anthropic vision | a base64 `image` block in Messages | the image arrives in the agent multipart turn |
 | Bad attachment | an unreachable image URL, a document block | 400 `invalid_request`, upstream not called |
 | Out-of-range sampling | `temperature: 99` and `top_p: 5` on Chat | 400 `invalid_request`, upstream not called; `temperature: 1.5` answers |
+| Bad format or tool choice | `response_format: {"type":"xml"}`, a forced choice naming an unoffered tool | 400 `invalid_request`, upstream not called |
 | Vision | a red PNG through Chat and Responses | described red on both |
 | Structured output | `response_format` / `text.format` with a schema | a JSON object matching it |
 | Stop sequences | a stop word mid-reply, JSON and stream | cut before the word |
