@@ -20,6 +20,7 @@ says otherwise; the guest session was out of its chat window.
 | Emulation header | a request with `stop` and a forced `tool_choice` | `X-ALLAIIS-Emulated-Features` adds `stop` and `tool_choice` |
 | Anthropic vision | a base64 `image` block in Messages | the image arrives in the agent multipart turn |
 | Bad attachment | an unreachable image URL, a document block | 400 `invalid_request`, upstream not called |
+| Out-of-range sampling | `temperature: 99` and `top_p: 5` on Chat | 400 `invalid_request`, upstream not called; `temperature: 1.5` answers |
 | Vision | a red PNG through Chat and Responses | described red on both |
 | Structured output | `response_format` / `text.format` with a schema | a JSON object matching it |
 | Stop sequences | a stop word mid-reply, JSON and stream | cut before the word |

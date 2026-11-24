@@ -182,6 +182,22 @@ func TestMessagesRefusesADocumentBlock(t *testing.T) {
 	}
 }
 
+// TestMessagesKeepsTheAnthropicTemperatureScale pins the protocol's own range:
+// Anthropic stops at one even though Venice accepts two.
+func TestMessagesKeepsTheAnthropicTemperatureScale(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := messagesGateway(t, server.URL)
+	result := anthropicCall(handler, store.ClientKey(), `{"model":"claude-venice-web-fixture","max_tokens":8,`+
+		`"temperature":1.5,"messages":[{"role":"user","content":"hi"}]}`)
+	if result.Code != http.StatusBadRequest ||
+		!strings.Contains(result.Body.String(), "between 0 and 1") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestMessagesProtocolStreams(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		messages := body["prompt"].([]any)

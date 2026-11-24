@@ -447,7 +447,11 @@ reply can still drift — validate it if a wrong shape matters.
 
 Fields a web turn cannot fill are refused rather than faked: `n` above one and
 `logprobs` answer `invalid_request`. `max_completion_tokens` is read like
-`max_tokens`, since the newer clients send the cap under that name.
+`max_tokens`, since the newer clients send the cap under that name. Sampling
+values are checked against the protocol's own range before the call —
+`temperature` 0–2 (0–1 on Messages), `top_p` and `min_p` 0–1, penalties −2–2, a
+non-negative cap — because Venice's 400 for a bad value used to surface as a 502
+blaming the provider.
 
 A forced `tool_choice` is spelled out the same way: Chat `required` and Messages
 `any` become "call one of the tools now", a named function becomes a sentence

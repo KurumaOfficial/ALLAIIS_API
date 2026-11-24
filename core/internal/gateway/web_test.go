@@ -273,6 +273,33 @@ func TestWebRefusesAnImageInSystemTurn(t *testing.T) {
 	}
 }
 
+// TestWebRejectsOutOfRangeSampling pins the local refusal: Venice answers 400
+// for these, and the gateway used to turn that into a 502 blaming the provider.
+func TestWebRejectsOutOfRangeSampling(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := webGateway(t, server.URL)
+	for _, tc := range []struct{ name, field string }{
+		{"temperature", `"temperature":99`},
+		{"top_p", `"top_p":5`},
+		{"frequency_penalty", `"frequency_penalty":-9`},
+		{"presence_penalty", `"presence_penalty":-9`},
+		{"min_p", `"min_p":2`},
+		{"max_tokens", `"max_tokens":-1`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`",`+tc.field+`,`+
+				`"messages":[{"role":"user","content":"hi"}]}`)
+			if result.Code != http.StatusBadRequest ||
+				!strings.Contains(result.Body.String(), "invalid_request") {
+				t.Fatalf("got %d %s", result.Code, result.Body)
+			}
+		})
+	}
+}
+
 func TestWebChatSchemaGoesIntoTheSystemTurn(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		text := body["prompt"].([]any)[0].(map[string]any)["content"].(string)

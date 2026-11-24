@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A sampling value out of range is a local 400.** Venice rejects it with a
+  400, which the gateway turned into a 502 blaming the provider; temperature,
+  `top_p`, `min_p`, penalties and a negative cap are checked against the
+  protocol's own range first, and nothing is sent.
 - **The runbook states what protects the launcher on Windows.** The `0600` bits
   Go writes do not restrict other Windows accounts; the per-user Startup folder
   does, and the page says so in both languages now.

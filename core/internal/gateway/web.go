@@ -116,7 +116,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		request, reason, tools, err = webRequest(payload, target.Route.UpstreamModel)
 	case config.Messages:
 		request, reason, tools, err = messagesRequest(payload, target.Route.UpstreamModel)
-		if err == nil && stream && request.MaxTokens <= 0 {
+		if err == nil && stream && request.MaxTokens == 0 {
 			request.MaxTokens = defaultResponse
 		}
 	case config.Responses:
@@ -126,6 +126,12 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		return
 	}
 	if err != nil {
+		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
+		return 0, 0
+	}
+	// Venice answers 400 for a bad sampling value, which the gateway turned into
+	// a 502 blaming the provider; these ranges are the protocol's own.
+	if err := validateSampling(request, protocol); err != nil {
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return 0, 0
 	}
@@ -732,6 +738,40 @@ func checkContext(system string, messages []webprov.Message, tools []toolSpec, r
 	return nil
 }
 
+// validateSampling refuses values the endpoint would reject anyway, so the
+// caller reads a local 400 rather than a 502 from upstream.
+func validateSampling(request webprov.Request, protocol config.Protocol) error {
+	if request.MaxTokens < 0 {
+		return errors.New("max_tokens must be zero or positive")
+	}
+	if request.Temperature != nil {
+		value := *request.Temperature
+		limit := 2.0
+		if protocol == config.Messages {
+			// Anthropic's scale stops at one, even though Venice takes two.
+			limit = 1.0
+		}
+		if value < 0 || value > limit {
+			return fmt.Errorf("temperature must be between 0 and %g", limit)
+		}
+	}
+	if request.TopP != nil {
+		if value := *request.TopP; value < 0 || value > 1 {
+			return errors.New("top_p must be between 0 and 1")
+		}
+	}
+	if value := request.FrequencyPenalty; value != nil && (*value < -2 || *value > 2) {
+		return errors.New("frequency_penalty must be between -2 and 2")
+	}
+	if value := request.PresencePenalty; value != nil && (*value < -2 || *value > 2) {
+		return errors.New("presence_penalty must be between -2 and 2")
+	}
+	if value := request.MinP; value != nil && (*value < 0 || *value > 1) {
+		return errors.New("min_p must be between 0 and 1")
+	}
+	return nil
+}
+
 // hasNUL reports a NUL byte anywhere the endpoint would read it.
 func hasNUL(system string, messages []webprov.Message, tools []toolSpec) bool {
 	if strings.ContainsRune(system, 0) {
@@ -1093,6 +1133,14 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	}
 	if input.Logprobs != nil && *input.Logprobs || input.TopLogprobs != nil {
 		return webprov.Request{}, nil, nil, errors.New("logprobs are not available over a web session")
+	}
+	// A negative cap is a caller mistake, not an absent one; without this the
+	// fallback below would treat it as unset and answer normally.
+	if input.MaxTokens < 0 || input.MaxCompletion < 0 {
+		return webprov.Request{}, nil, nil, errors.New("max_tokens must be zero or positive")
+	}
+	if input.N < 0 {
+		return webprov.Request{}, nil, nil, errors.New("n must be 1: one web turn answers one choice")
 	}
 	// Newer clients send the cap under the other name.
 	maxTokens := input.MaxTokens
