@@ -52,6 +52,7 @@ type Gateway struct {
 	metrics   *metrics
 	reasoning *reasoningStore
 	reload    *reloadState
+	version   atomic.Value
 	mux       http.Handler
 }
 
@@ -90,7 +91,11 @@ func NewWithWeb(routes *router.Router, clientKey string, minimum config.Privacy,
 	g.minimum.Store(minimum)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		reply := map[string]string{"status": "ok"}
+		if version, ok := g.version.Load().(string); ok && version != "" {
+			reply["version"] = version
+		}
+		writeJSON(w, http.StatusOK, reply)
 	})
 	// A models request carries no body protocol, and a Claude client sends
 	// x-api-key while an OpenAI one sends Bearer; accept either.
@@ -219,6 +224,12 @@ func (g *Gateway) metricsPage(w http.ResponseWriter, r *http.Request) {
 // ClearCooldown lifts a stored and in-memory cooldown.
 func (g *Gateway) ClearCooldown(ctx context.Context, provider config.Provider, providerID, label string) error {
 	return g.table().routes.ClearCooldown(ctx, provider, providerID, label)
+}
+
+// WithVersion names the running build in /healthz.
+func (g *Gateway) WithVersion(version string) *Gateway {
+	g.version.Store(version)
+	return g
 }
 
 // Models lists every configured alias, without the privacy filter.

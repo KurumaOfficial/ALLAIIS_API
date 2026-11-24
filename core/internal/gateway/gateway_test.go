@@ -333,7 +333,7 @@ func newGateway(t *testing.T, cfg config.Config, store *vault.Store) http.Handle
 	if err != nil {
 		t.Fatal(err)
 	}
-	return gateway.New(routes, store.ClientKey(), cfg.MinPrivacy)
+	return gateway.New(routes, store.ClientKey(), cfg.MinPrivacy).WithVersion("test-build")
 }
 
 func complete(handler http.Handler, key, session, body string) *httptest.ResponseRecorder {
@@ -454,6 +454,18 @@ func TestTwoCredentialHeadersAreRefused(t *testing.T) {
 	handler.ServeHTTP(result, request)
 	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "ambiguous_credentials") {
 		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
+// TestHealthNamesTheBuild pins the one line a monitor or a bug report reads: the
+// process was healthy, but nothing said which binary answered.
+func TestHealthNamesTheBuild(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"version":"test-build"`) {
+		t.Fatalf("health: %d %s", result.Code, result.Body)
 	}
 }
 

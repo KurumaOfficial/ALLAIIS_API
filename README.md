@@ -127,7 +127,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /healthz` | Local liveness probe |
+| `GET /healthz` | Local liveness probe, no key: `{"status":"ok","version":"…"}` |
 | `OPTIONS /v1/*` | CORS preflight without a key |
 | `GET /metrics` | Prometheus counters, no key, loopback |
 | `GET /v1/models` | Aliases available under the configured privacy policy |
