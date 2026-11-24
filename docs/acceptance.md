@@ -53,6 +53,7 @@ recorded before that keep the names that were in use then.
 | Panel proxy paths | a local CONNECT proxy in Controls, then Discovery, Limits and the E2EE probe | clerk and outerface tunnels opened for each path |
 | Native catalog proxy | a fake public provider behind a local HTTP proxy, panel and CLI Discovery | `GET /v1/models` seen at the proxy; both return the fake model |
 | SOCKS5 proxy | a SOCKS5 server with user/pass, one Venice chat | outerface tunnel opened; 200 "Ready." |
+| E2EE canary proxy | `allaiis web e2ee` with a local CONNECT proxy | attestation and `decrypted: true` through clerk/outerface tunnels |
 | Limits tab | open Limits | guest and PRO rows with chat left, credits and reset dates |
 | Config export | `/api/export`, served from a fresh dir on a spare port | `providers: {}`, health 200, 11 models |
 | Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.44"}` |
