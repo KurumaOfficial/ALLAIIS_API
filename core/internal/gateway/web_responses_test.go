@@ -127,9 +127,12 @@ func TestResponsesRejectsAMissingInput(t *testing.T) {
 		writeFrames(w, "hi")
 	})
 	handler, store := responsesGateway(t, server.URL)
-	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture"}`)
-	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "input is required") {
-		t.Fatalf("got %d %s", result.Code, result.Body)
+	for _, input := range []string{"", `"input":null,`, `"input":[],`} {
+		body := `{"model":"gpt-venice-web-fixture",` + input + `"max_output_tokens":8}`
+		result := responsesCall(handler, store.ClientKey(), body)
+		if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "input is required") {
+			t.Fatalf("%s: got %d %s", input, result.Code, result.Body)
+		}
 	}
 }
 
