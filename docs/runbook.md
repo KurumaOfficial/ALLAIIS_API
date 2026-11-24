@@ -62,7 +62,8 @@ flags work when you start it by hand:
 
 The vault is already encrypted; the backup adds a manifest with a SHA-256 per
 file and `restore` refuses a file whose hash changed. Stop the gateway before a
-restore.
+restore. The backup does not include `passphrase` or the environment value: keep
+the passphrase somewhere else, or a restored vault cannot be opened.
 
 ## Upgrade
 
