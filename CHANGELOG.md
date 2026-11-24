@@ -5,7 +5,12 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.40
+
+Web chats share the proxy pool, and the tab says ALLAIIS Console.
+
 - **The browser tab says ALLAIIS Console.**
+
 ## v0.1.39
 
 The control panel is an ALLAIIS console, and a proxy pool can be pasted in.
