@@ -398,8 +398,9 @@ func TestMessagesProtocolHistory(t *testing.T) {
 		if !strings.Contains(messages[2].(map[string]any)["content"].(string), "ALLAIIS_TOOL_CALL") {
 			t.Errorf("assistant tool_use not replayed: %v", messages[2])
 		}
-		if !strings.Contains(messages[3].(map[string]any)["content"].(string), "go 1.26") {
-			t.Errorf("tool_result text lost: %v", messages[3])
+		if content := messages[3].(map[string]any)["content"].(string); !strings.Contains(content, "go 1.26") ||
+			!strings.Contains(content, "go 1.26\nWhat does it say?") {
+			t.Errorf("tool_result text lost or ran into the next block: %q", content)
 		}
 		writeFrames(w, "done")
 	})
@@ -407,7 +408,8 @@ func TestMessagesProtocolHistory(t *testing.T) {
 	body := `{"model":"claude-venice-web-fixture","max_tokens":64,"messages":[` +
 		`{"role":"user","content":"read go.mod"},` +
 		`{"role":"assistant","content":[{"type":"text","text":"reading"},{"type":"tool_use","id":"toolu_1","name":"read_file","input":{"path":"go.mod"}}]},` +
-		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"go 1.26"}]}],` +
+		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"go 1.26"},` +
+		`{"type":"text","text":"What does it say?"}]}],` +
 		`"tools":[{"name":"read_file","input_schema":{"type":"object"}}]}`
 	result := anthropicCall(handler, store.ClientKey(), body)
 	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "done") {

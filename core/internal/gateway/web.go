@@ -1413,7 +1413,9 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image, int) {
 		if strings.HasPrefix(part.Type, "tool_result") && part.ToolResult != nil {
 			result, resultImages, resultMissing := messageParts(part.ToolResult)
 			if result != "" {
-				joined.WriteString("\n" + result)
+				// The trailing newline keeps a text block that follows the
+				// result from running into it.
+				joined.WriteString("\n" + result + "\n")
 			}
 			images = append(images, resultImages...)
 			missing += resultMissing
