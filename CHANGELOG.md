@@ -5,6 +5,16 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.45
+
+Public catalogs can use the proxy pool, and the panel hint names SOCKS5.
+
+- **Public catalog discovery can use the proxy pool without `--with-keys`.**
+  `allaiis models discover` opens an existing vault when its passphrase is
+  already in the environment or the generated file, so a public provider is
+  read through the same proxies as a chat. The flag still forces the vault and
+  reports a broken one.
+
 ## v0.1.44
 
 Proxy and alias validation tightened, and stray files are gone.
