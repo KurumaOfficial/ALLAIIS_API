@@ -21,7 +21,7 @@ says otherwise; the guest session was out of its chat window.
 | Stop sequences | a stop word mid-reply, JSON and stream | cut before the word |
 | Forced tool choice | `required`, `any`, a named tool, `none` | a call, a call, a call, prose |
 | `count_tokens` | a Messages body | `{"input_tokens": …}`, no upstream call |
-| Model list shapes | `x-api-key` + `Anthropic-Version`, and Bearer | Anthropic and OpenAI shapes |
+| Model list shapes | `x-api-key` + `Anthropic-Version`, and Bearer | Anthropic and OpenAI shapes, each carrying only the routes it can call (2 Messages, 11 OpenAI) |
 | E2EE sealed reply | `e2ee-gpt-oss-120b-p` canary | `decrypted: true` |
 | E2EE tool loop | call and result inside the sealed turns | the final answer used the result |
 | Quota and plan | `web quota`, doctor | `pro: … chat, PRO, 0/100 credits`, reset dates |
