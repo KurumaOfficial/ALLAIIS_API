@@ -24,7 +24,7 @@ and the Playground from the page header.
 Recapture and Resume, gateway key reveal/copy |
 | Models | Register, mute and delete model aliases, including protocol, privacy and the `e2ee` checkbox; each row marks its transport (`web` for tier C, `api` for an official route) and `e2ee` when the alias encrypts to the enclave so the two are told apart at a glance |
 | Providers | Add API keys, remove credentials, capture a Venice web session, import OpenCode keys, rotate the gateway key |
-| Limits | Remaining chats, plan, credits and reset dates of every stored web session; Refresh probes them without spending a message |
+| Limits | Remaining chats, plan, credits, reset countdown and safe pace for every stored web session; rows turn amber at 1,000 left and red at 500, and Refresh probes them without spending a message |
 | Controls | Proxy list for provider requests and catalog discovery, web chats included (one `host:port[:user:pass]` or URL per line, encrypted, rotated per connection); tool-name retention and reset |
 | Discovery | Browse an upstream catalog with a stored credential and create an alias from a model |
 | Playground | Send a real probe, or probe every alias at once with status, latency and the upstream model |

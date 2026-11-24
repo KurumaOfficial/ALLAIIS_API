@@ -304,10 +304,29 @@ function fillLabelsFor (providerId, labelId) {
   fillSelect($(labelId), (provider ? provider.labels : []), $(labelId).value)
 }
 
+function resetIn (at) {
+  if (!at) return ''
+  const seconds = Math.round((at - Date.now()) / 1000)
+  if (seconds <= 0) return 'resetting now'
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days) return days + 'd ' + hours + 'h'
+  if (hours) return hours + 'h ' + minutes + 'm'
+  return minutes + 'm'
+}
+
+function safePace (remaining, at) {
+  if (!Number.isFinite(remaining) || remaining <= 0 || !at) return ''
+  const hours = (at - Date.now()) / 3600000
+  if (hours <= 0) return ''
+  return Math.max(0, Math.floor(remaining / hours)) + '/h safe pace'
+}
+
 async function refreshLimits () {
   if (!state) return
   const box = $('limits-out')
-  box.innerHTML = '<p class="muted">Fetching…</p>'
+  box.innerHTML = '<p class="muted">Fetching...</p>'
   const rows = []
   const errors = []
   for (const provider of (state.providers || []).filter(item => item.web)) {
@@ -320,16 +339,23 @@ async function refreshLimits () {
   }
   box.replaceChildren()
   for (const row of rows) {
+    const remaining = Number(row.chat_remaining)
+    const critical = Number.isFinite(remaining) && remaining <= 500
+    const warning = !critical && (row.low || (Number.isFinite(remaining) && remaining <= 1000))
+    const badge = critical ? 'bad' : warning ? 'warn' : 'ok'
+    const pace = safePace(remaining, row.reset_at)
     const line = document.createElement('div')
     line.className = 'row'
-    line.innerHTML = '<span class="badge ' + (row.low ? 'warn' : 'ok') + '">' + esc(row.plan || 'guest') + '</span>' +
-      '<strong>' + esc(row.label) + '</strong><span class="muted tiny">' + esc(row.provider) + ' · ' +
-      (row.chat_remaining ?? '?') + ' chat left' +
-      (row.reset_at ? ' · resets ' + new Date(row.reset_at).toLocaleString() : '') +
-      (row.credits !== undefined && row.credits !== null ? ' · ' + row.credits + '/' + (row.credit_cap ?? '?') + ' credits' : '') +
-      (row.credit_refill_at ? ' · refill ' + new Date(row.credit_refill_at).toLocaleDateString() : '') +
-      (row.principal === 'anonymous' ? ' · anonymous' : '') +
-      (row.error ? ' · ' + esc(row.error) : '') + '</span>'
+    line.innerHTML = '<span class="badge ' + badge + '">' + esc(row.plan || 'guest') + '</span>' +
+      '<strong>' + esc(row.label) + '</strong><span class="muted tiny">' + esc(row.provider) + ' | ' +
+      (Number.isFinite(remaining) ? remaining + ' chat left' : 'chat left ?') +
+      (row.reset_at ? ' | resets in ' + esc(resetIn(row.reset_at)) : '') +
+      (row.reset_at ? ' | ' + new Date(row.reset_at).toLocaleString() : '') +
+      (pace ? ' | ' + esc(pace) : '') +
+      (row.credits !== undefined && row.credits !== null ? ' | ' + row.credits + '/' + (row.credit_cap ?? '?') + ' credits' : '') +
+      (row.credit_refill_at ? ' | refill ' + new Date(row.credit_refill_at).toLocaleDateString() : '') +
+      (row.principal === 'anonymous' ? ' | anonymous' : '') +
+      (row.error ? ' | ' + esc(row.error) : '') + '</span>'
     box.append(line)
   }
   for (const error of errors) {

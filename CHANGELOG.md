@@ -5,6 +5,18 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.46
+
+Quota pace, warning thresholds and deep-tool visibility.
+
+- **Limits shows a reset countdown and a safe pace**, and turns a row amber at
+  1,000 chats left and red at 500. The countdown and pace are calculated from
+  the provider's reset timestamp; no extra probe is made.
+- **A deep tool history is visible without being blocked.** A request carrying
+  40 or more previous tool calls gets `X-ALLAIIS-Tool-Calls` and
+  `X-ALLAIIS-Tool-Warning` headers and a log line, so a runaway agent can be
+  found before it spends the daily quota. The request still runs normally.
+
 ## v0.1.45
 
 Public catalogs can use the proxy pool, and the panel hint names SOCKS5.

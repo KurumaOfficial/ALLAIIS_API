@@ -48,6 +48,8 @@ recorded before that keep the names that were in use then.
 | Stream terminal | a streaming reply, tail inspected | ends with `data: [DONE]`, no `: ping` after it |
 | First run | the release binary with no arguments in an empty directory | config, vault and passphrase created; panel opened; health 200 |
 | Console shell | seven tabs, settings sidebar, no console errors | all views shown; Limits rows; proxy list saved and cleared from Controls |
+| Limits countdown | open Limits with a stored Pro session | resets in, safe pace, amber at 1,000 and red at 500 |
+| Deep tool history | a Chat body with 40 past tool calls | 200, `X-ALLAIIS-Tool-Calls: 40`, warning header and a WARN log line |
 | Proxy tunnel | a local CONNECT proxy in Controls, one Venice chat | clerk and outerface tunnels opened; 200 "Ready." |
 | Proxy auth | an authenticated CONNECT proxy, one Venice chat | tunnels opened; wrong credentials answered 502 |
 | Panel proxy paths | a local CONNECT proxy in Controls, then Discovery, Limits and the E2EE probe | clerk and outerface tunnels opened for each path |
@@ -58,7 +60,7 @@ recorded before that keep the names that were in use then.
 | Proxy at rest | save a proxy with a unique host and password, search the vault file | no plaintext of either in `vault.sqlite` |
 | Limits tab | open Limits | guest and PRO rows with chat left, credits and reset dates |
 | Config export | `/api/export`, served from a fresh dir on a spare port | `providers: {}`, health 200, 11 models |
-| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.45"}` |
+| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.46"}` |
 
 Two facts worth keeping in view: the Pro **credit** bucket is empty (paid models
 answer `402`), and the **chat** allowance is the counter free models draw on.

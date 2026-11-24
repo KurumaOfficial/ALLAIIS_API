@@ -58,6 +58,25 @@ balance the paid models draw on. The counters are asked for with the session
 token: without it the endpoint answers the anonymous bucket, which made a
 signed-in label look empty. `allaiis up` prints every alias it serves.
 
+### Capacity planning
+
+The web quota counts **completions**, not tokens. A 100-token answer and a
+128K-token context each cost one chat. A tool round costs another chat because
+the client sends another assistant turn. The reset is a fixed daily timestamp,
+not a rolling window.
+
+At 10,000 chats/day and the 128K context of the built-in alias, the absolute
+ceiling is about 1.28B input tokens per day, or **38B tokens a month**. Actual
+traffic is lower because most requests are smaller. One trillion tokens a month
+would require 3.3M tokens per request (far above the context window) or roughly
+260,000 requests a day (26 Pro labels). The panel's Limits tab shows the
+remaining count, the reset countdown and a safe pace for the hours left.
+
+The cheapest token strategy is therefore one large, well-supplied request
+instead of many small ones. Do not truncate code or history to save quota:
+truncation does not reduce the request count and costs answer quality. Split a
+task only when the context would exceed the model window.
+
 ### Per-OS notes
 
 - **Windows.** `web chrome` finds Chrome under `Program Files`. Chrome 136 and

@@ -129,7 +129,7 @@ func (g *Gateway) instrument(next http.Handler) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Expose-Headers", "X-Request-Id, X-ALLAIIS-Transport-Tier, X-ALLAIIS-Provider, X-ALLAIIS-Credential, X-ALLAIIS-Model, X-ALLAIIS-Upstream-Model, X-ALLAIIS-Emulated-Features, X-ALLAIIS-E2EE, Retry-After")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Request-Id, X-ALLAIIS-Transport-Tier, X-ALLAIIS-Provider, X-ALLAIIS-Credential, X-ALLAIIS-Model, X-ALLAIIS-Upstream-Model, X-ALLAIIS-Emulated-Features, X-ALLAIIS-E2EE, X-ALLAIIS-Tool-Calls, X-ALLAIIS-Tool-Warning, Retry-After")
 		if r.Method == http.MethodOptions {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Key, Anthropic-Version, Anthropic-Beta, X-ALLAIIS-Session, X-ALLAIIS-Min-Privacy, X-ALLAIIS-Probe, X-Request-Id")
@@ -621,6 +621,13 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 	if err != nil {
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return
+	}
+	if calls := toolCallsInHistory(protocol, body); calls >= toolCallWarn {
+		w.Header().Set("X-ALLAIIS-Tool-Calls", strconv.Itoa(calls))
+		w.Header().Set("X-ALLAIIS-Tool-Warning", "high tool-call depth: batch independent calls and stop when the result is enough")
+		slog.Warn("deep tool history",
+			"request_id", requestID(r), "model", model, "tool_calls", calls,
+			"hint", "batch independent calls; every extra assistant turn is another upstream request")
 	}
 	sessionHeader := r.Header.Get("X-ALLAIIS-Session")
 	if sessionHeader == "" {
