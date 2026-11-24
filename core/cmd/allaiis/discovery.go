@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/catalog"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
+	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/gateway"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/vault"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/webprov"
 )
@@ -132,7 +134,13 @@ func discoverProvider(ctx context.Context, store *vault.Store, id string, provid
 		result.Status = "ok"
 		return result
 	}
-	models, err := catalog.List(ctx, provider.CatalogURL(), provider.CatalogFormat, entry.Key, match)
+	var proxies []*url.URL
+	if text := storedProxyText(ctx, store); text != "" {
+		if parsed, parseErr := gateway.ParseProxyList(text); parseErr == nil {
+			proxies = parsed
+		}
+	}
+	models, err := catalog.ListWithProxies(ctx, provider.CatalogURL(), provider.CatalogFormat, entry.Key, match, proxies)
 	if err != nil {
 		result.Status, result.Error = "error", err.Error()
 		return result

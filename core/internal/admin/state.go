@@ -276,7 +276,7 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "this provider needs a stored key")
 		return
 	}
-	models, err := catalog.List(r.Context(), provider.CatalogURL(), provider.CatalogFormat, entry.Key, match)
+	models, err := catalog.ListWithProxies(r.Context(), provider.CatalogURL(), provider.CatalogFormat, entry.Key, match, storedProxyURLs(r.Context(), s.options.Store))
 	if err != nil {
 		fail(w, http.StatusBadGateway, err.Error())
 		return

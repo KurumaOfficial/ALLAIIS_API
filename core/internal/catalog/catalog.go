@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
@@ -59,6 +60,12 @@ type Model struct {
 }
 
 func List(ctx context.Context, endpoint string, format config.CatalogFormat, key, match string) ([]Model, error) {
+	return ListWithProxies(ctx, endpoint, format, key, match, nil)
+}
+
+// ListWithProxies is List through the panel's proxy pool: one proxy per new
+// connection, or a direct dial when the list is empty.
+func ListWithProxies(ctx context.Context, endpoint string, format config.CatalogFormat, key, match string, proxies []*url.URL) ([]Model, error) {
 	endpointURL, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, err
@@ -75,7 +82,7 @@ func List(ctx context.Context, endpoint string, format config.CatalogFormat, key
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = nil
+	transport.Proxy = rotatingProxy(proxies)
 	client := http.Client{
 		Transport: transport,
 		Timeout:   15 * time.Second,
@@ -170,4 +177,18 @@ func readPage(ctx context.Context, client *http.Client, endpoint string, format 
 		return nil, errors.New("provider catalog exceeds 8 MiB")
 	}
 	return body, nil
+}
+
+// rotatingProxy hands out one URL per connection, without touching the
+// environment's own proxy settings.
+func rotatingProxy(proxies []*url.URL) func(*http.Request) (*url.URL, error) {
+	if len(proxies) == 0 {
+		return nil
+	}
+	pool := append([]*url.URL{}, proxies...)
+	var next atomic.Uint64
+	return func(*http.Request) (*url.URL, error) {
+		index := next.Add(1) - 1
+		return pool[index%uint64(len(pool))], nil
+	}
 }

@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Native catalog discovery follows the proxy pool.** `allaiis models
+  discover` and the panel's Discovery tab now send catalog requests through the
+  saved list, with one proxy per connection. A public catalog read without a
+  vault no longer touches a nil store.
 - **The panel's catalog, Limits and enclave checks use the proxy pool too.**
   Discovery, the remaining-chat probe and an E2EE attestation now take the same
   network path as a chat instead of dialling directly.

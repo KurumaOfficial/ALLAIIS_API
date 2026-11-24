@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -568,12 +569,18 @@ func (s *Server) webClient(ctx context.Context, timeout time.Duration) *webprov.
 
 func webClientFor(ctx context.Context, store *vault.Store, timeout time.Duration) *webprov.Client {
 	client := webprov.New(timeout)
+	client.SetProxies(storedProxyURLs(ctx, store))
+	return client
+}
+
+// storedProxyURLs is the saved pool in the form both transports take.
+func storedProxyURLs(ctx context.Context, store *vault.Store) []*url.URL {
 	if store == nil {
-		return client
+		return nil
 	}
 	entries, err := store.Entries(ctx, "proxy", "pool")
 	if err != nil {
-		return client
+		return nil
 	}
 	for _, entry := range entries {
 		if entry.Label != "default" {
@@ -582,12 +589,11 @@ func webClientFor(ctx context.Context, store *vault.Store, timeout time.Duration
 		urls, err := gateway.ParseProxyList(string(entry.Key))
 		if err != nil {
 			slog.Warn("stored proxy list is invalid", "error", err)
-			return client
+			return nil
 		}
-		client.SetProxies(urls)
-		return client
+		return urls
 	}
-	return client
+	return nil
 }
 
 // proxiesGet returns the saved pool, so the field can be edited.

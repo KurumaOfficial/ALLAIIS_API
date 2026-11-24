@@ -625,6 +625,9 @@ func applyStoredProxies(ctx context.Context, store *vault.Store, live *gateway.G
 
 // storedProxyText is the raw panel list, for the CLI web clients.
 func storedProxyText(ctx context.Context, store *vault.Store) string {
+	if store == nil {
+		return ""
+	}
 	entries, err := store.Entries(ctx, "proxy", "pool")
 	if err != nil {
 		return ""
