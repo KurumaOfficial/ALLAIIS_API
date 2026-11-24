@@ -5,6 +5,11 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.35
+
+A tool result is labelled, merged with the question that follows it, and read
+as an answer rather than a new instruction.
+
 - **Tool results are labelled and merged.** Consecutive results were bare user
   turns, so a model could read them as new instructions and call the same tools
   again; they are one turn beginning `Tool result from <name>:`, a question
@@ -12,6 +17,7 @@ Releases are tagged from `main`; the binaries are on the release page with
   format instead of telling the model to call a tool on every turn. An
   Anthropic text block after a `tool_result` no longer runs into the result, and
   Responses keeps the same boundary.
+
 ## v0.1.34
 
 Bad input is named, and a garbled call still works.
