@@ -130,10 +130,12 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 | `GET /healthz` | Local liveness probe, no key: `{"status":"ok","version":"…"}` |
 | `OPTIONS /v1/*` | CORS preflight without a key |
 | `GET /metrics` | Prometheus counters, no key, loopback |
-| `GET /v1/models` | Aliases available under the configured privacy policy |
+| `GET /v1/models` | Aliases available under the configured privacy policy; the Anthropic shape with `Anthropic-Version`, and only the routes that shape can call |
+| `GET /v1/models/{id}` | One alias with its limits, for a client that validates it first |
 | `POST /v1/chat/completions` | Chat Completions with native JSON or SSE |
 | `POST /v1/responses` | Foreground Responses creation with native JSON or SSE, also on web routes |
 | `POST /v1/messages` | Anthropic Messages creation with native JSON or SSE, also on web routes |
+| `POST /v1/messages/count_tokens` | Token estimate for a Messages body, no upstream call |
 
 Each model alias serves one generation endpoint. `models add` defaults to `chat`. `GET /v1/models` uses `allaiis_protocol` to identify Responses and Messages aliases. The gateway forwards native tool calls and usage when the configured API returns them.
 
