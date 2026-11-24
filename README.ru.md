@@ -127,7 +127,7 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 
 | Эндпоинт | Назначение |
 | --- | --- |
-| `GET /healthz` | Проверка доступности локального шлюза |
+| `GET /healthz` | Проверка доступности локального шлюза без ключа: `{"status":"ok","version":"…"}` |
 | `OPTIONS /v1/*` | CORS-preflight без ключа |
 | `GET /metrics` | Счётчики Prometheus, без ключа, loopback |
 | `GET /v1/models` | Алиасы, доступные по настроенной политике приватности |

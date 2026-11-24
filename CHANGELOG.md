@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **`/healthz` names the build.** A monitor or a bug report could see that the
+  process was healthy but not which binary answered; the probe carries the
+  version now, still without a key.
+
 ## v0.1.29
 
 Two keys in one request is a client bug, and it says so.
