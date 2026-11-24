@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.28
+
+A streamed call closes the way a client expects.
+
 
 - **A streamed function call closes its item.** It went from the argument delta
   straight to `response.completed`; a client that finalises on done events now
