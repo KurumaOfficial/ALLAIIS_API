@@ -471,6 +471,7 @@ the name record, so probes and synthetic checks do not read as model mistakes.
 | `sign_in_required` | the model needs a signed-in session (guest cookie) |
 | `context_length_exceeded` | upstream `userPromptTooLong` |
 | `rate_limit_exceeded` | the pool hit a `429`; that credential cools until the reset header says |
+| `ambiguous_credentials` | the request carried both `x-api-key` and `Authorization`; send one, since two keys in one request is a client bug rather than a wrong key |
 | `insufficient_balance` | the credit bucket for paid models is empty (`402 insufficientBalance`), not the chat allowance; that model is parked on the label for 30 minutes with a `Retry-After`, free models are unaffected, `web quota` shows both counters |
 | `e2ee_failed` | the enclave attestation or a sealed chunk failed; retry, or clear `e2ee` to send plaintext |
 

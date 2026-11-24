@@ -317,6 +317,13 @@ func (g *Gateway) Watch(ctx context.Context) {
 
 func (g *Gateway) authorize(protocol config.Protocol, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Two credentials in one request is a client bug; say so instead of
+		// answering a bare 401 that looks like a wrong key.
+		if ambiguousCredentials(r) {
+			writeError(w, protocol, http.StatusBadRequest, "ambiguous_credentials",
+				"Send the key in either x-api-key or Authorization, not both.")
+			return
+		}
 		if g.validKey(clientCredential(r, protocol)) {
 			next(w, r)
 			return
@@ -326,10 +333,20 @@ func (g *Gateway) authorize(protocol config.Protocol, next http.HandlerFunc) htt
 	}
 }
 
+// ambiguousCredentials reports a request that carries both header shapes.
+func ambiguousCredentials(r *http.Request) bool {
+	return len(r.Header.Values("X-Api-Key")) > 0 && len(r.Header.Values("Authorization")) > 0
+}
+
 // authorizeAny accepts the key in either header shape, for the endpoints that
 // belong to no single protocol.
 func (g *Gateway) authorizeAny(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if ambiguousCredentials(r) {
+			writeError(w, config.Chat, http.StatusBadRequest, "ambiguous_credentials",
+				"Send the key in either x-api-key or Authorization, not both.")
+			return
+		}
 		if g.validKey(clientCredential(r, config.Messages)) || g.validKey(clientCredential(r, config.Chat)) {
 			next(w, r)
 			return

@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **A request with two credential headers says so.** Sending both `x-api-key`
+  and `Authorization` used to answer a bare `401`, which reads as a wrong key;
+  it is a `400 ambiguous_credentials` now.
+
 ## v0.1.28
 
 A streamed call closes the way a client expects.

@@ -442,6 +442,21 @@ func TestModelsAnswerTheAnthropicShape(t *testing.T) {
 	}
 }
 
+// TestTwoCredentialHeadersAreRefused pins the debugging trap: a request with
+// both headers used to answer a bare 401, which reads as a wrong key.
+func TestTwoCredentialHeadersAreRefused(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	request.Header.Set("X-Api-Key", store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "ambiguous_credentials") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestInvalidRequestIDIsReplaced(t *testing.T) {
 	store, cfg := setup(t, "http://127.0.0.1:1")
 	handler := newGateway(t, cfg, store)
