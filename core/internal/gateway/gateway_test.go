@@ -4,6 +4,7 @@ package gateway_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -466,6 +467,22 @@ func TestHealthNamesTheBuild(t *testing.T) {
 	handler.ServeHTTP(result, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"version":"test-build"`) {
 		t.Fatalf("health: %d %s", result.Code, result.Body)
+	}
+}
+
+// TestInvalidUTF8IsRefused pins a silent corruption: Go's decoder replaces bad
+// bytes with U+FFFD and the model answers text the caller never sent.
+func TestInvalidUTF8IsRefused(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	body := append([]byte(`{"model":"demo","messages":[{"role":"user","content":"`), 0xFF)
+	body = append(body, []byte(`"}]}`)...)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "valid UTF-8") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
 	}
 }
 

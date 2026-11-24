@@ -373,6 +373,26 @@ func TestWebReadsTheNewerTokenCapName(t *testing.T) {
 	}
 }
 
+// TestWebRefusesANULByte pins the input Venice rejects: an agent can paste a
+// binary file into a prompt, and that used to reach upstream and come back as a
+// 502, blaming the gateway for the caller's data.
+func TestWebRefusesANULByte(t *testing.T) {
+	var calls atomic.Int32
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		calls.Add(1)
+		writeFrames(w, "ok")
+	})
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","messages":[{"role":"user","content":"a\u0000b"}]}`
+	result := complete(handler, store.ClientKey(), "", payload)
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "NUL byte") {
+		t.Fatalf("NUL accepted: %d %s", result.Code, result.Body)
+	}
+	if calls.Load() != 0 {
+		t.Fatal("the request reached upstream")
+	}
+}
+
 func TestWebEmptyFirstEventKeepsLaterText(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		fmt.Fprint(w, `{"kind":"content","content":""}

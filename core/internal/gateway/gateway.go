@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/router"
@@ -492,6 +493,10 @@ func (g *Gateway) countTokens(w http.ResponseWriter, r *http.Request) {
 		writeError(w, config.Messages, http.StatusBadRequest, "invalid_request", "Could not read the request body.")
 		return
 	}
+	if !utf8.Valid(body) {
+		writeError(w, config.Messages, http.StatusBadRequest, "invalid_request", "The request body must be valid UTF-8.")
+		return
+	}
 	var input struct {
 		Model string `json:"model"`
 	}
@@ -595,6 +600,12 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 		return
 	case err != nil:
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", "Could not read the request body.")
+		return
+	}
+	// Go's decoder replaces invalid bytes with U+FFFD instead of failing, which
+	// would quietly change the caller's text.
+	if !utf8.Valid(body) {
+		writeError(w, protocol, http.StatusBadRequest, "invalid_request", "The request body must be valid UTF-8.")
 		return
 	}
 

@@ -170,6 +170,14 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	if target.Route.StrictOrder {
 		request.Messages = mergeSameRole(request.Messages)
 	}
+	// Venice answers 400 for any prompt carrying a NUL byte, which an agent can
+	// produce by pasting a binary file; that is the caller's input, not an
+	// upstream fault, so say so before the call.
+	if hasNUL(reason.system, request.Messages, tools) {
+		writeError(w, protocol, http.StatusBadRequest, "invalid_request",
+			"The prompt contains a NUL byte, which the web endpoint rejects. Remove it and retry.")
+		return 0, 0
+	}
 	if err := checkContext(reason.system, request.Messages, tools, target.Route); err != nil {
 		writeError(w, protocol, http.StatusBadRequest, "context_length_exceeded", err.Error())
 		return 0, 0
@@ -700,6 +708,25 @@ func checkContext(system string, messages []webprov.Message, tools []toolSpec, r
 			estimateChars(size), route.MaxContext)
 	}
 	return nil
+}
+
+// hasNUL reports a NUL byte anywhere the endpoint would read it.
+func hasNUL(system string, messages []webprov.Message, tools []toolSpec) bool {
+	if strings.ContainsRune(system, 0) {
+		return true
+	}
+	for _, message := range messages {
+		if strings.ContainsRune(message.Content, 0) {
+			return true
+		}
+	}
+	for _, tool := range tools {
+		if strings.ContainsRune(tool.Function.Description, 0) ||
+			strings.ContainsRune(string(tool.Function.Parameters), 0) {
+			return true
+		}
+	}
+	return false
 }
 
 func replyID(protocol config.Protocol) string {

@@ -3,6 +3,17 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **A NUL byte is refused locally.** Venice answers 400 for a prompt carrying
+  one, which the gateway turned into a 502 and blamed on upstream; an agent can
+  produce it by pasting a binary file. It is a 400 naming the byte now, and the
+  request never leaves.
+- **Invalid UTF-8 is refused.** Go's decoder replaces bad bytes with U+FFFD, so
+  the model answered text the caller never sent; the body must be valid UTF-8.
+- **An unreadable tool-name record says so.** It was ignored silently, so a
+  counter reset looked unexplained; boot now logs the path and the reason.
+
 ## v0.1.30
 
 The health probe says which build answered.

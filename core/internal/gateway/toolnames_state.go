@@ -5,6 +5,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -177,10 +178,14 @@ func clearToolNameState() {
 func loadToolNameState(path string) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Warn("tool name record unreadable, starting fresh", "path", path, "error", err)
+		}
 		return
 	}
 	var saved toolNameState
 	if json.Unmarshal(raw, &saved) != nil {
+		slog.Warn("tool name record is not valid JSON, starting fresh", "path", path)
 		return
 	}
 	toolCounters.fold.Store(saved.Folded)
