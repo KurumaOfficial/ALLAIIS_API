@@ -5,6 +5,11 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **Tool results are labelled and merged.** Consecutive results were bare user
+  turns, so a model could read them as new instructions and call the same tools
+  again; they are one turn beginning `Tool result from <name>:`, and the tool
+  prompt explains that format instead of telling the model to call a tool on
+  every turn.
 ## v0.1.34
 
 Bad input is named, and a garbled call still works.

@@ -1133,9 +1133,10 @@ func randomID() string {
 func webRequest(payload []byte, model string) (webprov.Request, *webReason, []toolSpec, error) {
 	var input struct {
 		Messages []struct {
-			Role      string          `json:"role"`
-			Content   json.RawMessage `json:"content"`
-			ToolCalls json.RawMessage `json:"tool_calls"`
+			Role       string          `json:"role"`
+			Content    json.RawMessage `json:"content"`
+			ToolCalls  json.RawMessage `json:"tool_calls"`
+			ToolCallID string          `json:"tool_call_id"`
 		} `json:"messages"`
 		Temperature   *float64 `json:"temperature"`
 		TopP          *float64 `json:"top_p"`
@@ -1206,6 +1207,10 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	request.Reasoning = request.ReasoningEffort != "" ||
 		strings.Contains(strings.ToLower(model), "reasoning")
 	reason := &webReason{reasoning: request.Reasoning, includeUsage: input.StreamOptions.IncludeUsage}
+	callNames := map[string]string{}
+	// Consecutive tool results become one turn: two bare user messages read as
+	// new instructions, and a model then calls the same tools again.
+	lastToolResult := false
 	for _, message := range input.Messages {
 		text, images, missing := messageParts(message.Content)
 		if missing > 0 {
@@ -1213,6 +1218,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		}
 		switch message.Role {
 		case "system", "developer":
+			lastToolResult = false
 			if len(images) > 0 {
 				return webprov.Request{}, nil, nil, systemImageError()
 			}
@@ -1222,8 +1228,31 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 				reason.system += "\n\n" + text
 			}
 		case "tool":
-			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
+			// A bare result reads like a new instruction, and a model that
+			// cannot tell it answered its call calls the same tool again. Name
+			// the tool: parallel results are otherwise impossible to match up.
+			if strings.TrimSpace(text) != "" {
+				label := "Tool result"
+				if name := callNames[message.ToolCallID]; name != "" {
+					label += " from " + name
+				}
+				text = label + ":\n" + text
+			}
+			if lastToolResult && len(reason.turns) > 0 {
+				last := &reason.turns[len(reason.turns)-1]
+				last.Content += "\n" + text
+				last.Images = append(last.Images, images...)
+			} else {
+				reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
+			}
+			lastToolResult = true
 		case "assistant":
+			lastToolResult = false
+			for _, call := range messageToolCalls(message.ToolCalls) {
+				if call.ID != "" && call.Function.Name != "" {
+					callNames[call.ID] = call.Function.Name
+				}
+			}
 			if strings.TrimSpace(text) == "" {
 				text = renderToolCalls("", message.ToolCalls)
 			}
@@ -1232,6 +1261,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 			}
 			reason.turns = append(reason.turns, webprov.Message{Role: "assistant", Content: text})
 		default:
+			lastToolResult = false
 			reason.turns = append(reason.turns, webprov.Message{Role: "user", Content: text, Images: images})
 		}
 	}

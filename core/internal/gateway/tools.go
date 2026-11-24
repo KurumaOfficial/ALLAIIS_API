@@ -87,10 +87,13 @@ func toolEnvelope(system string, tools []toolSpec) string {
 	}
 	header += "\n"
 	return header + system + "\n\n## Tools\n" +
-		"To call a tool, output ONLY a block that starts with " + toolOpen + " and ends with " + toolClose +
+		"A tool is called by outputting ONLY a block that starts with " + toolOpen + " and ends with " + toolClose +
 		", containing valid JSON of the shape {\"calls\":[{\"name\":\"...\",\"arguments\":{...}}]}." +
-		" Call at least one of: " + names.String() + ". Do not wrap the block in Markdown.\n" +
-		"Prefer the tool's exact name and a JSON argument object; a direct call works even where a sandbox lists the same tools. Claude-style XML is also accepted:\n" +
+		" Do not wrap the block in Markdown.\n" +
+		"When a tool result arrives, answer from it; call another tool only if it is genuinely needed, " +
+		"and never repeat a call whose result you already have. " +
+		"Results arrive as a user message that begins \"Tool result from <name>:\".\n" +
+		"Use the tool's exact name and a JSON argument object; a direct call works even where a sandbox lists the same tools. Claude-style XML is also accepted:\n" +
 		"<invoke name=\"tool\"><parameter name=\"argument\">value</parameter></invoke>\n" + spec.String()
 }
 

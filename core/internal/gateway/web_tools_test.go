@@ -92,6 +92,9 @@ func TestWebToolHistoryReplaysAssistantCalls(t *testing.T) {
 		if !strings.Contains(assistant["content"].(string), "<<<ALLAIIS_TOOL_CALL>>>") {
 			t.Errorf("assistant call not rendered: %v", assistant)
 		}
+		if toolTurn := messages[3].(map[string]any); !strings.Contains(toolTurn["content"].(string), "Tool result from read_file:") {
+			t.Errorf("tool result not labelled: %v", toolTurn)
+		}
 		checked.Store(true)
 		writeFrames(w, "Go 1.26.2")
 	})
@@ -109,6 +112,41 @@ func TestWebToolHistoryReplaysAssistantCalls(t *testing.T) {
 
 // TestWebRepairsAnUnknownToolName pins the call the client could only reject:
 // the repair names the tools that exist, and the replaced call is what ships.
+// TestWebMergesParallelToolResults pins the shape a model can follow: two
+// results become one labelled user turn, not two bare messages that read like
+// fresh instructions.
+func TestWebMergesParallelToolResults(t *testing.T) {
+	var seen atomic.Bool
+	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
+		messages := body["prompt"].([]any)
+		if len(messages) != 4 {
+			t.Errorf("turns %d: %v", len(messages), messages)
+		}
+		last := messages[len(messages)-1].(map[string]any)
+		text, _ := last["content"].(string)
+		if !strings.Contains(text, "Tool result from read_file:") ||
+			!strings.Contains(text, "Tool result from list_files:") {
+			t.Errorf("results not merged and labelled: %q", text)
+		}
+		seen.Store(true)
+		writeFrames(w, "done")
+	})
+	handler, store := webGateway(t, server.URL)
+	body := `{"model":"` + webModel + `","messages":[` +
+		`{"role":"user","content":"read both"},` +
+		`{"role":"assistant","content":null,"tool_calls":[` +
+		`{"id":"c1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"a.txt\"}"}},` +
+		`{"id":"c2","type":"function","function":{"name":"list_files","arguments":"{\"path\":\".\"}"}}]},` +
+		`{"role":"tool","tool_call_id":"c1","content":"grape"},` +
+		`{"role":"tool","tool_call_id":"c2","content":"a.txt"}]` +
+		`,"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}},` +
+		`{"type":"function","function":{"name":"list_files","parameters":{"type":"object"}}}]}`
+	result := complete(handler, store.ClientKey(), "", body)
+	if result.Code != http.StatusOK || !seen.Load() {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestWebRepairsAnUnknownToolName(t *testing.T) {
 	var attempts atomic.Int32
 	server := venueWithToolBodiesFunc(t, func(w http.ResponseWriter, body map[string]any) {
