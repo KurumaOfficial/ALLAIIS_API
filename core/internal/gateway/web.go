@@ -346,6 +346,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	}
 	// A quiet model must not look like a dead stream, but a ping before the
 	// first event would end the retry window, so it waits for the stream.
+	// stopPings also runs before the terminal frame: a tick between the last
+	// data chunk and the handler return used to append ": ping" after [DONE].
+	stopPings := func() {}
 	if stream {
 		done := make(chan struct{})
 		var wg sync.WaitGroup
@@ -367,10 +370,14 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 				}
 			}
 		}()
-		defer func() {
-			close(done)
-			wg.Wait()
-		}()
+		var once sync.Once
+		stopPings = func() {
+			once.Do(func() {
+				close(done)
+				wg.Wait()
+			})
+		}
+		defer stopPings()
 	}
 
 	started := time.Now()
@@ -555,6 +562,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 			g.reasoning.save(target.Route.ID, assistant, thinking)
 		}
 	}
+	stopPings()
 	if err != nil && sent {
 		writeStreamError(w, protocol, err)
 		slog.Warn("web provider stream failed", "request_id", requestID(r),

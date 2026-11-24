@@ -98,6 +98,41 @@ func TestWebCompletionStreams(t *testing.T) {
 	}
 }
 
+// slowStreamWriter delays every write, so a ticker has time to fire in the
+// window between the terminal frame and the handler return.
+type slowStreamWriter struct {
+	http.ResponseWriter
+	delay time.Duration
+}
+
+func (w *slowStreamWriter) Write(body []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(body)
+	time.Sleep(w.delay)
+	return n, err
+}
+
+// TestWebStreamEndsWithoutAPingAfterDone pins the terminal race: the keep-alive
+// ticker used to be stopped only on handler return, so a tick could append
+// ": ping" after [DONE]. The pings now stop before the terminal frame.
+func TestWebStreamEndsWithoutAPingAfterDone(t *testing.T) {
+	previous := gateway.SetStreamPingInterval(time.Millisecond)
+	t.Cleanup(func() { gateway.SetStreamPingInterval(previous) })
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		writeFrames(w, "answer")
+	})
+	handler, store := webGateway(t, server.URL)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions",
+		strings.NewReader(`{"model":"`+webModel+`","stream":true,"messages":[{"role":"user","content":"hi"}]}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(&slowStreamWriter{ResponseWriter: result, delay: 5 * time.Millisecond}, request)
+	body := result.Body.String()
+	if !strings.HasSuffix(body, "data: [DONE]\n\n") {
+		t.Fatalf("ping after done: %q", body)
+	}
+}
+
 func TestWebCompletionJSON(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		fmt.Fprint(w, `{"kind":"content","content":"full answer"}`)
