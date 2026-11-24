@@ -63,8 +63,12 @@ func parseProxyLine(line string) (*url.URL, error) {
 		if proxy.Path != "" && proxy.Path != "/" || proxy.RawQuery != "" || proxy.Fragment != "" {
 			return nil, errors.New("a proxy URL carries no path, query or fragment")
 		}
-		if _, _, err := net.SplitHostPort(proxy.Host); err != nil {
+		host, port, err := net.SplitHostPort(proxy.Host)
+		if err != nil || host == "" {
 			return nil, errors.New("the URL must carry host:port")
+		}
+		if value, err := strconv.Atoi(port); err != nil || value < 1 || value > 65535 {
+			return nil, errors.New("port must be 1-65535")
 		}
 		return proxy, nil
 	}

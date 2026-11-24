@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A proxy URL is now checked like the shorthand form.** An empty host or a
+  port outside 1-65535 is rejected when the list is saved, not left to fail on
+  the first request.
 ## v0.1.43
 
 Panel and catalog traffic follow the proxy pool, and a leaked snapshot is gone.

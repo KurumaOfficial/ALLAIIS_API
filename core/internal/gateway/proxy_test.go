@@ -31,7 +31,7 @@ socks5://127.0.0.1:1080
 	if list[3].Scheme != "socks5" {
 		t.Errorf("scheme: %v", list[3])
 	}
-	for _, bad := range []string{"nope", "host:0", "host:99999", "ftp://host:1", "http://host:1/path", "host:port:u:p"} {
+	for _, bad := range []string{"nope", "host:0", "host:99999", "ftp://host:1", "http://host:1/path", "host:port:u:p", "http://host:0", "http://host:99999", "http://host:abc", "http://:8080"} {
 		if _, err := ParseProxyList(bad); err == nil {
 			t.Errorf("%q accepted", bad)
 		}
