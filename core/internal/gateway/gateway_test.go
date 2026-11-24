@@ -508,6 +508,22 @@ func TestParseErrorNamesTheMistake(t *testing.T) {
 	}
 }
 
+// TestUTF8BOMIsAccepted pins a Windows habit: a BOM before the JSON used to be
+// a syntax error, though the document after it is fine.
+func TestUTF8BOMIsAccepted(t *testing.T) {
+	store, cfg := setup(t, "http://127.0.0.1:1")
+	handler := newGateway(t, cfg, store)
+	body := append([]byte{0xEF, 0xBB, 0xBF},
+		[]byte(`{"model":"no-such-model","messages":[{"role":"user","content":"hi"}]}`)...)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+store.ClientKey())
+	result := httptest.NewRecorder()
+	handler.ServeHTTP(result, request)
+	if result.Code != http.StatusNotFound {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestInvalidRequestIDIsReplaced(t *testing.T) {
 	store, cfg := setup(t, "http://127.0.0.1:1")
 	handler := newGateway(t, cfg, store)

@@ -730,6 +730,9 @@ func messagesVersion(values []string) (string, error) {
 // actual mistake: a syntax error quotes the decoder, a non-object says what it
 // wanted. "expected a JSON object" used to cover both.
 func decodeJSONObject(body []byte, target any) error {
+	// A UTF-8 BOM is not JSON, but Windows tools prepend it often enough that
+	// refusing the body with a syntax error would be unhelpful.
+	body = bytes.TrimPrefix(body, []byte{0xEF, 0xBB, 0xBF})
 	if err := json.Unmarshal(body, target); err != nil {
 		var typeError *json.UnmarshalTypeError
 		if errors.As(err, &typeError) {

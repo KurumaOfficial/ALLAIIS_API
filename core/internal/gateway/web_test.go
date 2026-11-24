@@ -457,6 +457,11 @@ func TestWebRejectsWhatItCannotAnswer(t *testing.T) {
 	if result := complete(handler, store.ClientKey(), "", payload); result.Code != http.StatusOK {
 		t.Errorf("n=1 rejected: %d %s", result.Code, result.Body)
 	}
+	// Zero asks for no token data, so it is not a request for logprobs.
+	payload = `{"model":"` + webModel + `","top_logprobs":0,"messages":[{"role":"user","content":"hi"}]}`
+	if result := complete(handler, store.ClientKey(), "", payload); result.Code != http.StatusOK {
+		t.Errorf("top_logprobs=0 rejected: %d %s", result.Code, result.Body)
+	}
 }
 
 func TestWebReadsTheNewerTokenCapName(t *testing.T) {

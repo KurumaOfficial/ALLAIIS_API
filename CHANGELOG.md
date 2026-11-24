@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A UTF-8 BOM before the JSON is accepted.** A Windows tool that writes one
+  used to get a syntax error for a document that was otherwise valid.
+- **`top_logprobs: 0` is not a logprobs request.** It asks for no token data,
+  and it used to be refused like a positive value.
 - **A tool choice naming an unoffered tool is a 400.** The stand-in instruction
   used to name it anyway, so the model was asked for a call it could not make.
 - **An unknown structured-output type is a 400.** It used to be ignored, and a

@@ -1165,7 +1165,7 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 	if input.N > 1 {
 		return webprov.Request{}, nil, nil, errors.New("n must be 1: one web turn answers one choice")
 	}
-	if input.Logprobs != nil && *input.Logprobs || input.TopLogprobs != nil {
+	if input.Logprobs != nil && *input.Logprobs || input.TopLogprobs != nil && *input.TopLogprobs > 0 {
 		return webprov.Request{}, nil, nil, errors.New("logprobs are not available over a web session")
 	}
 	if err := checkFormat(input.ResponseFormat.Type, "response_format.type"); err != nil {
