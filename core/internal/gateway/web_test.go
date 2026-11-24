@@ -326,6 +326,29 @@ func TestWebRefusesAFormatOrToolItCannotHonour(t *testing.T) {
 	}
 }
 
+// TestWebRejectsAToolItCannotOffer pins the tool list: a built-in tool type
+// used to be offered with an empty name, and a nameless function reached the
+// model as an anonymous callable.
+func TestWebRejectsAToolItCannotOffer(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := webGateway(t, server.URL)
+	for _, tc := range []struct{ name, tools, want string }{
+		{"web search", `[{"type":"web_search_preview"}]`, "only function tools"},
+		{"no name", `[{"type":"function","function":{"parameters":{"type":"object"}}}]`, "non-empty name"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result := complete(handler, store.ClientKey(), "", `{"model":"`+webModel+`","tools":`+tc.tools+`,`+
+				`"messages":[{"role":"user","content":"hi"}]}`)
+			if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), tc.want) {
+				t.Fatalf("got %d %s", result.Code, result.Body)
+			}
+		})
+	}
+}
+
 func TestWebChatSchemaGoesIntoTheSystemTurn(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		text := body["prompt"].([]any)[0].(map[string]any)["content"].(string)

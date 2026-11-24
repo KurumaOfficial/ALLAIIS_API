@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A tool the gateway cannot offer is a 400.** A built-in type such as
+  `web_search_preview` was offered with an empty name on Chat and skipped
+  silently on Responses; only function tools with a name are accepted now.
 - **A closing sentinel that lost a bracket still closes the call.** The open
   side already tolerated the typo; the close side dropped the call instead of
   parsing it.

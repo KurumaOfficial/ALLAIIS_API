@@ -77,7 +77,11 @@ func responsesRequest(payload []byte, model string) (webprov.Request, *webReason
 	tools := make([]toolSpec, 0, len(input.Tools))
 	for _, tool := range input.Tools {
 		if tool.Type != "" && tool.Type != "function" {
-			continue
+			return webprov.Request{}, nil, nil, fmt.Errorf(
+				"tool type %q is not supported; only function tools", tool.Type)
+		}
+		if tool.Name == "" {
+			return webprov.Request{}, nil, nil, errors.New("every tool must have a non-empty name")
 		}
 		if tool.Name == "" {
 			continue

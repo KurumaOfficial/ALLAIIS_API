@@ -1238,6 +1238,15 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 		reason.jsonMode(name, schema)
 	}
 	tools := input.Tools
+	for _, tool := range tools {
+		if tool.Type != "" && tool.Type != "function" {
+			return webprov.Request{}, nil, nil, fmt.Errorf(
+				"tool type %q is not supported; only function tools", tool.Type)
+		}
+		if tool.Function.Name == "" {
+			return webprov.Request{}, nil, nil, errors.New("every tool must have a non-empty name")
+		}
+	}
 	if len(tools) > 0 {
 		if name := forcedToolName(input.ToolChoice); name != "" && !offeredTool(tools, name) {
 			return webprov.Request{}, nil, nil, fmt.Errorf(

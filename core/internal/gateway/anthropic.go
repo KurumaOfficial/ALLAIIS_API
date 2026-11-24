@@ -79,6 +79,9 @@ func messagesRequest(payload []byte, model string) (webprov.Request, *webReason,
 	}
 	tools := make([]toolSpec, 0, len(input.Tools))
 	for _, tool := range input.Tools {
+		if tool.Name == "" {
+			return webprov.Request{}, nil, nil, errors.New("every tool must have a non-empty name")
+		}
 		spec := toolSpec{Type: "function"}
 		spec.Function.Name = tool.Name
 		spec.Function.Description = tool.Description

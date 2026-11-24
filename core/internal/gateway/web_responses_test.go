@@ -136,6 +136,21 @@ func TestResponsesRejectsAMissingInput(t *testing.T) {
 	}
 }
 
+// TestResponsesRejectsABuiltInTool pins the same rule on the Responses shape,
+// which used to skip an unsupported tool type without a word.
+func TestResponsesRejectsABuiltInTool(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		t.Error("upstream was called")
+		writeFrames(w, "hi")
+	})
+	handler, store := responsesGateway(t, server.URL)
+	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","input":"hi",`+
+		`"tools":[{"type":"web_search_preview"}]}`)
+	if result.Code != http.StatusBadRequest || !strings.Contains(result.Body.String(), "only function tools") {
+		t.Fatalf("got %d %s", result.Code, result.Body)
+	}
+}
+
 func TestResponsesProtocolJSON(t *testing.T) {
 	server := veniceFixture(t, func(w http.ResponseWriter, body map[string]any) {
 		messages := body["prompt"].([]any)
