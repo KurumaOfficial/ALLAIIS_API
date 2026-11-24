@@ -19,7 +19,7 @@ import (
 )
 
 // version is a var so a release build can set it with -ldflags.
-var version = "0.1.28"
+var version = "0.1.29"
 
 // runGUI serves the gateway and the loopback control panel together.
 func runGUI(ctx context.Context, dir, configPath, vaultPath, listen, ui string, openBrowser bool, smokeEvery time.Duration, smokeWebhook string, noToolProbe bool) error {

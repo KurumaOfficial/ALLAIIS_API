@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.29
+
+Two keys in one request is a client bug, and it says so.
+
 
 - **A request with two credential headers says so.** Sending both `x-api-key`
   and `Authorization` used to answer a bare `401`, which reads as a wrong key;
