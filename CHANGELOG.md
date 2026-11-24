@@ -5,11 +5,16 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.44
+
+Proxy and alias validation tightened, and stray files are gone.
+
 - **Every Venice web provider keeps the `-venice` suffix**, not only the built-in
   `venice-web` id; other web transports still end with `-WebAPI`.
 - **A proxy URL is now checked like the shorthand form.** An empty host or a
   port outside 1-65535 is rejected when the list is saved, not left to fail on
   the first request.
+
 ## v0.1.43
 
 Panel and catalog traffic follow the proxy pool, and a leaked snapshot is gone.
