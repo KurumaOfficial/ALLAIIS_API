@@ -169,6 +169,10 @@ type responsesShape struct {
 	open    bool
 	tooling bool
 	started bool
+	// text accumulates the streamed message so the completed object carries
+	// what a client would otherwise have to rebuild from the deltas.
+	message   strings.Builder
+	toolCalls []toolCall
 }
 
 func (s *responsesShape) hello() {
@@ -217,11 +221,13 @@ func (s *responsesShape) text(text string) {
 		})
 		fmt.Fprintf(s.w, "event: response.output_item.added\ndata: %s\n\n", added)
 	}
+	s.message.WriteString(text)
 	s.part(text)
 }
 
 func (s *responsesShape) calls(calls []toolCall) {
 	s.hello()
+	s.toolCalls = append(s.toolCalls, calls...)
 	for _, call := range calls {
 		s.item++
 		s.tooling = true
@@ -240,11 +246,36 @@ func (s *responsesShape) calls(calls []toolCall) {
 
 func (s *responsesShape) end(_ string, usage map[string]any) {
 	s.hello()
+	output := make([]any, 0, 1+len(s.toolCalls))
+	if s.open {
+		s.open = false
+		text := s.message.String()
+		item := map[string]any{
+			"type": "message", "id": s.id, "status": "completed", "role": "assistant",
+			"content": []any{map[string]any{"type": "output_text", "text": text}},
+		}
+		done, _ := json.Marshal(map[string]any{
+			"type": "response.output_text.done", "item_id": s.id,
+			"output_index": s.item, "content_index": 0, "text": text,
+		})
+		fmt.Fprintf(s.w, "event: response.output_text.done\ndata: %s\n\n", done)
+		closed, _ := json.Marshal(map[string]any{
+			"type": "response.output_item.done", "output_index": s.item, "item": item,
+		})
+		fmt.Fprintf(s.w, "event: response.output_item.done\ndata: %s\n\n", closed)
+		output = append(output, item)
+	}
+	for _, call := range s.toolCalls {
+		output = append(output, map[string]any{
+			"type": "function_call", "id": call.ID, "call_id": call.ID,
+			"name": call.Function.Name, "arguments": call.Function.Arguments,
+		})
+	}
 	done, _ := json.Marshal(map[string]any{
 		"type": "response.completed",
 		"response": map[string]any{
 			"id": s.id, "object": "response", "created_at": s.created,
-			"status": "completed", "model": s.model, "output": []any{},
+			"status": "completed", "model": s.model, "output": output,
 			"usage": responsesUsage(usage),
 		},
 	})

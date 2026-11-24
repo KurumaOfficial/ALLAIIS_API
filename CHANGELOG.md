@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **`response.completed` carries the finished items.** Its `output` array was
+  empty, so a streaming client that reads the last event instead of rebuilding
+  the deltas lost the text and the calls.
+
 ## v0.1.26
 
 Each model list offers only what that client can call.

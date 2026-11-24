@@ -263,7 +263,9 @@ tool_result) into web turns and answer with real Anthropic events
 (`message`, `function_call`, `function_call_output`) and flat function tools are
 translated, and the reply uses `response.created`, `response.output_text.delta`,
 `response.function_call_arguments.delta` and `response.completed`, or a
-`response` object.
+`response` object. The completed event carries the finished items — the message
+text and every function call — so a client that reads only the last event still
+has the answer.
 
 The transport is stateless, so the gateway stores turn lists and replays one
 when a request sends only `previous_response_id`. Stored turns sit in the vault

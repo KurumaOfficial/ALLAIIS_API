@@ -109,6 +109,54 @@ func TestResponsesProtocolStreamAndTool(t *testing.T) {
 			t.Fatalf("missing %q in %s", want, text)
 		}
 	}
+	output := completedOutput(t, text)
+	if len(output) != 1 || output[0].(map[string]any)["type"] != "function_call" {
+		t.Fatalf("completed output %+v", output)
+	}
+}
+
+// TestResponsesStreamCompletedCarriesTheText pins the object a client reads
+// last: it used to hold an empty output array, so the text existed only in the
+// deltas.
+func TestResponsesStreamCompletedCarriesTheText(t *testing.T) {
+	server := veniceFixture(t, func(w http.ResponseWriter, _ map[string]any) {
+		writeFrames(w, "Hello")
+	})
+	handler, store := responsesGateway(t, server.URL)
+	result := responsesCall(handler, store.ClientKey(), `{"model":"gpt-venice-web-fixture","stream":true,"input":"hi"}`)
+	output := completedOutput(t, result.Body.String())
+	if len(output) != 1 {
+		t.Fatalf("output %+v", output)
+	}
+	message := output[0].(map[string]any)
+	if message["type"] != "message" {
+		t.Fatalf("item %+v", message)
+	}
+	parts := message["content"].([]any)
+	if len(parts) != 1 || parts[0].(map[string]any)["text"] != "Hello" {
+		t.Fatalf("content %+v", parts)
+	}
+}
+
+// completedOutput reads the output array of the response.completed event.
+func completedOutput(t *testing.T, body string) []any {
+	t.Helper()
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(line, "data: ") || !strings.Contains(line, `"type":"response.completed"`) {
+			continue
+		}
+		var event struct {
+			Response struct {
+				Output []any `json:"output"`
+			} `json:"response"`
+		}
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &event); err != nil {
+			t.Fatalf("completed event: %v", err)
+		}
+		return event.Response.Output
+	}
+	t.Fatal("no response.completed event")
+	return nil
 }
 
 func TestResponsesProtocolHistory(t *testing.T) {
