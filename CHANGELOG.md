@@ -5,8 +5,13 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.41
+
+A Limits tab shows every web session's remaining allowance.
+
 - **A Limits tab shows every web session's remaining chats, plan, credits and
   reset dates.** Refresh probes the counters without spending a message.
+
 ## v0.1.40
 
 Web chats share the proxy pool, and the tab says ALLAIIS Console.
