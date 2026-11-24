@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.21
+
+Discovery tells you which label to pick.
+
 
 - **`models discover` names the labels to pick.** With two stored sessions the
   error asked to "select the provider and a credential", though the provider was
