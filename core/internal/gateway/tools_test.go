@@ -103,6 +103,21 @@ func TestToolGuardStripsAGarbledCloseTag(t *testing.T) {
 	}
 }
 
+// TestToolGuardAcceptsAGarbledCloseTagInABlock pins the other end of the same
+// typo: a call is not dropped just because its closing tag lost a bracket.
+func TestToolGuardAcceptsAGarbledCloseTagInABlock(t *testing.T) {
+	guard := guardFor("read_file")
+	block := `{"calls":[{"name":"read_file","arguments":{"path":"a.txt"}}]}`
+	text, calls, err := guard.Write("<<<ALLAIIS_TOOL_CALL>>>" + block + "<END_TOOL_CALL> after")
+	if err != nil || text != "" || len(calls) != 1 {
+		t.Fatalf("text=%q calls=%d err=%v", text, len(calls), err)
+	}
+	tail, more, err := guard.Flush()
+	if err != nil || tail != " after" || len(more) != 0 {
+		t.Fatalf("tail=%q more=%d err=%v", tail, len(more), err)
+	}
+}
+
 func TestToolGuardRejectsBadBlocks(t *testing.T) {
 	guard := guardFor("read_file")
 	if _, _, err := guard.Write("<<<ALLAIIS_TOOL_CALL>>>{\"calls\":[{\"name\":\"read_file\",\"arguments\":{\"path\":}}]}<<<END_TOOL_CALL>>>"); err == nil {
@@ -325,11 +340,15 @@ func TestToolGuardFlushRepairsTruncatedBlock(t *testing.T) {
 	if _, _, err := guard.Write(toolOpen); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := guard.Write(`{"calls":[{"name":"execute","arguments":{"code":"line one` + "\n" + `line two"}}]}` +
-		"<<<END_TOOL_CALL>>"); err != nil {
+	// A close tag missing its last ">" now counts as closed, so the call may
+	// arrive from either call; the repaired arguments are what matters.
+	_, early, err := guard.Write(`{"calls":[{"name":"execute","arguments":{"code":"line one` + "\n" + `line two"}}]}` +
+		"<<<END_TOOL_CALL>>")
+	if err != nil {
 		t.Fatal(err)
 	}
 	tail, calls, err := guard.Flush()
+	calls = append(early, calls...)
 	if err != nil || len(calls) != 1 || tail != "" {
 		t.Fatalf("flush %q %+v %v", tail, calls, err)
 	}

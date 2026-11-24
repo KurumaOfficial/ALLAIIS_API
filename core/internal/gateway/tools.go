@@ -526,7 +526,7 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 		}
 		head := current[:start]
 		rest := current[start+openLen:]
-		end := strings.Index(rest, toolClose)
+		end, closeLen := closeIndex(rest)
 		if end < 0 {
 			g.buf.Reset()
 			g.buf.WriteString(current[start:])
@@ -538,7 +538,7 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 		}
 		parsed, err := g.parse(rest[:end])
 		g.buf.Reset()
-		g.buf.WriteString(rest[end+len(toolClose):])
+		g.buf.WriteString(rest[end+closeLen:])
 		g.scanned = 0
 		if err != nil {
 			return head, nil, err
@@ -587,7 +587,12 @@ func (g *toolGuard) Flush() (text string, calls []toolCall, err error) {
 		}
 		return current, nil, nil
 	}
-	rest := trimPartialClose(current[start+openLen:], toolClose)
+	rest := current[start+openLen:]
+	if end, _ := closeIndex(rest); end >= 0 {
+		rest = rest[:end]
+	} else {
+		rest = trimPartialClose(rest, toolClose)
+	}
 	calls, err = g.parse(rest)
 	if err == nil {
 		calls = g.unique(calls)
@@ -943,6 +948,32 @@ func stripCloseMarker(text string) string {
 
 // toolOpenBody is the sentinel's name without brackets.
 const toolOpenBody = "ALLAIIS_TOOL_CALL"
+
+// toolCloseBody is the closing sentinel's name without brackets.
+const toolCloseBody = "END_TOOL_CALL"
+
+// closeIndex finds the closing sentinel, tolerating a dropped bracket.
+func closeIndex(rest string) (int, int) {
+	if start := strings.Index(rest, toolClose); start >= 0 {
+		return start, len(toolClose)
+	}
+	body := strings.Index(rest, toolCloseBody)
+	if body < 0 {
+		return -1, 0
+	}
+	start := body
+	for start > 0 && rest[start-1] == '<' {
+		start--
+	}
+	end := body + len(toolCloseBody)
+	for end < len(rest) && rest[end] == '>' {
+		end++
+	}
+	if start == body || end == body+len(toolCloseBody) {
+		return -1, 0
+	}
+	return start, end - start
+}
 
 // openIndexFrom finds an opening sentinel, tolerating a model that dropped a
 // bracket: one "<" or two ">" have been seen on the wire. It reports the start
