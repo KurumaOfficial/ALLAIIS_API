@@ -23,6 +23,7 @@
   <button class="nav" data-view="overview" aria-current="page">Overview</button>
   <button class="nav" data-view="aliases">Models</button>
   <button class="nav" data-view="keys">Providers</button>
+  <button class="nav" data-view="limits">Limits</button>
   <button class="nav" data-view="controls">Controls</button>
   <button class="nav" data-view="logs">Logs</button>
   <button class="nav" data-view="settings">Settings</button>
@@ -131,6 +132,14 @@
       <p class="muted">Rotating replaces the key every client must use. Existing clients keep working until you update them.</p>
       <button id="rotate" class="ghost">Rotate gateway key</button>
       <pre id="rotate-out" class="out" hidden></pre>
+    </div>
+  </section>
+
+  <section id="view-limits" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>Provider limits</h2><button id="limits-refresh" class="ghost">Refresh</button></div>
+      <p class="muted">Remaining allowance of every stored web session. The chat counter resets daily; credits refill on the date shown. The probe spends no message.</p>
+      <div id="limits-out" class="stack"></div>
     </div>
   </section>
 

@@ -50,10 +50,11 @@ function switchView (next) {
   }
   for (const section of document.querySelectorAll('.view')) section.hidden = section.id !== 'view-' + next
   const titles = { overview: 'Overview', aliases: 'Models', keys: 'Providers', controls: 'Controls',
-    logs: 'Logs', settings: 'Settings', discovery: 'Discovery', playground: 'Playground' }
+    logs: 'Logs', settings: 'Settings', limits: 'Limits', discovery: 'Discovery', playground: 'Playground' }
   $('title').textContent = titles[next] || (next[0].toUpperCase() + next.slice(1))
   if (next === 'logs') refreshLogs()
   if (next === 'controls') refreshProxies()
+  if (next === 'limits') refreshLimits()
 }
 
 function render () {
@@ -303,6 +304,31 @@ function fillLabelsFor (providerId, labelId) {
   fillSelect($(labelId), (provider ? provider.labels : []), $(labelId).value)
 }
 
+async function refreshLimits () {
+  const box = $('limits-out')
+  box.innerHTML = '<p class="muted">Fetching…</p>'
+  try {
+    const result = await api('/api/web/quota', { method: 'POST', body: JSON.stringify({ provider: 'venice-web' }) })
+    box.replaceChildren()
+    for (const row of result.labels || []) {
+      const line = document.createElement('div')
+      line.className = 'row'
+      line.innerHTML = '<span class="badge ' + (row.low ? 'warn' : 'ok') + '">' + esc(row.plan || 'guest') + '</span>' +
+        '<strong>' + esc(row.label) + '</strong><span class="muted tiny">' +
+        (row.chat_remaining ?? '?') + ' chat left' +
+        (row.reset_at ? ' · resets ' + new Date(row.reset_at).toLocaleString() : '') +
+        (row.credits !== undefined && row.credits !== null ? ' · ' + row.credits + '/' + (row.credit_cap ?? '?') + ' credits' : '') +
+        (row.credit_refill_at ? ' · refill ' + new Date(row.credit_refill_at).toLocaleDateString() : '') +
+        (row.principal === 'anonymous' ? ' · anonymous' : '') +
+        (row.error ? ' · ' + esc(row.error) : '') + '</span>'
+      box.append(line)
+    }
+    if (!(result.labels || []).length) box.innerHTML = '<p class="muted">No web session stored.</p>'
+  } catch (error) {
+    box.innerHTML = '<p class="muted">' + esc(error.message) + '</p>'
+  }
+}
+
 async function refreshProxies () {
   try {
     const data = await api('/api/proxies')
@@ -455,6 +481,8 @@ for (const button of document.querySelectorAll('[data-goto]')) button.onclick = 
   $('capture-open').onclick = async () => {
     try { show('capture-out', 'Opening the capture browser…'); show('capture-out', (await api('/api/web/chrome', { method: 'POST' })).output || 'Capture browser started') } catch (error) { show('capture-out', error.message) }
   }
+  $('limits-refresh').onclick = refreshLimits
+
   $('proxy-save').onclick = async () => {
     try {
       const result = await api('/api/proxies', { method: 'POST', body: JSON.stringify({ text: $('proxy-text').value }) })

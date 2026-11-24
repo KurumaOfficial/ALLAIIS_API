@@ -23,7 +23,8 @@ and the Playground from the page header.
 | Overview | Gateway health, served alias count, request counters with the count of label switches and repaired calls, tool reshaping with a per-kind breakdown (unwrap, fold, trailing word) and unknown names, their retention and Drop expired / Reset all buttons; the drop button shows how many names are past retention and hides at zero or when retention is off (then the card explains how to switch retention on), recent requests with their label, provider readiness with a quota-low badge after a probe, Quota,
 Recapture and Resume, gateway key reveal/copy |
 | Models | Register, mute and delete model aliases, including protocol, privacy and the `e2ee` checkbox; each row marks its transport (`web` for tier C, `api` for an official route) and `e2ee` when the alias encrypts to the enclave so the two are told apart at a glance |
-| Providers | Add API keys, remove credentials, capture a Venice web session, rotate the gateway key |
+| Providers | Add API keys, remove credentials, capture a Venice web session, import OpenCode keys, rotate the gateway key |
+| Limits | Remaining chats, plan, credits and reset dates of every stored web session; Refresh probes them without spending a message |
 | Controls | Proxy list for API-key providers (one `host:port[:user:pass]` or URL per line, encrypted, rotated per request); tool-name retention and reset |
 | Discovery | Browse an upstream catalog with a stored credential and create an alias from a model |
 | Playground | Send a real probe, or probe every alias at once with status, latency and the upstream model |
