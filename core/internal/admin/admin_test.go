@@ -485,6 +485,43 @@ func TestSmokeProbesEveryAvailableAlias(t *testing.T) {
 	}
 }
 
+// TestSmokeSkipsAParkedModel pins the model-scoped balance mark: a parked
+// alias used to spend a request that could only answer 402.
+func TestSmokeSkipsAParkedModel(t *testing.T) {
+	f := setup(t)
+	f.call(t, http.MethodPost, "/api/keys", `{"provider":"fake","label":"work","key":"sk-test"}`, "")
+	f.call(t, http.MethodPost, "/api/models",
+		`{"provider":"fake","upstream_model":"gpt-x","name":"x-alias","label":"work"}`, "")
+	key := f.upward.URL + "\x00work\x00x-alias"
+	if err := f.store.SetCooldown(t.Context(), "fake", key, time.Now().Add(30*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	result := f.call(t, http.MethodPost, "/api/smoke", `{}`, "")
+	if result.Code != http.StatusOK {
+		t.Fatalf("smoke: %d %s", result.Code, result.Body)
+	}
+	var reply struct {
+		Passed  int `json:"passed"`
+		Failed  int `json:"failed"`
+		Results []struct {
+			Alias  string `json:"alias"`
+			Status int    `json:"status"`
+			OK     bool   `json:"ok"`
+			Error  string `json:"error"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &reply); err != nil {
+		t.Fatal(err)
+	}
+	if reply.Passed != 0 || reply.Failed != 1 || len(reply.Results) != 1 {
+		t.Fatalf("unexpected smoke reply: %+v", reply)
+	}
+	got := reply.Results[0]
+	if got.Status != http.StatusPaymentRequired || got.OK || !strings.Contains(got.Error, "model has no balance") {
+		t.Fatalf("parked model was probed: %+v", got)
+	}
+}
+
 func TestSmokeSkipsAliasesWithoutCredentials(t *testing.T) {
 	f := setup(t)
 	f.call(t, http.MethodPost, "/api/models",

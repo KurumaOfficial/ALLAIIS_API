@@ -401,9 +401,19 @@ func (s *Server) smokeRun(ctx context.Context, alias string) ([]probeResult, int
 		if bare, bareErr := s.options.Store.Cooldown(ctx, route.Provider, provider.BaseURL); bareErr == nil && bare.After(until) {
 			until = bare
 		}
-		if err == nil && time.Now().Before(until) {
+		// A model-scoped balance mark means the call can only answer 402; the
+		// sweep used to spend the request anyway and report a failure.
+		var balance time.Time
+		if route.CredentialLabel != "" {
+			balance, _ = s.options.Store.Cooldown(ctx, route.Provider, key+"\x00"+route.ID)
+		}
+		switch {
+		case !balance.IsZero() && time.Now().Before(balance):
+			result.Status = http.StatusPaymentRequired
+			result.Error = "model has no balance until " + balance.Format("15:04:05")
+		case err == nil && time.Now().Before(until):
 			result.Error = "provider cooling until " + until.Format("15:04:05")
-		} else {
+		default:
 			result = s.probeOne(ctx, cfg, route, "Reply with the single word: ready")
 		}
 		result.Alias = route.ID

@@ -5,6 +5,9 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **The panel's smoke skips a parked model.** It used to spend a request that
+  could only answer `402`; the model-scoped balance mark is honoured now, and a
+  test pins that the upstream is not called.
 ## v0.1.35
 
 A tool result is labelled, merged with the question that follows it, and read
