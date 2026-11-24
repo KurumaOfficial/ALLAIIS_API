@@ -3,6 +3,12 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
+## Unreleased
+
+- **A streamed function call closes its item.** It went from the argument delta
+  straight to `response.completed`; a client that finalises on done events now
+  gets `response.function_call_arguments.done` and `response.output_item.done`.
+
 ## v0.1.27
 
 The last Responses event holds the answer.

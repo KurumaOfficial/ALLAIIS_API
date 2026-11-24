@@ -104,7 +104,9 @@ func TestResponsesProtocolStreamAndTool(t *testing.T) {
 		`"tools":[{"type":"function","name":"read_file","parameters":{"type":"object"}}]}`
 	result := responsesCall(handler, store.ClientKey(), body)
 	text := result.Body.String()
-	for _, want := range []string{"event: response.created", `"type":"function_call"`, "response.function_call_arguments.delta", "event: response.completed"} {
+	for _, want := range []string{"event: response.created", `"type":"function_call"`,
+		"response.function_call_arguments.delta", "response.function_call_arguments.done",
+		"event: response.output_item.done", "event: response.completed"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in %s", want, text)
 		}

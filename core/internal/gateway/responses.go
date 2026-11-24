@@ -241,6 +241,20 @@ func (s *responsesShape) calls(calls []toolCall) {
 			"output_index": s.item, "delta": call.Function.Arguments,
 		})
 		fmt.Fprintf(s.w, "event: response.function_call_arguments.delta\ndata: %s\n\n", delta)
+		// A client that finalises an item on its done event needs both.
+		argsDone, _ := json.Marshal(map[string]any{
+			"type": "response.function_call_arguments.done", "item_id": call.ID,
+			"output_index": s.item, "arguments": call.Function.Arguments,
+		})
+		fmt.Fprintf(s.w, "event: response.function_call_arguments.done\ndata: %s\n\n", argsDone)
+		closed, _ := json.Marshal(map[string]any{
+			"type": "response.output_item.done", "output_index": s.item,
+			"item": map[string]any{
+				"type": "function_call", "id": call.ID, "call_id": call.ID,
+				"name": call.Function.Name, "arguments": call.Function.Arguments,
+			},
+		})
+		fmt.Fprintf(s.w, "event: response.output_item.done\ndata: %s\n\n", closed)
 	}
 }
 
