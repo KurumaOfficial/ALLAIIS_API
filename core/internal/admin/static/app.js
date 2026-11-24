@@ -8,6 +8,8 @@ let view = 'overview'
 let logCursor = 0
 let keyVisible = false
 const quotas = {}
+// quotaTried remembers which providers already asked once on open.
+const quotaTried = new Set()
 // The probe result outlives one render, so a low session stays visible.
 const lowQuota = {}
 let pickedModel = null
@@ -151,25 +153,14 @@ function render () {
       const quota = document.createElement('button')
       quota.className = 'ghost'
       quota.textContent = 'Quota'
-      quota.onclick = async () => {
-        try {
-          const result = await api('/api/web/quota', { method: 'POST', body: JSON.stringify({ provider: provider.id }) })
-          lowQuota[provider.id] = result.labels.some(row => row.low)
-          quotas[provider.id] = result.labels.map(row => row.label + ': ' +
-            (row.error ? row.error : (row.low ? 'LOW, ' : '') + (row.chat_remaining ?? '?') + ' chat left' +
-              (row.plan ? ', ' + row.plan : '') +
-              (row.credits !== undefined && row.credits !== null
-                ? ', ' + row.credits + (row.credit_cap ? '/' + row.credit_cap : '') + ' credits' +
-                  (row.credits === 0 && row.credit_refill_at
-                    ? ' (refill ' + new Date(row.credit_refill_at).toLocaleDateString() + ')'
-                    : '')
-                : '') +
-              (row.reset_at ? ', resets ' + new Date(row.reset_at).toLocaleString() : '') +
-              (row.principal === 'anonymous' ? ' (anonymous)' : ''))).join(' · ')
-          render()
-        } catch (error) { toast(error.message, true) }
-      }
+      quota.onclick = () => loadQuota(provider, false)
       line.append(quota)
+      if (!quotaTried.has(provider.id)) {
+        // Show the counters once on open, without spending a message; a dead
+        // session should not throw a toast at every page load.
+        quotaTried.add(provider.id)
+        loadQuota(provider, true)
+      }
       const recapture = document.createElement('button')
       recapture.className = 'ghost'
       recapture.textContent = 'Recapture'
@@ -311,6 +302,31 @@ async function refresh () {
     $('gateway-pill').textContent = 'panel error'
     $('gateway-pill').className = 'pill bad'
     toast(error.message, true)
+  }
+}
+
+// loadQuota reads one provider's counters. quiet is for the automatic first
+// load: a dead session shows in the line instead of a toast on every visit.
+async function loadQuota (provider, quiet) {
+  try {
+    const result = await api('/api/web/quota', { method: 'POST', body: JSON.stringify({ provider: provider.id }) })
+    lowQuota[provider.id] = result.labels.some(row => row.low)
+    quotas[provider.id] = result.labels.map(row => row.label + ': ' +
+      (row.error ? row.error : (row.low ? 'LOW, ' : '') + (row.chat_remaining ?? '?') + ' chat left' +
+        (row.plan ? ', ' + row.plan : '') +
+        (row.credits !== undefined && row.credits !== null
+          ? ', ' + row.credits + (row.credit_cap ? '/' + row.credit_cap : '') + ' credits' +
+            (row.credits === 0 && row.credit_refill_at
+              ? ' (refill ' + new Date(row.credit_refill_at).toLocaleDateString() + ')'
+              : '')
+          : '') +
+        (row.reset_at ? ', resets ' + new Date(row.reset_at).toLocaleString() : '') +
+        (row.principal === 'anonymous' ? ' (anonymous)' : ''))).join(' · ')
+    render()
+  } catch (error) {
+    quotas[provider.id] = 'quota unavailable: ' + error.message
+    render()
+    if (!quiet) toast(error.message, true)
   }
 }
 

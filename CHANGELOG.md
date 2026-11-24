@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **The panel shows the quota line on open.** The counters, plan and credits
+  needed a click; they load once when the page does, quietly if the session is
+  dead, and still spend no message.
+
 - **A live acceptance record**, `docs/acceptance.md`, lists what was exercised
   against Venice with dates and results, beside the offline matrix.
 
