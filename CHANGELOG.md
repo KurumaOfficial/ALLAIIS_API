@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.20
+
+The model list answers a Claude client and a single alias.
+
 
 - **The model endpoints belong to no protocol.** `GET /v1/models` accepted only a
   Bearer key, so a Claude client sending `x-api-key` got a 401; both header
