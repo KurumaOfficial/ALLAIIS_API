@@ -77,7 +77,7 @@ jobs:
           awk -v want="## v$tag" '
             $0 == want {inside = 1; next}
             /^## v/ {inside = 0}
-            inside
+            inside && (NF || seen) {print; seen = 1}
           ' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then
             echo "See [CHANGELOG.md](CHANGELOG.md) for this release." > notes.md
