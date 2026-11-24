@@ -11,7 +11,7 @@
 `--no-open` не открывает браузер.
 
 Оболочка повторяет кабинет OpenCode: верхняя панель, горизонтальные вкладки
-(Overview, Models, Providers, Controls, Logs, Settings) и боковое меню настроек.
+(Overview, Models, Providers, Limits, Controls, Logs, Settings) и боковое меню настроек.
 Models и Providers — прежние Aliases и Keys; управление именами инструментов и
 список прокси находятся в Controls. Discovery открывается из заголовка Models,
 Playground — из шапки страницы.

@@ -11,7 +11,7 @@ port, `--listen 127.0.0.1:9000` overrides the gateway address for this run and
 `--no-open` skips the browser.
 
 The console shell follows the OpenCode cabinet: a top bar, horizontal tabs
-(Overview, Models, Providers, Controls, Logs, Settings) and a settings sidebar.
+(Overview, Models, Providers, Limits, Controls, Logs, Settings) and a settings sidebar.
 Models and Providers are the old Aliases and Keys views; the tool-name controls
 and the proxy list live under Controls. Discovery opens from the Models header
 and the Playground from the page header.

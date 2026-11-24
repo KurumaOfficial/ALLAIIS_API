@@ -46,7 +46,7 @@ recorded before that keep the names that were in use then.
 | Continuation | a stored response id, and one created with `store: false` | the stored turns replay; the unstored id answers `404 previous_response_not_found` |
 | Stream terminal | a streaming reply, tail inspected | ends with `data: [DONE]`, no `: ping` after it |
 | First run | the release binary with no arguments in an empty directory | config, vault and passphrase created; panel opened; health 200 |
-| Console shell | six tabs, settings sidebar, no console errors | all views shown; proxy list saved and cleared from Controls |
+| Console shell | seven tabs, settings sidebar, no console errors | all views shown; Limits rows; proxy list saved and cleared from Controls |
 | Proxy tunnel | a local CONNECT proxy in Controls, one Venice chat | clerk and outerface tunnels opened; 200 "Ready." |
 | Proxy auth | an authenticated CONNECT proxy, one Venice chat | tunnels opened; wrong credentials answered 502 |
 | SOCKS5 proxy | a SOCKS5 server with user/pass, one Venice chat | outerface tunnel opened; 200 "Ready." |
