@@ -446,7 +446,7 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 		if opensWithMarker(current) {
 			from = 0
 		}
-		start := indexFrom(current, toolOpen, from)
+		start, openLen := openIndexFrom(current, from)
 		if start < 0 {
 			if at := dsmlLeadingClose(current); at >= 0 {
 				loc := dsmlEnd.FindStringSubmatchIndex(current[at:])
@@ -525,7 +525,7 @@ func (g *toolGuard) Write(chunk string) (text string, calls []toolCall, err erro
 			return flush, nil, nil
 		}
 		head := current[:start]
-		rest := current[start+len(toolOpen):]
+		rest := current[start+openLen:]
 		end := strings.Index(rest, toolClose)
 		if end < 0 {
 			g.buf.Reset()
@@ -564,7 +564,7 @@ func (g *toolGuard) Flush() (text string, calls []toolCall, err error) {
 		}
 		current = current[:at] + current[at+loc[1]:]
 	}
-	start := strings.Index(current, toolOpen)
+	start, openLen := openIndexFrom(current, 0)
 	if start < 0 {
 		if dsmlStart := dsmlIndex(current); dsmlStart >= 0 {
 			fragment := trimPartialClose(current[dsmlStart:], toolClose)
@@ -587,7 +587,7 @@ func (g *toolGuard) Flush() (text string, calls []toolCall, err error) {
 		}
 		return current, nil, nil
 	}
-	rest := trimPartialClose(current[start+len(toolOpen):], toolClose)
+	rest := trimPartialClose(current[start+openLen:], toolClose)
 	calls, err = g.parse(rest)
 	if err == nil {
 		calls = g.unique(calls)
@@ -600,6 +600,11 @@ var invokeMarkers = []string{"<invoke", "<function_calls"}
 // opensWithMarker reports whether the buffer starts with a block marker, in
 // which case scanning must start at zero again.
 func opensWithMarker(current string) bool {
+	// A marker with a dropped bracket still opens a block, so scanning must
+	// start at zero for it as well.
+	if start, _ := openIndexFrom(current, 0); start == 0 {
+		return true
+	}
 	for _, marker := range []string{toolOpen, "<invoke", "<function_calls", "<|DSML|", "<｜DSML｜", "<|/DSML|", "<｜/DSML｜"} {
 		if strings.HasPrefix(current, marker) {
 			return true
@@ -905,7 +910,12 @@ func buildCallFromValues(name string, values map[string]any) (toolCall, error) {
 func markerKeep(current string) int {
 	keep := 0
 	markers := append([]string{toolOpen, toolClose}, invokeMarkers...)
-	markers = append(markers, "<|DSML|", "<|/DSML|", "</|DSML|")
+	// A sentinel split across chunks can arrive with one or two brackets, so
+	// each variant is held by its own tail as well as the exact form.
+	markers = append(markers,
+		"<"+toolOpenBody, "<<"+toolOpenBody, toolOpenBody,
+		"<END_TOOL_CALL", "<<END_TOOL_CALL", "END_TOOL_CALL",
+		"<|DSML|", "<|/DSML|", "</|DSML|")
 	for _, marker := range markers {
 		for n := min(len(marker)-1, len(current)); n > keep; n-- {
 			if strings.HasSuffix(current, marker[:n]) {
@@ -918,13 +928,46 @@ func markerKeep(current string) int {
 	return keep
 }
 
+// closeSentinel matches the close tag with one to three brackets, since a model
+// sometimes drops one.
+var closeSentinel = regexp.MustCompile(`<{1,3}END_TOOL_CALL>+`)
+
 // stripCloseMarker drops a close tag that arrived without its block, so a
 // client scanning for markers never sees half of one.
 func stripCloseMarker(text string) string {
-	if !strings.Contains(text, toolClose) {
+	if !strings.Contains(text, "END_TOOL_CALL") {
 		return text
 	}
-	return strings.ReplaceAll(text, toolClose, "")
+	return closeSentinel.ReplaceAllString(text, "")
+}
+
+// toolOpenBody is the sentinel's name without brackets.
+const toolOpenBody = "ALLAIIS_TOOL_CALL"
+
+// openIndexFrom finds an opening sentinel, tolerating a model that dropped a
+// bracket: one "<" or two ">" have been seen on the wire. It reports the start
+// and the length of the marker actually present. A name without a bracket on
+// each side is prose, not a block.
+func openIndexFrom(current string, from int) (int, int) {
+	if start := indexFrom(current, toolOpen, from); start >= 0 {
+		return start, len(toolOpen)
+	}
+	body := indexFrom(current, toolOpenBody, from)
+	if body < 0 {
+		return -1, 0
+	}
+	start := body
+	for start > from && current[start-1] == '<' {
+		start--
+	}
+	end := body + len(toolOpenBody)
+	for end < len(current) && current[end] == '>' {
+		end++
+	}
+	if start == body || end == body+len(toolOpenBody) {
+		return -1, 0
+	}
+	return start, end - start
 }
 
 func invokeIndex(current string) int { return invokeIndexFrom(current, 0) }

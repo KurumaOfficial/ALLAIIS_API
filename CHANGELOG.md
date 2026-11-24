@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+- **A tool sentinel with a dropped bracket is still a call.** A model wrote
+  `<ALLAIIS_TOOL_CALL>>>` with one `<`, and the guard took it for prose, so the
+  client received the sentinel and half an argument; one to three brackets are
+  recognised now, including a marker split across chunks.
 ## v0.1.33
 
 A model that miswrites a call no longer poisons its own repair.

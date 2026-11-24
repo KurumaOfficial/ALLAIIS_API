@@ -52,6 +52,37 @@ func TestToolGuardSplitsMarkers(t *testing.T) {
 	}
 }
 
+// TestToolGuardAcceptsAGarbledOpenMarker pins what a model actually wrote on
+// the wire: one "<" before the sentinel name. It used to be streamed to the
+// client as prose, half a JSON argument included.
+func TestToolGuardAcceptsAGarbledOpenMarker(t *testing.T) {
+	block := `{"calls":[{"name":"read_file","arguments":{"path":"a.txt"}}]}`
+	guard := guardFor("read_file")
+	text, calls, err := guard.Write("<ALLAIIS_TOOL_CALL>>>" + block + "<<<END_TOOL_CALL>>>")
+	if err != nil || text != "" || len(calls) != 1 || calls[0].Function.Name != "read_file" {
+		t.Fatalf("text=%q calls=%v err=%v", text, calls, err)
+	}
+
+	// The same marker split across chunks, where only the tail was held.
+	guard = guardFor("read_file")
+	var shown strings.Builder
+	var all []toolCall
+	for _, chunk := range []string{"<ALLAIIS_TOOL_", "CALL>>>", block, "<<<END_TOOL_CALL>>>"} {
+		safe, parsed, err := guard.Write(chunk)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		shown.WriteString(safe)
+		all = append(all, parsed...)
+	}
+	tail, more, err := guard.Flush()
+	shown.WriteString(tail)
+	all = append(all, more...)
+	if err != nil || shown.String() != "" || len(all) != 1 {
+		t.Fatalf("text=%q calls=%d err=%v", shown.String(), len(all), err)
+	}
+}
+
 func TestToolGuardRejectsBadBlocks(t *testing.T) {
 	guard := guardFor("read_file")
 	if _, _, err := guard.Write("<<<ALLAIIS_TOOL_CALL>>>{\"calls\":[{\"name\":\"read_file\",\"arguments\":{\"path\":}}]}<<<END_TOOL_CALL>>>"); err == nil {

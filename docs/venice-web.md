@@ -429,7 +429,8 @@ A call that repeats one of the last eight calls with the same arguments is
 dropped, so a model echoing its own block does not run a side effect twice.
 
 The guard scans only the newly arrived tail instead of the whole accumulated
-buffer, so a long streaming block stays linear. An unclosed block is abandoned
+buffer, so a long streaming block stays linear. A sentinel that lost one or two
+brackets is still read as a call, since models have written it that way. An unclosed block is abandoned
 with a repair request after 512 KiB instead of buffering forever. A literal
 `</parameter>` inside an argument value is kept, and a close tag the value never
 opened is escaped before XML parsing.
