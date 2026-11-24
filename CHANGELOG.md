@@ -5,6 +5,10 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.34
+
+Bad input is named, and a garbled call still works.
+
 - **Browser clients can read `Retry-After` and send `X-ALLAIIS-Probe`.** Both
   were missing from the CORS lists, so a page could not see when to retry or
   mark a synthetic call.
@@ -27,6 +31,7 @@ Releases are tagged from `main`; the binaries are on the release page with
   `<ALLAIIS_TOOL_CALL>>>` with one `<`, and the guard took it for prose, so the
   client received the sentinel and half an argument; one to three brackets are
   recognised now, including a marker split across chunks.
+
 ## v0.1.33
 
 A model that miswrites a call no longer poisons its own repair.
@@ -38,6 +43,7 @@ A model that miswrites a call no longer poisons its own repair.
 - **A tool block cut by the token cap is dropped, not copied into the answer.**
   Its text is the gateway's sentinel and half-written arguments, and streaming
   it put raw emulation syntax into the client's transcript.
+
 ## v0.1.32
 
 Bad input is refused locally, and every shape says what happened.
@@ -57,6 +63,7 @@ Bad input is refused locally, and every shape says what happened.
 - **The runbook states what protects the launcher on Windows.** The `0600` bits
   Go writes do not restrict other Windows accounts; the per-user Startup folder
   does, and the page says so in both languages now.
+
 ## v0.1.31
 
 Attachments are read or refused, and every stream says what happened.
