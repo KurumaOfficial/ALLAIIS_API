@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -16,4 +18,22 @@ func TestStoredProxyTextWithoutAVault(t *testing.T) {
 	}
 	client := webprov.New(time.Second)
 	applyProxiesToWeb(context.Background(), nil, client)
+}
+
+func TestPassphraseAvailable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ALLAIIS_VAULT_PASSPHRASE", "")
+	if passphraseAvailable(dir) {
+		t.Fatal("an empty directory reported a passphrase")
+	}
+	if err := os.WriteFile(filepath.Join(dir, passphraseFile), []byte("generated\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !passphraseAvailable(dir) {
+		t.Fatal("the generated passphrase was not found")
+	}
+	t.Setenv("ALLAIIS_VAULT_PASSPHRASE", "from-env")
+	if !passphraseAvailable(dir) {
+		t.Fatal("the environment value was not found")
+	}
 }
