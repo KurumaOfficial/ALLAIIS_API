@@ -15,6 +15,7 @@ says otherwise; the guest session was out of its chat window.
 | OpenAI Responses, JSON and SSE | `gpt-free-venice-web`, `gpt-venice-web` | 200, `response.created` … `response.completed` |
 | Tool call, three shapes | `read_file` / `get_weather` through Chat, Messages, Responses | a `tool_calls` / `tool_use` / `function_call` each |
 | Tool result round trip | second turn carrying the result | the answer used it on every shape |
+| Parallel tool results | two calls in one reply, both results, then a question | the answer used both, no repeat call; Chat merges the results and the question into one labelled turn |
 | Streaming tool call | a tool offered with `stream: true` on each shape | Chat deltas + `tool_calls`, Messages `input_json_delta` + `tool_use`, Responses done events + `completed.output` |
 | Stop sequence | `stop_sequences: ["6"]` on a count to ten, plain and streamed | content cut before 6, `stop_reason: stop_sequence`, `stop_sequence: "6"` in both |
 | Emulation header | a request with `stop` and a forced `tool_choice` | `X-ALLAIIS-Emulated-Features` adds `stop` and `tool_choice` |
@@ -41,7 +42,7 @@ says otherwise; the guest session was out of its chat window.
 | Panel | all seven views, Quota button | no console error, plan and credits rendered |
 | Upgrade | `update --force` from the release | checksum verified, binary swapped, service up |
 | Continuation | a stored response id, and one created with `store: false` | the stored turns replay; the unstored id answers `404 previous_response_not_found` |
-| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.31"}` |
+| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.35"}` |
 
 Two facts worth keeping in view: the Pro **credit** bucket is empty (paid models
 answer `402`), and the **chat** allowance is the counter free models draw on.
