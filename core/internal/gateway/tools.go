@@ -90,6 +90,8 @@ func toolEnvelope(system string, tools []toolSpec) string {
 		"A tool is called by outputting ONLY a block that starts with " + toolOpen + " and ends with " + toolClose +
 		", containing valid JSON of the shape {\"calls\":[{\"name\":\"...\",\"arguments\":{...}}]}." +
 		" Do not wrap the block in Markdown.\n" +
+		"If several independent tool calls are needed, put them in one calls array in one assistant turn; " +
+		"do not serialize independent reads or searches.\n" +
 		"When a tool result arrives, answer from it; call another tool only if it is genuinely needed, " +
 		"and never repeat a call whose result you already have. " +
 		"Results arrive as a user message that begins \"Tool result from <name>:\".\n" +

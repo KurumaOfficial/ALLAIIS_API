@@ -622,12 +622,14 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
-	if calls := toolCallsInHistory(protocol, body); calls >= toolCallWarn {
+	if calls := toolCallsInHistory(protocol, body); calls > 0 {
 		w.Header().Set("X-ALLAIIS-Tool-Calls", strconv.Itoa(calls))
-		w.Header().Set("X-ALLAIIS-Tool-Warning", "high tool-call depth: batch independent calls and stop when the result is enough")
-		slog.Warn("deep tool history",
-			"request_id", requestID(r), "model", model, "tool_calls", calls,
-			"hint", "batch independent calls; every extra assistant turn is another upstream request")
+		if calls >= toolCallWarn {
+			w.Header().Set("X-ALLAIIS-Tool-Warning", "high tool-call depth: batch independent calls and stop when the result is enough")
+			slog.Warn("deep tool history",
+				"request_id", requestID(r), "model", model, "tool_calls", calls,
+				"hint", "batch independent calls; every extra assistant turn is another upstream request")
+		}
 	}
 	sessionHeader := r.Header.Get("X-ALLAIIS-Session")
 	if sessionHeader == "" {

@@ -75,7 +75,11 @@ remaining count, the reset countdown and a safe pace for the hours left.
 The cheapest token strategy is therefore one large, well-supplied request
 instead of many small ones. Do not truncate code or history to save quota:
 truncation does not reduce the request count and costs answer quality. Split a
-task only when the context would exceed the model window.
+task only when the context would exceed the model window. Independent tool
+calls are requested in one batch, which keeps e.g. two file reads to one chat
+instead of two. Every response with tool history carries `X-ALLAIIS-Tool-Calls`;
+a history of 40 calls adds `X-ALLAIIS-Tool-Warning` and a WARN log line, but the
+request still runs.
 
 ### Per-OS notes
 

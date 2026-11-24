@@ -5,6 +5,16 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.47
+
+Tool calls batch into fewer chat turns.
+
+- **The web tool envelope asks for one parallel batch of independent calls.**
+  A task that reads two files now spends one assistant turn instead of two, so
+  it uses one chat instead of two without reducing the work. Every request with
+  tool history also reports `X-ALLAIIS-Tool-Calls`; at 40 calls the response
+  carries a warning header and the gateway logs a WARN line.
+
 ## v0.1.46
 
 Quota pace, warning thresholds and deep-tool visibility.
