@@ -262,7 +262,8 @@ Merge the exported provider into `opencode.json`, set `ALLAIIS_API_KEY` for Open
 
 ## Status
 
-Release history: [CHANGELOG.md](CHANGELOG.md).
+Release history: [CHANGELOG.md](CHANGELOG.md). What was actually exercised
+against the live provider is in [the acceptance record](docs/acceptance.md).
 
 **Live provider tests recorded for this matrix: 1 (Venice web).**
 

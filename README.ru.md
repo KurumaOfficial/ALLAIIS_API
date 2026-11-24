@@ -253,7 +253,8 @@ Invoke-RestMethod http://127.0.0.1:8420/v1/chat/completions -Method Post `
 
 ## Статус
 
-История версий: [CHANGELOG.md](CHANGELOG.md).
+История версий: [CHANGELOG.md](CHANGELOG.md). Что реально прогнано на живом
+провайдере — в [записи приёмки](docs/acceptance.md).
 
 **Записанных live-проверок для этой матрицы: 1 (Venice web).**
 
