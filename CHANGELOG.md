@@ -3,7 +3,10 @@
 Releases are tagged from `main`; the binaries are on the release page with
 `SHA256SUMS`.
 
-## Unreleased
+## v0.1.22
+
+The model list speaks both client shapes.
+
 
 - **The model list answers the shape the caller parses.** A request with
   `Anthropic-Version` gets `type`, `display_name` and `has_more`; without it the
