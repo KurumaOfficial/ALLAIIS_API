@@ -5,6 +5,16 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.51
+
+Replies no longer lose their first characters.
+
+- **A reply starts at its first character even when thinking ends in the same
+  frame.** Venice sends the last reasoning token and the first answer token
+  together; the decoder kept only the reasoning field, so answers could begin
+  `вет!` or `ем могу…` instead of `Привет!`. Both fields are now emitted, in
+  order, and a regression test covers the transition frame.
+
 ## v0.1.50
 
 Stray DSML markers are removed from visible replies.

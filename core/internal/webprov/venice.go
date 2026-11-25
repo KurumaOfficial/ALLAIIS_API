@@ -543,20 +543,38 @@ func decodeEvents(body io.Reader, emit func(Event) error) error {
 			continue
 		}
 		event := Event{Kind: frame.Kind, ServingModel: frame.ServingModel}
+		var events []Event
 		switch {
 		case frame.Kind == "reasoning" || frame.Kind == "thinking":
-			event.Kind, event.Content = "reasoning", firstNonEmpty(frame.ReasoningContent, frame.Content)
-		case frame.ReasoningContent != "":
-			event.Kind, event.Content = "reasoning", frame.ReasoningContent
+			if text := firstNonEmpty(frame.ReasoningContent, frame.Content); text != "" {
+				event.Kind, event.Content = "reasoning", text
+				events = append(events, event)
+			}
 		case frame.Kind == "meta" || frame.Kind == "done":
 			event.Kind = "meta"
-		case frame.Content != "":
-			event.Kind, event.Content = "content", frame.Content
+			events = append(events, event)
 		default:
-			event.Kind = frame.Kind
+			// Venice ends the reasoning stream and starts the answer in one
+			// frame: "content" carries the first answer token while
+			// "reasoning_content" carries the last thought. Emitting only the
+			// reasoning dropped those first characters from the answer.
+			if frame.ReasoningContent != "" {
+				event.Kind, event.Content = "reasoning", frame.ReasoningContent
+				events = append(events, event)
+			}
+			if frame.Content != "" {
+				event.Kind, event.Content = "content", frame.Content
+				events = append(events, event)
+			}
+			if len(events) == 0 {
+				event.Kind, event.Content = frame.Kind, ""
+				events = append(events, event)
+			}
 		}
-		if err := emit(event); err != nil {
-			return err
+		for _, event := range events {
+			if err := emit(event); err != nil {
+				return err
+			}
 		}
 	}
 }
