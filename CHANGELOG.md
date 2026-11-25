@@ -5,6 +5,15 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.50
+
+Stray DSML markers are removed from visible replies.
+
+- **Stray DSML marker text is removed from visible replies.** Some turns emit
+  `｜DSML｜ calls>` (or a bare `calls>`) as prose before the parsed block. The
+  guard now strips the marker residue while keeping the surrounding sentence
+  and the real call. The `too_many_tools` error also says to disable unused MCP
+  tools or raise the alias limit.
 ## v0.1.49
 
 The ALLAIIS mark and an optimizer charter.

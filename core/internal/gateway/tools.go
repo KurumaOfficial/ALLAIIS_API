@@ -994,6 +994,31 @@ const toolOpenBody = "ALLAIIS_TOOL_CALL"
 // toolCloseBody is the closing sentinel's name without brackets.
 const toolCloseBody = "END_TOOL_CALL"
 
+// dsmlNoiseToken catches a marker the model has already emitted as prose, with
+// or without the leading "<" and with ASCII or full-width bars. Some models
+// render the opening marker as text before the real DSML block; stripping the
+// token keeps the visible answer clean without touching the parsed call.
+var dsmlNoiseToken = regexp.MustCompile(`(?i)(?:<[^\n>]{0,4})?[|｜]\s*DSML\s*[|｜]\s*(?:calls|function_calls|invoke|parameter)\s*>`)
+
+// dsmlNoiseWhole removes a marker that occupies a whole line, including its
+// newline, so it does not leave an empty paragraph behind.
+var dsmlNoiseWhole = regexp.MustCompile(`(?im)^[ \t]*(?:<[^\n>]{0,4})?[|｜]\s*DSML\s*[|｜]\s*(?:calls|function_calls|invoke|parameter)\s*>[ \t]*\r?\n?`)
+
+// dsmlNoiseLine catches the bare tail that remains when a client's markdown
+// renderer eats the opening marker but leaves the word and its closing ">".
+var dsmlNoiseLine = regexp.MustCompile(`(?im)^[ \t]*(?:calls|function_calls|invoke|parameter)\s*>[ \t]*\r?\n?`)
+
+// stripToolNoise removes remnants of a DSML marker from visible prose. It does
+// not touch a parsed call; it only cleans the text that is about to be shown.
+func stripToolNoise(text string) string {
+	if !strings.Contains(text, "DSML") && !strings.Contains(text, ">") {
+		return text
+	}
+	text = dsmlNoiseWhole.ReplaceAllString(text, "")
+	text = dsmlNoiseToken.ReplaceAllString(text, "")
+	return dsmlNoiseLine.ReplaceAllString(text, "")
+}
+
 // closeIndex finds the closing sentinel, tolerating a dropped bracket.
 func closeIndex(rest string) (int, int) {
 	if start := strings.Index(rest, toolClose); start >= 0 {

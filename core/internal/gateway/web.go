@@ -161,7 +161,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	reason.reasoning = request.Reasoning
 	if limit := toolLimit(target.Route); len(tools) > limit {
 		writeError(w, protocol, http.StatusBadRequest, "too_many_tools",
-			fmt.Sprintf("This model accepts at most %d tool(s).", limit))
+			fmt.Sprintf("This model accepts at most %d tool(s). Disable unused MCP tools or raise max_tools for this alias.", limit))
 		return 0, 0
 	}
 	if target.Route.WebSearch {
@@ -282,7 +282,7 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 					}
 					return errToolRepair
 				}
-				text = safe
+				text = stripToolNoise(safe)
 				if len(parsed) > 0 {
 					reason.callsChars(parsed)
 					heldCalls = append(heldCalls, parsed...)
