@@ -1271,8 +1271,6 @@ func invokeName(tag string) string {
 	return ""
 }
 
-func buildCall(name string) (toolCall, error) { return buildCallFromBody(name, "") }
-
 var invokeAttribute = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*["']([^"']*)["']`)
 
 // invokeAttributes reads attributes such as tab="1820148504" from a call tag.
@@ -1288,11 +1286,7 @@ func invokeAttributes(tag string) map[string]any {
 	return values
 }
 
-// buildCallFromBody turns parameter elements, or a raw JSON body, into arguments.
-func buildCallFromBody(name, body string) (toolCall, error) {
-	return buildCallFromBodyWithAttrs(name, "", body)
-}
-
+// buildCallFromBodyWithAttrs turns parameter elements, or a raw JSON body, into arguments.
 func buildCallFromBodyWithAttrs(name, tag, body string) (toolCall, error) {
 	if name == "" {
 		return toolCall{}, errNoToolBlock

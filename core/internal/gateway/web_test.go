@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -302,6 +303,7 @@ func TestWebVisionAcceptsOpenCodeFilePart(t *testing.T) {
 func TestToolResultImageUsesNormalChatPath(t *testing.T) {
 	png := base64.StdEncoding.EncodeToString([]byte("pngbytes"))
 	var agentCalls atomic.Int32
+	var chatMu sync.Mutex
 	var chatBody string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -309,7 +311,9 @@ func TestToolResultImageUsesNormalChatPath(t *testing.T) {
 			io.WriteString(w, `{"tokens":[{"token":"t"}]}`)
 		case r.URL.Path == "/inference/chat":
 			body, _ := io.ReadAll(r.Body)
+			chatMu.Lock()
 			chatBody = string(body)
+			chatMu.Unlock()
 			io.WriteString(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
 		case r.URL.Path == "/inference/chat/agents/venice":
 			agentCalls.Add(1)
@@ -336,11 +340,14 @@ func TestToolResultImageUsesNormalChatPath(t *testing.T) {
 	if agentCalls.Load() != 0 {
 		t.Fatal("tool result image still used the agent endpoint")
 	}
-	if strings.Contains(chatBody, "input_image") || strings.Contains(chatBody, "pngbytes") {
-		t.Fatalf("tool result image was sent: %s", chatBody)
+	chatMu.Lock()
+	captured := chatBody
+	chatMu.Unlock()
+	if strings.Contains(captured, "input_image") || strings.Contains(captured, "pngbytes") {
+		t.Fatalf("tool result image was sent: %s", captured)
 	}
-	if !strings.Contains(chatBody, "Tool result from browse_screenshot") {
-		t.Fatalf("tool result text was lost: %s", chatBody)
+	if !strings.Contains(captured, "Tool result from browse_screenshot") {
+		t.Fatalf("tool result text was lost: %s", captured)
 	}
 }
 
