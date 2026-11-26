@@ -4,6 +4,8 @@ package webprov
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -31,6 +33,42 @@ func TestAgentBodyCarriesMediaParts(t *testing.T) {
 	}
 	if !strings.Contains(string(body), `"role":"system"`) {
 		t.Fatal("system turn was dropped")
+	}
+}
+
+func TestAgentBodyIDsEveryMessage(t *testing.T) {
+	req := Request{
+		RequestID: "ids", Model: "m",
+		Messages: []Message{
+			{Role: "system", Content: "be brief"},
+			{Role: "user", Content: "first"},
+			{Role: "assistant", Content: "answer"},
+			{Role: "user", Content: "look", Images: []Image{{Data: []byte("img"), MIME: "image/png"}}},
+		},
+	}
+	body, _ := agentBody(req)
+	var payload struct {
+		Input struct {
+			Messages []struct {
+				ID string `json:"id"`
+			} `json:"messages"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Input.Messages) != len(req.Messages) {
+		t.Fatalf("messages %d", len(payload.Input.Messages))
+	}
+	seen := map[string]bool{}
+	for index, message := range payload.Input.Messages {
+		if message.ID == "" {
+			t.Fatalf("message %d has no id: %s", index, body)
+		}
+		if seen[message.ID] {
+			t.Fatalf("message %d repeats id %q", index, message.ID)
+		}
+		seen[message.ID] = true
 	}
 }
 
@@ -97,6 +135,12 @@ func TestAgentStreamFailureIsTyped(t *testing.T) {
 		func(Event) error { return nil })
 	if err == nil || !strings.Contains(err.Error(), "workflow_failed") {
 		t.Fatalf("err=%v", err)
+	}
+	err = decodeAgentStream(strings.NewReader(
+		"event: response.failed\ndata: {\"type\":\"response.failed\",\"response\":{\"error\":{\"message\":\"Invalid input: User message with attachments must have a non-empty id field\"}}}\n\n"),
+		func(Event) error { return nil })
+	if !errors.Is(err, ErrBadRequest()) {
+		t.Fatalf("invalid input was not typed: %v", err)
 	}
 }
 

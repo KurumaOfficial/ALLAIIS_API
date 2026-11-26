@@ -200,12 +200,10 @@ func agentBody(req Request) ([]byte, []agentPart) {
 		}
 		entry := map[string]any{
 			"role": role, "type": "message", "status": "completed", "content": content,
+			"id": messageID,
 		}
 		if message.Reasoning != "" {
 			entry["reasoning"] = message.Reasoning
-		}
-		if len(message.Images) > 0 {
-			entry["id"] = messageID
 		}
 		messages = append(messages, entry)
 	}
@@ -318,6 +316,8 @@ func decodeAgentStream(body io.Reader, emit func(Event) error) error {
 				return errContextTooLong
 			case strings.Contains(lower, "model"):
 				return fmt.Errorf("%w: %s", errUnknownModel, message)
+			case strings.Contains(lower, "invalid input"), strings.Contains(lower, "non-empty id field"):
+				return fmt.Errorf("%w: %s", errBadRequest, message)
 			}
 			return errors.New(message)
 		default:

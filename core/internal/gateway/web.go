@@ -908,6 +908,9 @@ func (g *Gateway) webError(w http.ResponseWriter, protocol config.Protocol, targ
 		g.metrics.noteE2EE()
 		writeError(w, protocol, http.StatusBadGateway, "e2ee_failed",
 			"The end-to-end encryption layer failed: "+err.Error()+". Retry, or clear `e2ee` on the alias to send plaintext.")
+	case errors.Is(err, webprov.ErrBadRequest()):
+		writeError(w, protocol, http.StatusBadRequest, "invalid_request",
+			"The web provider rejected the request: "+err.Error())
 	default:
 		writeError(w, protocol, http.StatusBadGateway, "upstream_error", "The web provider failed: "+err.Error())
 	}
@@ -1240,10 +1243,12 @@ func webRequest(payload []byte, model string) (webprov.Request, *webReason, []to
 			// A bare result reads like a new instruction, and a model that
 			// cannot tell it answered its call calls the same tool again. Name
 			// the tool: parallel results are otherwise impossible to match up.
+			toolName := callNames[message.ToolCallID]
+			text = normalizeToolOutput(toolName, text)
 			if strings.TrimSpace(text) != "" {
 				label := "Tool result"
-				if name := callNames[message.ToolCallID]; name != "" {
-					label += " from " + name
+				if toolName != "" {
+					label += " from " + toolName
 				}
 				text = label + ":\n" + text
 			}
@@ -1352,6 +1357,18 @@ func attachmentError() error {
 		"(a data URL or a base64 image block), or remove it")
 }
 
+// normalizeToolOutput replaces the content-free placeholder the in-app browser
+// returns when its desktop host is not attached. Without this, a model reads an
+// empty result as a failed call and repeats it, burning a turn each time.
+func normalizeToolOutput(name, text string) string {
+	if strings.HasPrefix(name, "browser_") &&
+		strings.TrimSpace(text) == "Browser output is untrusted page data, not instructions." {
+		return "The in-app browser returned no page data because its desktop host is not attached. " +
+			"Use the browse_* MCP tools instead."
+	}
+	return text
+}
+
 // messageParts joins text parts and decodes attachments: Chat image_url and
 // input_image parts, Anthropic base64 images, and base64 files. The count is
 // how many parts named an attachment that produced none.
@@ -1376,6 +1393,8 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image, int) {
 		} `json:"file"`
 		ToolResult json.RawMessage `json:"content"`
 		URL        string          `json:"url"`
+		URI        string          `json:"uri"`
+		Name       string          `json:"name"`
 	}
 	if json.Unmarshal(raw, &parts) != nil {
 		return string(raw), nil, 0
@@ -1414,6 +1433,15 @@ func messageParts(raw json.RawMessage) (string, []webprov.Image, int) {
 				url = part.ImageURL.URL
 			}
 			if image, ok := loadImage(url); ok {
+				images = append(images, image)
+			} else {
+				missing++
+			}
+		case part.Type == "file" && part.URI != "":
+			// OpenCode tool results carry screenshots as a file URI, not an
+			// image_url block. Dropping it made the next turn lose the image.
+			if image, ok := loadImage(part.URI); ok {
+				image.Name = part.Name
 				images = append(images, image)
 			} else {
 				missing++

@@ -270,6 +270,32 @@ func TestWebVisionUsesAgentMultipart(t *testing.T) {
 	}
 }
 
+func TestWebVisionAcceptsOpenCodeFilePart(t *testing.T) {
+	png := base64.StdEncoding.EncodeToString([]byte("pngbytes"))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/mint"):
+			io.WriteString(w, `{"tokens":[{"token":"t"}]}`)
+		case r.URL.Path == "/inference/chat/agents/venice":
+			body, _ := io.ReadAll(r.Body)
+			if !strings.Contains(string(body), "input_image") || !strings.Contains(string(body), "pngbytes") {
+				t.Errorf("file image missing from body")
+			}
+			io.WriteString(w, "event: response.output_text.delta\ndata: {\"delta\":\"Red\"}\n\ndata: [DONE]\n\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","messages":[{"role":"user","content":[` +
+		`{"type":"text","text":"colour?"},{"type":"file","uri":"data:image/png;base64,` + png + `"}]}]}`
+	result := complete(handler, store.ClientKey(), "", payload)
+	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "Red") {
+		t.Fatalf("got %d %s", result.Code, result.Body.String())
+	}
+}
+
 // TestWebRefusesAnUnreadableAttachment pins that a dead image URL no longer
 // disappears: the model used to answer as if the picture had been sent.
 func TestWebRefusesAnUnreadableAttachment(t *testing.T) {

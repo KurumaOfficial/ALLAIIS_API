@@ -210,6 +210,7 @@ func TestErrorClassification(t *testing.T) {
 		{http.StatusForbidden, "<html>cloudflare</html>", ErrCloudflare},
 		{http.StatusRequestEntityTooLarge, `{"error":"userPromptTooLong"}`, ErrContextTooLong()},
 		{http.StatusBadRequest, `{"error":"Model not found"}`, ErrUnknownModel()},
+		{http.StatusBadRequest, `{"error":"Invalid input: missing id"}`, ErrBadRequest()},
 		{http.StatusPaymentRequired, `{"error":"insufficientBalance"}`, ErrInsufficientBalance()},
 	} {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

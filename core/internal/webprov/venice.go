@@ -600,6 +600,8 @@ func (c *Client) statusError(response *http.Response) error {
 	case (response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusNotFound) &&
 		strings.Contains(strings.ToLower(text), "model"):
 		return fmt.Errorf("%w: %s", errUnknownModel, firstLine(text))
+	case response.StatusCode == http.StatusBadRequest:
+		return fmt.Errorf("%w: %s", errBadRequest, firstLine(text))
 	default:
 		return fmt.Errorf("venice returned HTTP %d: %s", response.StatusCode, firstLine(text))
 	}
@@ -609,6 +611,7 @@ var (
 	errContextTooLong      = errors.New("prompt exceeds the model context")
 	errUnknownModel        = errors.New("the web app does not offer this model")
 	errInsufficientBalance = errors.New("this session has no credits for a paid model")
+	errBadRequest          = errors.New("the web provider rejected the request")
 )
 
 // ErrContextTooLong reports that the model context window was exceeded.
@@ -619,6 +622,10 @@ func ErrInsufficientBalance() error { return errInsufficientBalance }
 
 // ErrUnknownModel reports that the model ID is not offered to this session.
 func ErrUnknownModel() error { return errUnknownModel }
+
+// ErrBadRequest reports a deterministic request error. It must not be retried
+// as a transient provider failure.
+func ErrBadRequest() error { return errBadRequest }
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
