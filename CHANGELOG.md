@@ -5,6 +5,16 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.53
+
+Thinking stays out of the visible answer on image turns.
+
+- **Reasoning and answer are separated in the agent stream.** Venice's image
+  endpoint streams `output_text` deltas for both reasoning items and the final
+  message. The gateway now routes deltas by their item type, so the client sees
+  the answer without a `The user asked...` monologue in front of it. Internal
+  `view_media` tool steps are not shown as prose.
+
 ## v0.1.52
 
 Image-bearing tool turns no longer fail after a screenshot.

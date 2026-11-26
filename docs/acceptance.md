@@ -62,7 +62,7 @@ recorded before that keep the names that were in use then.
 | Proxy at rest | save a proxy with a unique host and password, search the vault file | no plaintext of either in `vault.sqlite` |
 | Limits tab | open Limits | guest and PRO rows with chat left, credits and reset dates |
 | Config export | `/api/export`, served from a fresh dir on a spare port | `providers: {}`, health 200, 11 models |
-| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.52"}` |
+| Health probe | `GET /healthz` | `{"status":"ok","version":"0.1.53"}` |
 
 Two facts worth keeping in view: the Pro **credit** bucket is empty (paid models
 answer `402`), and the **chat** allowance is the counter free models draw on.

@@ -144,6 +144,30 @@ func TestAgentStreamFailureIsTyped(t *testing.T) {
 	}
 }
 
+func TestAgentStreamSeparatesReasoningItems(t *testing.T) {
+	stream := strings.Join([]string{
+		`data: {"type":"response.output_item.added","item":{"id":"rs1","type":"reasoning"}}`,
+		`data: {"type":"response.output_text.delta","item_id":"rs1","delta":"thinking"}`,
+		`data: {"type":"response.output_item.added","item":{"id":"msg1","type":"message"}}`,
+		`data: {"type":"response.output_text.delta","item_id":"msg1","delta":"answer"}`,
+	}, "\n\n") + "\n\n"
+	var reasoning, content strings.Builder
+	if err := decodeAgentStream(strings.NewReader(stream), func(event Event) error {
+		switch event.Kind {
+		case "reasoning":
+			reasoning.WriteString(event.Content)
+		case "content":
+			content.WriteString(event.Content)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if reasoning.String() != "thinking" || content.String() != "answer" {
+		t.Fatalf("reasoning=%q content=%q", reasoning.String(), content.String())
+	}
+}
+
 func TestAgentStreamUsesEventLines(t *testing.T) {
 	stream := "event: response.output_text.delta\ndata: {\"delta\":\"Hel\"}\n\n" +
 		"event: response.output_text.delta\ndata: {\"delta\":\"lo\"}\n\ndata: [DONE]\n\n"

@@ -253,6 +253,7 @@ func decodeAgentStream(body io.Reader, emit func(Event) error) error {
 	scanner.Buffer(make([]byte, 64<<10), 4<<20)
 	data := make([]string, 0, 4)
 	eventName := ""
+	itemTypes := map[string]string{}
 	flush := func() error {
 		if len(data) == 0 {
 			return nil
@@ -269,6 +270,7 @@ func decodeAgentStream(body io.Reader, emit func(Event) error) error {
 			Delta    string `json:"delta"`
 			Text     string `json:"text"`
 			Serving  string `json:"model_id"`
+			ItemID   string `json:"item_id"`
 			Response struct {
 				ModelID string `json:"model_id"`
 				Error   struct {
@@ -276,6 +278,8 @@ func decodeAgentStream(body io.Reader, emit func(Event) error) error {
 				} `json:"error"`
 			} `json:"response"`
 			Item struct {
+				ID      string `json:"id"`
+				Type    string `json:"type"`
 				ModelID string `json:"model_id"`
 			} `json:"item"`
 		}
@@ -290,6 +294,9 @@ func decodeAgentStream(body io.Reader, emit func(Event) error) error {
 		if frame.Type == "" {
 			frame.Type = name
 		}
+		if frame.Item.ID != "" && frame.Item.Type != "" {
+			itemTypes[frame.Item.ID] = frame.Item.Type
+		}
 		model := frame.Serving
 		if model == "" {
 			model = frame.Item.ModelID
@@ -300,7 +307,19 @@ func decodeAgentStream(body io.Reader, emit func(Event) error) error {
 		event := Event{ServingModel: model}
 		switch frame.Type {
 		case "response.output_text.delta":
-			event.Kind, event.Content = "content", frame.Delta
+			itemType := itemTypes[frame.ItemID]
+			if itemType == "" {
+				itemType = frame.Item.Type
+			}
+			if strings.HasPrefix(itemType, "veniceai:") {
+				// Internal agent steps such as view_media are not user prose.
+				return nil
+			}
+			kind := "content"
+			if itemType == "reasoning" {
+				kind = "reasoning"
+			}
+			event.Kind, event.Content = kind, frame.Delta
 		case "response.reasoning_text.delta", "response.reasoning_summary_text.delta":
 			event.Kind, event.Content = "reasoning", frame.Delta
 		case "response.failed", "error":
