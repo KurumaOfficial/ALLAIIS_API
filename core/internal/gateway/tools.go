@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -85,6 +86,13 @@ func toolEnvelope(system string, tools []toolSpec) string {
 	if shapes.Len() > 0 {
 		header += "Shapes:" + shapes.String() + "\n"
 	}
+	for _, tool := range tools {
+		if strings.HasPrefix(tool.Function.Name, "browse_") {
+			header += "For browse_* tools, pass `tab` as a JSON number (e.g. 1820148504), not a quoted string. " +
+				"Prefer browse_* for browser work; browser_* requires the in-app desktop host.\n"
+			break
+		}
+	}
 	header += "\n"
 	return header + system + "\n\n## Tools\n" +
 		"A tool is called by outputting ONLY a block that starts with " + toolOpen + " and ends with " + toolClose +
@@ -95,6 +103,8 @@ func toolEnvelope(system string, tools []toolSpec) string {
 		"When a tool result arrives, answer from it; call another tool only if it is genuinely needed, " +
 		"and never repeat a call whose result you already have. " +
 		"Results arrive as a user message that begins \"Tool result from <name>:\".\n" +
+		"A rejected argument is not a missing tool: read the tool result, correct the argument, and retry once. " +
+		"Never claim a tool is unavailable unless the result says its name is unknown.\n" +
 		"Use the tool's exact name and a JSON argument object; a direct call works even where a sandbox lists the same tools. Claude-style XML is also accepted:\n" +
 		"<invoke name=\"tool\"><parameter name=\"argument\">value</parameter></invoke>\n" + spec.String()
 }
@@ -911,8 +921,34 @@ func buildCallFromValues(name string, values map[string]any) (toolCall, error) {
 	}
 	call := toolCall{ID: "call_" + randomID(), Type: "function"}
 	call.Function.Name = name
-	call.Function.Arguments = string(encoded)
+	call.Function.Arguments = normalizeToolArguments(name, string(encoded))
 	return call, nil
+}
+
+// normalizeToolArguments fixes the one argument shape the browse MCP server is
+// strict about: a numeric tab id sent as a quoted string is treated as a slug
+// and rejected. Keep real slugs such as "work-mail" as strings.
+func normalizeToolArguments(name, raw string) string {
+	if !strings.HasPrefix(name, "browse_") {
+		return raw
+	}
+	var values map[string]any
+	if json.Unmarshal([]byte(raw), &values) != nil {
+		return raw
+	}
+	tab, ok := values["tab"].(string)
+	if !ok {
+		return raw
+	}
+	if _, err := strconv.Atoi(tab); err != nil {
+		return raw
+	}
+	values["tab"] = json.Number(tab)
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return raw
+	}
+	return string(encoded)
 }
 
 // markerKeep returns the length of a trailing partial marker that must stay

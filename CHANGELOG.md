@@ -5,6 +5,19 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.54
+
+Browser tool calls stop derailing the session.
+
+- **Numeric tab ids sent as strings are normalised for `browse_*`.** The browse
+  MCP treats a quoted `"1820148504"` as a slug and rejects it; the gateway now
+  sends it as a JSON number while leaving real slugs such as `"work-mail"`
+  untouched.
+- **The tool prompt now states the browse rules.** It asks for numeric tab ids,
+  prefers `browse_*` over the desktop-only `browser_*`, and says that a rejected
+  argument is not a missing tool. Only an explicit unknown-name result may be
+  reported as a missing tool.
+
 ## v0.1.53
 
 Thinking stays out of the visible answer on image turns.
