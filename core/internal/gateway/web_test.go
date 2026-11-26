@@ -296,6 +296,54 @@ func TestWebVisionAcceptsOpenCodeFilePart(t *testing.T) {
 	}
 }
 
+// TestToolResultImageUsesNormalChatPath pins that a screenshot in tool history
+// does not switch the transport to the agent endpoint: that endpoint can stop
+// returning client tool calls after an image, which stalled the session.
+func TestToolResultImageUsesNormalChatPath(t *testing.T) {
+	png := base64.StdEncoding.EncodeToString([]byte("pngbytes"))
+	var agentCalls atomic.Int32
+	var chatBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/mint"):
+			io.WriteString(w, `{"tokens":[{"token":"t"}]}`)
+		case r.URL.Path == "/inference/chat":
+			body, _ := io.ReadAll(r.Body)
+			chatBody = string(body)
+			io.WriteString(w, "{\"kind\":\"content\",\"content\":\"ok\"}\n")
+		case r.URL.Path == "/inference/chat/agents/venice":
+			agentCalls.Add(1)
+			io.WriteString(w, "event: response.output_text.delta\ndata: {\"delta\":\"ok\"}\n\ndata: [DONE]\n\n")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	handler, store := webGateway(t, server.URL)
+	payload := `{"model":"` + webModel + `","messages":[` +
+		`{"role":"user","content":"open"},` +
+		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function",` +
+		`"function":{"name":"browse_screenshot","arguments":"{}"}}]},` +
+		`{"role":"tool","tool_call_id":"c1","content":[{"type":"text","text":"{\"width\":1}"},` +
+		`{"type":"file","uri":"data:image/png;base64,` + png + `"}]},` +
+		`{"role":"user","content":"continue"}] ,` +
+		`"tools":[{"type":"function","function":{"name":"browse_screenshot",` +
+		`"description":"shot","parameters":{"type":"object"}}}]}`
+	result := complete(handler, store.ClientKey(), "", payload)
+	if result.Code != http.StatusOK {
+		t.Fatalf("got %d %s", result.Code, result.Body.String())
+	}
+	if agentCalls.Load() != 0 {
+		t.Fatal("tool result image still used the agent endpoint")
+	}
+	if strings.Contains(chatBody, "input_image") || strings.Contains(chatBody, "pngbytes") {
+		t.Fatalf("tool result image was sent: %s", chatBody)
+	}
+	if !strings.Contains(chatBody, "Tool result from browse_screenshot") {
+		t.Fatalf("tool result text was lost: %s", chatBody)
+	}
+}
+
 // TestWebRefusesAnUnreadableAttachment pins that a dead image URL no longer
 // disappears: the model used to answer as if the picture had been sent.
 func TestWebRefusesAnUnreadableAttachment(t *testing.T) {

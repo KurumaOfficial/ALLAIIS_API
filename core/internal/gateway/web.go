@@ -185,6 +185,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 	if target.Route.StrictOrder {
 		request.Messages = mergeSameRole(request.Messages)
 	}
+	if len(tools) > 0 {
+		dropToolResultImages(&request)
+	}
 	// Venice answers 400 for any prompt carrying a NUL byte, which an agent can
 	// produce by pasting a binary file; that is the caller's input, not an
 	// upstream fault, so say so before the call.
@@ -646,6 +649,21 @@ func inactivity(route config.Route) time.Duration {
 		window = maxInactivity
 	}
 	return window
+}
+
+// dropToolResultImages keeps tool-enabled turns on the normal chat endpoint.
+// A screenshot tool result puts an image into the history, which switches the
+// transport to the agent endpoint; that endpoint runs its own bounded loop and
+// can stop returning client tool calls after the image. The text result is
+// enough for DOM/CSS work, so drop only tool-result images and keep an image
+// the user attached to the current turn.
+func dropToolResultImages(request *webprov.Request) {
+	for index := range request.Messages {
+		message := &request.Messages[index]
+		if len(message.Images) > 0 && strings.HasPrefix(strings.TrimSpace(message.Content), "Tool result") {
+			message.Images = nil
+		}
+	}
 }
 
 // mergeSameRole joins consecutive turns of one role for strict models.

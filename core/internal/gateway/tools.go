@@ -615,7 +615,7 @@ func (g *toolGuard) Flush() (text string, calls []toolCall, err error) {
 	return current[:start], calls, err
 }
 
-var invokeMarkers = []string{"<invoke", "<function_calls"}
+var invokeMarkers = []string{"<invoke", "<call", "<function_calls"}
 
 // opensWithMarker reports whether the buffer starts with a block marker, in
 // which case scanning must start at zero again.
@@ -1132,19 +1132,22 @@ func consumeInvokes(fragment string) (head string, calls []toolCall, used int, c
 		offset = len("<function_calls>")
 	}
 	for {
-		index := strings.Index(fragment[offset:], "<invoke")
-		if index < 0 {
+		start, marker := invokeStart(fragment, offset)
+		if start < 0 {
 			break
 		}
-		start := offset + index
 		prose.WriteString(fragment[offset:start])
 		open := strings.Index(fragment[start:], ">")
 		if open < 0 {
 			return prose.String(), calls, start, false, nil
 		}
 		open += start
+		closeMarker := "</invoke>"
+		if marker == "<call" {
+			closeMarker = "</call>"
+		}
 		if open > start && fragment[open-1] == '/' {
-			call, err := buildCall(invokeName(fragment[start:open]))
+			call, err := buildCallFromValues(invokeName(fragment[start:open]), invokeAttributes(fragment[start:open]))
 			if err != nil {
 				return prose.String(), nil, start, true, err
 			}
@@ -1152,22 +1155,33 @@ func consumeInvokes(fragment string) (head string, calls []toolCall, used int, c
 			offset = open + 1
 			continue
 		}
-		end := strings.Index(fragment[open:], "</invoke>")
+		end := strings.Index(fragment[open:], closeMarker)
 		if end < 0 {
 			return prose.String(), calls, start, false, nil
 		}
 		end += open
-		call, err := buildCallFromBody(invokeName(fragment[start:open]), fragment[open+1:end])
+		call, err := buildCallFromBodyWithAttrs(invokeName(fragment[start:open]), fragment[start:open], fragment[open+1:end])
 		if err != nil {
 			return prose.String(), nil, start, true, err
 		}
 		calls = append(calls, call)
-		offset = end + len("</invoke>")
+		offset = end + len(closeMarker)
 	}
 	if strings.HasPrefix(fragment[offset:], "</function_calls>") {
 		offset += len("</function_calls>")
 	}
 	return prose.String(), calls, offset, true, nil
+}
+
+// invokeStart returns the earliest opening tag and which form it is.
+func invokeStart(fragment string, from int) (int, string) {
+	start, marker := -1, ""
+	for _, candidate := range []string{"<invoke", "<call"} {
+		if index := indexFrom(fragment, candidate, from); index >= 0 && (start < 0 || index < start) {
+			start, marker = index, candidate
+		}
+	}
+	return start, marker
 }
 
 // trimPartialClose removes a closing marker that was cut off mid-stream.
@@ -1259,60 +1273,70 @@ func invokeName(tag string) string {
 
 func buildCall(name string) (toolCall, error) { return buildCallFromBody(name, "") }
 
+var invokeAttribute = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*["']([^"']*)["']`)
+
+// invokeAttributes reads attributes such as tab="1820148504" from a call tag.
+// The name attribute is the tool name, not an argument.
+func invokeAttributes(tag string) map[string]any {
+	values := map[string]any{}
+	for _, match := range invokeAttribute.FindAllStringSubmatch(tag, -1) {
+		if match[1] == "name" {
+			continue
+		}
+		values[match[1]] = match[2]
+	}
+	return values
+}
+
 // buildCallFromBody turns parameter elements, or a raw JSON body, into arguments.
 func buildCallFromBody(name, body string) (toolCall, error) {
+	return buildCallFromBodyWithAttrs(name, "", body)
+}
+
+func buildCallFromBodyWithAttrs(name, tag, body string) (toolCall, error) {
 	if name == "" {
 		return toolCall{}, errNoToolBlock
 	}
+	object := invokeAttributes(tag)
 	trimmed := strings.TrimSpace(body)
-	arguments := ""
 	if strings.HasPrefix(trimmed, "{") {
-		arguments = trimmed
-	} else {
-		object := map[string]any{}
-		for {
-			index := strings.Index(body, "<parameter")
-			if index < 0 {
-				break
+		var values map[string]any
+		if json.Unmarshal([]byte(trimmed), &values) == nil {
+			for key, value := range values {
+				object[key] = value
 			}
-			head := body[index+len("<parameter"):]
-			open := strings.Index(head, ">")
-			if open < 0 {
-				break
-			}
-			tag, after := head[:open], head[open+1:]
-			parameter := parameterName(tag)
-			if parameter == "" {
-				break
-			}
-			if strings.HasSuffix(tag, "/") {
-				object[parameter] = ""
-				body = after
-				continue
-			}
-			end := lastCloseBefore(after, "<parameter", "</parameter>")
-			if end < 0 {
-				object[parameter] = strings.TrimSpace(after)
-				body = ""
-				break
-			}
-			object[parameter] = parameterValue(after[:end])
-			body = after[end+len("</parameter>"):]
+			return buildCallFromValues(name, object)
 		}
-		encoded, err := json.Marshal(unwrapArguments(object))
-		if err != nil {
-			return toolCall{}, errNoToolBlock
+	}
+	for {
+		index := strings.Index(body, "<parameter")
+		if index < 0 {
+			break
 		}
-		arguments = string(encoded)
+		head := body[index+len("<parameter"):]
+		open := strings.Index(head, ">")
+		if open < 0 {
+			break
+		}
+		parameterTag, after := head[:open], head[open+1:]
+		parameter := parameterName(parameterTag)
+		if parameter == "" {
+			break
+		}
+		if strings.HasSuffix(parameterTag, "/") {
+			object[parameter] = ""
+			body = after
+			continue
+		}
+		end := lastCloseBefore(after, "<parameter", "</parameter>")
+		if end < 0 {
+			object[parameter] = strings.TrimSpace(after)
+			break
+		}
+		object[parameter] = parameterValue(after[:end])
+		body = after[end+len("</parameter>"):]
 	}
-	var object map[string]any
-	if json.Unmarshal([]byte(arguments), &object) != nil {
-		return toolCall{}, errNoToolBlock
-	}
-	call := toolCall{ID: "call_" + randomID(), Type: "function"}
-	call.Function.Name = name
-	call.Function.Arguments = arguments
-	return call, nil
+	return buildCallFromValues(name, object)
 }
 
 func parameterName(tag string) string {

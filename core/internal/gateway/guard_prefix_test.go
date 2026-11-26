@@ -7,6 +7,18 @@ import (
 	"testing"
 )
 
+func TestGuardAcceptsCallTagWithAttributes(t *testing.T) {
+	guard := guardFor("browse_eval")
+	text, calls, err := guard.Write(`<call name="browse_eval" tab="1820148515"><parameter name="expression">1+1</parameter></call>`)
+	if err != nil || text != "" || len(calls) != 1 {
+		t.Fatalf("text=%q calls=%#v err=%v", text, calls, err)
+	}
+	if calls[0].Function.Name != "browse_eval" ||
+		calls[0].Function.Arguments != `{"expression":"1+1","tab":1820148515}` {
+		t.Fatalf("call=%#v", calls[0])
+	}
+}
+
 func TestToolEnvelopeExplainsBrowseTabNumbers(t *testing.T) {
 	tools := []toolSpec{}
 	shape := toolSpec{}

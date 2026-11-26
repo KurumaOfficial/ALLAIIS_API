@@ -5,6 +5,19 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.55
+
+Tool-enabled turns survive screenshots and XML-style calls.
+
+- **A screenshot in tool history no longer stalls the next turn.** Tool-result
+  images switched the transport to the image agent endpoint; that endpoint can
+  stop returning client tool calls after an image. The gateway now drops only
+  tool-result images when tools are present, keeps their text, and stays on the
+  normal chat path. An image attached by the user is still sent.
+- **`<call name="...">` XML is accepted.** Some models write XML calls with
+  attributes such as `tab="1820148515"`. The guard parses them alongside
+  `<invoke>` and the sentinel block and turns the attributes into arguments.
+
 ## v0.1.54
 
 Browser tool calls stop derailing the session.
