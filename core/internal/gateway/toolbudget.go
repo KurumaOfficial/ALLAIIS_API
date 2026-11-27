@@ -5,6 +5,9 @@ package gateway
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
@@ -13,6 +16,28 @@ import (
 // It is deliberately a warning, not a cap: a legitimate multi-file task may
 // need many calls, while a runaway agent should be visible to the operator.
 const toolCallWarn = 40
+
+// defaultToolCallLimit is the hard stop for a runaway tool history. It is high
+// enough for a large batched task and low enough to stop a repeated-call loop
+// before it burns the daily allowance. ALLAIIS_MAX_TOOL_CALLS overrides it.
+const defaultToolCallLimit = 100
+
+func toolCallLimit() int {
+	if raw := os.Getenv("ALLAIIS_MAX_TOOL_CALLS"); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil && value > 0 {
+			return value
+		}
+	}
+	return defaultToolCallLimit
+}
+
+// toolHistoryNote is appended to the system prompt when the conversation is
+// already deep. It is a nudge; toolCallLimit is the hard boundary.
+func toolHistoryNote(calls int) string {
+	return fmt.Sprintf("The conversation already contains %d tool calls. "+
+		"Do not repeat a call whose result you have; batch independent calls and finish with the evidence you have. "+
+		"If you are checking the same thing again, stop and answer.", calls)
+}
 
 // toolCallsInHistory counts the tool calls already present in a request. A
 // parallel batch counts as several calls but still one assistant turn; the

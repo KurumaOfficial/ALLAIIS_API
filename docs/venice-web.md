@@ -78,8 +78,11 @@ truncation does not reduce the request count and costs answer quality. Split a
 task only when the context would exceed the model window. Independent tool
 calls are requested in one batch, which keeps e.g. two file reads to one chat
 instead of two. Every response with tool history carries `X-ALLAIIS-Tool-Calls`;
-a history of 40 calls adds `X-ALLAIIS-Tool-Warning` and a WARN log line, but the
-request still runs.
+a history of 40 calls adds `X-ALLAIIS-Tool-Warning` and a WARN log line, and the
+system prompt gets a stop-and-summarize note. At 100 calls the request is
+rejected with `tool_call_limit` before spending another completion; set
+`ALLAIIS_MAX_TOOL_CALLS` to change that hard stop. This is a loop guard for
+every client, not just OpenCode.
 
 ### Per-OS notes
 

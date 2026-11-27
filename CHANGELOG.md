@@ -5,6 +5,18 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.58
+
+Runaway tool loops stop before they burn the daily allowance.
+
+- **Deep tool history is bounded.** At 40 calls the request gets the existing
+  warning header and a system note telling the model to batch and summarize.
+  At 100 calls the gateway returns `400 tool_call_limit` before spending another
+  completion. `ALLAIIS_MAX_TOOL_CALLS` changes the hard stop.
+- **The guard is client-neutral.** It counts Chat Completions, Anthropic
+  Messages and Responses histories, so a looping client outside OpenCode is
+  bounded too.
+
 ## v0.1.57
 
 Malformed tool syntax no longer stops a turn.

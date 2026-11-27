@@ -3,10 +3,25 @@
 package gateway
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/KurumaOfficial/ALLAIIS_API/core/internal/config"
 )
+
+func TestToolCallLimit(t *testing.T) {
+	t.Setenv("ALLAIIS_MAX_TOOL_CALLS", "12")
+	if got := toolCallLimit(); got != 12 {
+		t.Fatalf("override %d", got)
+	}
+	t.Setenv("ALLAIIS_MAX_TOOL_CALLS", "not-a-number")
+	if got := toolCallLimit(); got != defaultToolCallLimit {
+		t.Fatalf("fallback %d", got)
+	}
+	if note := toolHistoryNote(41); !strings.Contains(note, "41 tool calls") {
+		t.Fatalf("note %q", note)
+	}
+}
 
 func TestToolCallsInHistory(t *testing.T) {
 	cases := []struct {

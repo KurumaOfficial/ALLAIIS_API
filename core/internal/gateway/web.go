@@ -157,6 +157,9 @@ func (g *Gateway) webCompletion(w http.ResponseWriter, r *http.Request, protocol
 		writeError(w, protocol, http.StatusBadRequest, "invalid_request", err.Error())
 		return 0, 0
 	}
+	if calls := toolCallsInHistory(protocol, payload); calls >= toolCallWarn {
+		reason.system = strings.TrimSpace(reason.system + "\n\n" + toolHistoryNote(calls))
+	}
 	// Capabilities decide whether thinking is requested and surfaced.
 	reason.reasoning = request.Reasoning
 	if limit := toolLimit(target.Route); len(tools) > limit {

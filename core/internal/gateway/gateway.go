@@ -630,6 +630,11 @@ func (g *Gateway) forwardCompletion(w http.ResponseWriter, r *http.Request, prot
 				"request_id", requestID(r), "model", model, "tool_calls", calls,
 				"hint", "batch independent calls; every extra assistant turn is another upstream request")
 		}
+		if calls >= toolCallLimit() {
+			writeError(w, protocol, http.StatusBadRequest, "tool_call_limit",
+				fmt.Sprintf("This request already contains %d tool calls (limit %d). Stop the loop, summarize the result, or continue in a new session with a smaller task.", calls, toolCallLimit()))
+			return
+		}
 	}
 	sessionHeader := r.Header.Get("X-ALLAIIS-Session")
 	if sessionHeader == "" {
