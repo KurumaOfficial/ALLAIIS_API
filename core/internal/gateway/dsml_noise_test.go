@@ -18,6 +18,9 @@ func TestStripToolNoise(t *testing.T) {
 		{"before\nfunction_calls>\n", "before\n"},
 		{"the function calls> are cheap\n", "the function calls> are cheap\n"},
 		{"before\n<</ALLAIIS_TOOL_CALL>>>\n", "before\n"},
+		{"before\n<</ALLAIIS_TOOL_CALL>>>{\"calls\":[{\"name\":\"grep\",\"arguments\":{\"path\":\"a\"}}]}\n", "before\n\n"},
+		{"before\n<</", "before\n"},
+		{"before\n<<<AL", "before\n"},
 		{"before\nuser Tool result from shell:\n{\"error\":{\"type\":\"tool.execution\",\"message\":\"No tool named\"}}\nafter\n", "before\nafter\n"},
 	}
 	for _, tc := range cases {

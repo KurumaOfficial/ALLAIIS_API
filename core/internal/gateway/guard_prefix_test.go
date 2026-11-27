@@ -7,6 +7,24 @@ import (
 	"testing"
 )
 
+func TestGuardParsesMalformedOpeningMarker(t *testing.T) {
+	guard := guardFor("grep")
+	block := `<</ALLAIIS_TOOL_CALL>>>{"calls":[{"name":"grep","arguments":{"path":"a","pattern":"b"}}]}`
+	text, calls, err := guard.Write(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) == 0 {
+		text, calls, err = guard.Flush()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if text != "" || len(calls) != 1 || calls[0].Function.Name != "grep" {
+		t.Fatalf("text=%q calls=%#v", text, calls)
+	}
+}
+
 func TestGuardStripsTrailingParameterTag(t *testing.T) {
 	guard := guardFor("browse_console")
 	text, calls, err := guard.Write(`<call name="browse_console"><parameter name="action">get</parameter>` + "\n" + `</parameter></call>`)

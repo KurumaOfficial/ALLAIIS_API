@@ -5,6 +5,19 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.57
+
+Malformed tool syntax no longer stops a turn.
+
+- **`<</ALLAIIS_TOOL_CALL>>>` is accepted as an opening marker.** Models
+  sometimes write an extra slash. The guard now parses the following calls
+  envelope instead of leaking it as prose.
+- **An unparsed `{"calls":...}` envelope is stripped from visible text.**
+  If a malformed block cannot be executed, the raw call JSON no longer reaches
+  the client.
+- **A sentinel cut off by the token limit is removed.** A trailing `<</` or
+  `<<<ALLAIIS` no longer appears in the answer.
+
 ## v0.1.56
 
 Visible replies stay clean when a tool call goes wrong.

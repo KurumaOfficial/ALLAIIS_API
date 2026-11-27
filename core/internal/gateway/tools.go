@@ -1060,22 +1060,90 @@ var dsmlNoiseLine = regexp.MustCompile(`(?im)^[ \t]*(?:calls|function_calls|invo
 // visible answer must never show gateway syntax such as </ALLAIIS_TOOL_CALL>.
 var toolSentinelNoise = regexp.MustCompile(`(?i)<{0,3}\s*/?\s*ALLAIIS_TOOL_CALL\s*>{0,3}\r?\n?`)
 
+// malformedOpen catches the common <</ALLAIIS_TOOL_CALL>>> typo and treats it
+// as an opening marker instead of leaking the following JSON as prose.
+var malformedOpen = regexp.MustCompile(`(?i)<{1,3}\s*/+\s*ALLAIIS_TOOL_CALL\s*>+`)
+
 // leakedToolResultNoise catches an upstream tool-error result the model echoed
 // back as prose. A normal tool result is delivered as a user turn; only the
 // error shape is stripped here.
 var leakedToolResultNoise = regexp.MustCompile(`(?im)^[ \t]*(?:user\s+)?Tool result from [^\n:]+:\s*\{[^\n]*"error"[^\n]*\}[ \t]*\r?\n?`)
 
+// stripBareToolJSON removes an unparsed calls envelope from visible prose. A
+// malformed opening marker can leave the JSON behind after marker cleaning.
+func stripBareToolJSON(text string) string {
+	for {
+		start := strings.Index(text, `{"calls"`)
+		if start < 0 {
+			return text
+		}
+		end := matchingJSONObject(text, start)
+		if end < 0 {
+			return text
+		}
+		text = text[:start] + text[end+1:]
+	}
+}
+
+func matchingJSONObject(text string, start int) int {
+	depth, inString, escaped := 0, false, false
+	for index := start; index < len(text); index++ {
+		ch := text[index]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+			} else if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
+}
+
+// stripPartialSentinelTail removes a marker cut off by the token limit, such as
+// a trailing "<</" or "<<<ALLAIIS". It only removes a tail that is a prefix of a
+// complete sentinel, never ordinary prose.
+func stripPartialSentinelTail(text string) string {
+	trimmed := strings.TrimRight(text, " \t\r\n")
+	for _, marker := range []string{"<</ALLAIIS_TOOL_CALL>>>", "<<<ALLAIIS_TOOL_CALL>>>"} {
+		for n := len(marker) - 1; n >= 2; n-- {
+			if strings.HasSuffix(trimmed, marker[:n]) {
+				return text[:len(trimmed)-n]
+			}
+		}
+	}
+	return text
+}
+
 // stripToolNoise removes remnants of a tool marker from visible prose. It does
 // not touch a parsed call; it only cleans the text that is about to be shown.
 func stripToolNoise(text string) string {
-	if !strings.Contains(text, "DSML") && !strings.Contains(text, ">") && !strings.Contains(text, "Tool result from") {
-		return text
+	if !strings.Contains(text, "DSML") && !strings.Contains(text, ">") && !strings.Contains(text, "Tool result from") && !strings.Contains(text, `{"calls"`) && !strings.HasSuffix(strings.TrimSpace(text), "<</") {
+		return stripPartialSentinelTail(text)
 	}
 	text = toolSentinelNoise.ReplaceAllString(text, "")
 	text = leakedToolResultNoise.ReplaceAllString(text, "")
 	text = dsmlNoiseWhole.ReplaceAllString(text, "")
 	text = dsmlNoiseToken.ReplaceAllString(text, "")
-	return dsmlNoiseLine.ReplaceAllString(text, "")
+	text = dsmlNoiseLine.ReplaceAllString(text, "")
+	text = stripBareToolJSON(text)
+	return stripPartialSentinelTail(text)
 }
 
 // closeIndex finds the closing sentinel, tolerating a dropped bracket.
@@ -1128,6 +1196,9 @@ func openIndexFrom(current string, from int) (int, int) {
 		}
 	}
 	if loc := openSentinel.FindStringIndex(current[max(0, from):]); loc != nil {
+		consider(from+loc[0], loc[1]-loc[0])
+	}
+	if loc := malformedOpen.FindStringIndex(current[max(0, from):]); loc != nil {
 		consider(from+loc[0], loc[1]-loc[0])
 	}
 	return bestStart, bestLen
