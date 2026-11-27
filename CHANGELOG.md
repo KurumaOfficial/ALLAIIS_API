@@ -5,6 +5,20 @@ Releases are tagged from `main`; the binaries are on the release page with
 
 ## Unreleased
 
+## v0.1.56
+
+Visible replies stay clean when a tool call goes wrong.
+
+- **Gateway sentinels and echoed tool errors are stripped from prose.** A
+  malformed call could leak `</ALLAIIS_TOOL_CALL>` or a raw
+  `Tool result from ... {"error":...}` line into the answer. Both are removed
+  before text reaches the client.
+- **The tool prompt no longer suggests `browser_*` when it is unavailable.**
+  If the session has `browse_*` but no `browser_*`, the model is told to use
+  `browse_*` only.
+- **A stray trailing `</parameter>` in an XML argument is trimmed.** This was
+  turning `action="get"` into `"get</parameter>"` and causing a tool error.
+
 ## v0.1.55
 
 Tool-enabled turns survive screenshots and XML-style calls.

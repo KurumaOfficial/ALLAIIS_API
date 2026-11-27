@@ -88,8 +88,20 @@ func toolEnvelope(system string, tools []toolSpec) string {
 	}
 	for _, tool := range tools {
 		if strings.HasPrefix(tool.Function.Name, "browse_") {
-			header += "For browse_* tools, pass `tab` as a JSON number (e.g. 1820148504), not a quoted string. " +
-				"Prefer browse_* for browser work; browser_* requires the in-app desktop host.\n"
+			browserHost := false
+			for _, other := range tools {
+				if strings.HasPrefix(other.Function.Name, "browser_") {
+					browserHost = true
+					break
+				}
+			}
+			header += "For browse_* tools, pass `tab` as a JSON number (e.g. 1820148504), not a quoted string. "
+			if browserHost {
+				header += "Prefer browse_* for browser work; browser_* requires the in-app desktop host."
+			} else {
+				header += "browser_* is not available in this session; do not call it. Use browse_*."
+			}
+			header += "\n"
 			break
 		}
 	}
@@ -1044,12 +1056,23 @@ var dsmlNoiseWhole = regexp.MustCompile(`(?im)^[ \t]*(?:<[^\n>]{0,4})?[|｜]\s*D
 // renderer eats the opening marker but leaves the word and its closing ">".
 var dsmlNoiseLine = regexp.MustCompile(`(?im)^[ \t]*(?:calls|function_calls|invoke|parameter)\s*>[ \t]*\r?\n?`)
 
-// stripToolNoise removes remnants of a DSML marker from visible prose. It does
+// toolSentinelNoise catches a sentinel fragment that escaped the parser. The
+// visible answer must never show gateway syntax such as </ALLAIIS_TOOL_CALL>.
+var toolSentinelNoise = regexp.MustCompile(`(?i)<{0,3}\s*/?\s*ALLAIIS_TOOL_CALL\s*>{0,3}\r?\n?`)
+
+// leakedToolResultNoise catches an upstream tool-error result the model echoed
+// back as prose. A normal tool result is delivered as a user turn; only the
+// error shape is stripped here.
+var leakedToolResultNoise = regexp.MustCompile(`(?im)^[ \t]*(?:user\s+)?Tool result from [^\n:]+:\s*\{[^\n]*"error"[^\n]*\}[ \t]*\r?\n?`)
+
+// stripToolNoise removes remnants of a tool marker from visible prose. It does
 // not touch a parsed call; it only cleans the text that is about to be shown.
 func stripToolNoise(text string) string {
-	if !strings.Contains(text, "DSML") && !strings.Contains(text, ">") {
+	if !strings.Contains(text, "DSML") && !strings.Contains(text, ">") && !strings.Contains(text, "Tool result from") {
 		return text
 	}
+	text = toolSentinelNoise.ReplaceAllString(text, "")
+	text = leakedToolResultNoise.ReplaceAllString(text, "")
 	text = dsmlNoiseWhole.ReplaceAllString(text, "")
 	text = dsmlNoiseToken.ReplaceAllString(text, "")
 	return dsmlNoiseLine.ReplaceAllString(text, "")
@@ -1327,7 +1350,9 @@ func buildCallFromBodyWithAttrs(name, tag, body string) (toolCall, error) {
 			object[parameter] = strings.TrimSpace(after)
 			break
 		}
-		object[parameter] = parameterValue(after[:end])
+		value := strings.TrimSpace(after[:end])
+		value = strings.TrimSuffix(value, "</parameter>")
+		object[parameter] = parameterValue(value)
 		body = after[end+len("</parameter>"):]
 	}
 	return buildCallFromValues(name, object)
